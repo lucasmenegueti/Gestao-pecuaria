@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reabastecimento - Carregamento</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="phone-frame">
+    <div class="header">
+      <a href="13-estoque.html" class="back-btn">&#x2190;</a>
+      <div>
+        <h1>&#x1F69C; REABASTECIMENTO</h1>
+        <div class="subtitle">FASE 1: CARREGAMENTO</div>
+      </div>
+    </div>
+    <div class="content">
+
+      <div class="wizard-question">O QUE VAI LEVAR?</div>
+      <p class="text-muted mb-16">Marque os produtos e quantos sacos de cada</p>
+
+      <!-- Product 1 - checked -->
+      <div class="card" style="border: 2px solid var(--primary); background: var(--primary-light);">
+        <div class="flex-between mb-8">
+          <div>
+            <span style="font-size: 20px;">&#x2705;</span>
+            <strong style="font-size: 17px;">PROBEEF REPRODUCAO</strong>
+          </div>
+        </div>
+        <div class="text-muted fs-14 mb-8">Central: 200 sacos disponiveis</div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="fw-bold">Levando:</span>
+          <div class="slider-row" style="flex: 1; margin: 0;">
+            <button class="slider-btn" style="width: 40px; height: 40px; font-size: 18px;">-</button>
+            <div style="text-align: center; flex: 1;">
+              <span style="font-size: 28px; font-weight: 800; color: var(--primary);">30</span>
+              <span class="text-muted"> sacos</span>
+            </div>
+            <button class="slider-btn" style="width: 40px; height: 40px; font-size: 18px;">+</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Product 2 - checked -->
+      <div class="card" style="border: 2px solid var(--primary); background: var(--primary-light);">
+        <div class="flex-between mb-8">
+          <div>
+            <span style="font-size: 20px;">&#x2705;</span>
+            <strong style="font-size: 17px;">SAL MINERAL</strong>
+          </div>
+        </div>
+        <div class="text-muted fs-14 mb-8">Central: 45 sacos disponiveis</div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="fw-bold">Levando:</span>
+          <div class="slider-row" style="flex: 1; margin: 0;">
+            <button class="slider-btn" style="width: 40px; height: 40px; font-size: 18px;">-</button>
+            <div style="text-align: center; flex: 1;">
+              <span style="font-size: 28px; font-weight: 800; color: var(--primary);">15</span>
+              <span class="text-muted"> sacos</span>
+            </div>
+            <button class="slider-btn" style="width: 40px; height: 40px; font-size: 18px;">+</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Product 3 - not checked -->
+      <div class="card" style="border: 2px solid var(--border); opacity: 0.7; cursor: pointer;">
+        <div class="flex-between">
+          <div>
+            <span style="font-size: 20px;">&#x2B1C;</span>
+            <strong style="font-size: 17px;">ENGORDA 3 KG</strong>
+          </div>
+        </div>
+        <div class="text-muted fs-14">Central: 85 sacos &bull; Toque para adicionar</div>
+      </div>
+
+      <!-- Product 4 - not checked -->
+      <div class="card" style="border: 2px solid var(--border); opacity: 0.7; cursor: pointer;">
+        <div class="flex-between">
+          <div>
+            <span style="font-size: 20px;">&#x2B1C;</span>
+            <strong style="font-size: 17px;">PROTEINADO SECO</strong>
+          </div>
+        </div>
+        <div class="text-muted fs-14">Central: 50 sacos &bull; Toque para adicionar</div>
+      </div>
+
+      <!-- Summary -->
+      <div class="card mt-16" style="background: #fff3cd; border: 1px solid #ffc107;">
+        <div class="fw-bold mb-8">&#x1F69C; TOTAL NO TRATOR:</div>
+        <div>30 sacos PROBEEF REPRODUCAO</div>
+        <div>15 sacos SAL MINERAL</div>
+        <div class="fw-bold mt-8">= 45 sacos total</div>
+      </div>
+
+      <a href="14-reabastecimento-2.html" class="btn btn-primary mt-16" style="font-size: 20px;">
+        &#x1F69C; INICIAR ROTA &#x2192;
+      </a>
+
+    </div>
+  </div>
+</body>
+</html>
