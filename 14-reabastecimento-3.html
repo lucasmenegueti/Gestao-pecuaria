@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reabastecimento - Abastecer Piquete</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="phone-frame">
+    <div class="header" style="background: var(--warning);">
+      <a href="14-reabastecimento-2.html" class="back-btn">&#x2190;</a>
+      <h1>ABASTECER PASTO 15</h1>
+    </div>
+
+    <div class="trator-bar">
+      <div class="trator-title">&#x1F69C; DISPONIVEL NO TRATOR:</div>
+      <div>PROBEEF: <strong>22 sacos</strong></div>
+      <div>SAL MIN: <strong>12 sacos</strong></div>
+    </div>
+
+    <div class="content">
+
+      <div class="card" style="border-left: 4px solid var(--danger);">
+        <div class="text-muted fs-14">Bombona atual</div>
+        <div class="text-danger fw-bold" style="font-size: 20px;">0 sacos (VAZIA)</div>
+        <div class="text-muted fs-14">Produto em uso: PROBEEF REPRODUCAO</div>
+      </div>
+
+      <div class="wizard-question mt-24">QUANTOS SACOS DEIXOU?</div>
+      <p class="text-muted mb-8">PROBEEF REPRODUCAO</p>
+
+      <div class="slider-container">
+        <span class="slider-value">8</span>
+        <span class="slider-unit">sacos</span>
+      </div>
+      <div class="slider-row">
+        <button class="slider-btn">-</button>
+        <div class="slider-track"><div class="slider-fill" style="width: 36%;"></div></div>
+        <button class="slider-btn">+</button>
+      </div>
+      <div class="slider-labels"><span>0</span><span>Max: 22 (trator)</span></div>
+
+      <div class="card mt-16" style="background: var(--success-bg); text-align: center;">
+        <div class="text-success fw-bold">Bombona ficara com:</div>
+        <div style="font-size: 28px; font-weight: 800; color: var(--success);">0 + 8 = 8 sacos</div>
+      </div>
+
+      <!-- Another product? -->
+      <div class="section-title mt-16">TEM OUTRO PRODUTO PARA DEIXAR AQUI?</div>
+      <div class="binary-row">
+        <button class="binary-btn yes">
+          <span class="icon">&#x2795;</span>
+          <span style="font-size: 14px;">SIM, outro produto</span>
+        </button>
+        <button class="binary-btn no selected">
+          <span class="icon">&#x274C;</span>
+          NAO
+        </button>
+      </div>
+
+      <a href="14-reabastecimento-2.html" class="btn btn-success mt-16" style="font-size: 20px;">
+        &#x2705; CONFIRMAR
+      </a>
+
+    </div>
+  </div>
+</body>
+</html>
