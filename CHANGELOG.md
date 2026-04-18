@@ -6,6 +6,57 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.5.1 — "Logout offline silencioso" (2026-04-17)
+
+Hotfix pra red box do LogBox (`TypeError: Network request failed`) que aparecia ao sair do app em modo avião.
+
+- **Custom fetch na Supabase client** (`app/src/lib/supabase/client.ts`): intercepta chamadas quando NetInfo reporta offline. Para `/auth/v1/logout` devolve 204 (permite ao auth-js completar cleanup local do AsyncStorage); demais endpoints recebem 503 sintético. Isso evita o `console.error(e)` do auth-js em `lib/fetch.js:97` que virava red box do LogBox em dev sempre que o app tentava logar/sincronizar offline.
+- **`logout()` usa `scope: 'local'`** (`app/src/stores/authStore.ts`): evita invalidar sessões em outros dispositivos e combina com o custom fetch pra logout silencioso quando offline.
+- **Módulo `netStatus`** (`app/src/lib/netStatus.ts`): única fonte de verdade sobre conectividade. Antes tínhamos listeners/fetches NetInfo duplicados em `supabase/client.ts` e `sync/daemon.ts` — agora compartilham uma subscription via `isOnline()` / `onNetChange()`.
+
+**Fallback:** `git checkout v0.5.0` — volta ao comportamento com red box intermitente em dev quando offline (não afeta funcionalidade, só UX de desenvolvedor).
+
+---
+
+## v0.5.0 — "Mapa OSM Bundled + Pastos v5" (2026-04-17)
+
+Dados geográficos atualizados e mapa totalmente offline (tiles OSM empacotados no app).
+
+- **KML v5 da fazenda**: `kml/Fazenda NSA - Pastos v5.kmz` substitui o antigo `Area aberta NSA`. Parser atualizado para ler `<MultiGeometry>` (Polygon + Point por Placemark) e extrair metadados do `<description>` (Retiro, Area aberta, IdPasto).
+- **125 piquetes** seedados (antes: 37), divididos em NSA I (109) e NSA II (16). Nomes recebem prefixo do retiro quando há ambiguidade (`NSA I P11` vs `NSA II P11`).
+- **Mapa satélite Esri + Leaflet**: web e native usam imagens de satélite do Esri World Imagery (grátis, sem API key) via Leaflet — ideal pra fazenda, mostra vegetação/trilhas/cercas em vez de ruas. Nativo migrado de `react-native-maps` para `WebView + Leaflet`. Dependência `react-native-maps` removida; `react-native-webview` e `expo-asset` adicionadas.
+- **Tiles empacotados no app**: script `scripts/fetch-tiles.mjs` baixa ~2700 tiles satélite do bbox da fazenda (zooms 12–17) para `app/assets/tiles/` e gera `components/map/tile-manifest.ts` com `require()`s estáticos. Tiles viram assets do APK — funcionam 100% offline desde o primeiro boot, sem download no dispositivo. Script deve ser rodado quando o KML mudar ou ~1×/mês para refrescar.
+- **GPS no mapa**: ponto azul do usuário + círculo de precisão atualiza em tempo real enquanto anda. Botão flutuante "◎" centraliza o mapa na posição atual. Usa `expo-location` com `watchPositionAsync` (high accuracy, 5m de intervalo) no native e `map.locate({watch: true})` no web. Permissão solicitada ao abrir a tela Mapa pela primeira vez.
+- **Ronda filtra piquetes com gado**: o Painel e a aba Ronda só mostram/contam piquetes com `herd.head_count > 0`. Com 125 piquetes no KML mas nem todos ocupados, a lista de rondas pendentes fica enxuta — só pastos que realmente precisam de avaliação.
+- **Leaflet inline no WebView**: `scripts/bundle-leaflet-inline.mjs` empacota Leaflet (~160 KB) como strings em `components/map/leaflet-inline.ts`. O WebView não depende de CDN.
+- **Schema version 5 → 6**: dropa e re-seeda `paddocks` / `water_tanks` / `farm_boundaries` ao abrir o app após atualização. Caixas d'água (4) e limite NSA2 mantidos estáticos no script (não vêm do novo KML).
+
+**Como regenerar os tiles (mensal):**
+```bash
+cd app && node scripts/fetch-tiles.mjs
+```
+Commitar `app/assets/tiles/` + `app/src/components/map/tile-manifest.ts` após rodar.
+
+**Fallback:** `git checkout v0.4.0` — volta ao mapa anterior com 37 piquetes e ESRI/Google Maps.
+
+---
+
+## v0.4.0 — "Rebanho com Pool e Desalocação" (2026-04-14)
+
+Redesign completo da gestão do rebanho para refletir a realidade da fazenda: lotes podem ficar **desalocados** (sem piquete) entre reagrupamentos. Regra: 1 piquete = 1 lote, exceção VACA + BEZERRO/A MAMANDO coexistem como lote de pares.
+
+- **Schema**: `herd.paddock_id` passa a ser **NULLABLE** (`NULL = desalocado`). `herd_events.paddock_id` também, para eventos de alocação. Novos tipos: `DESALOCACAO`, `ALOCACAO`.
+- **Tela Rebanho reescrita**: card de totais por categoria (farm-wide, 9 linhas), card de pool DESALOCADOS (só aparece se houver), lista por piquete com badge "LOTE DE PARES" quando há vaca + bezerro mamando, botões MOVER / DESALOCAR / ALOCAR / EVENTO.
+- **Novo fluxo DESALOCAR** (`admin/desalocar.tsx`): escolhe piquete, slider por categoria (0 a qtd atual) ou "DESALOCAR TUDO", confirma. Aceita `?paddockId=X` via query param (botão por piquete na lista).
+- **Novo fluxo ALOCAR** (`admin/alocar.tsx`): mostra pool, slider por categoria para compor lote, escolhe piquete destino, confirma. Alerta quando mistura categorias que não são vaca+bezerro mamando.
+- **Evento ajustado**: no NASCIMENTO, se piquete tem VACA, pré-seleciona BEZERRO MAMANDO e filtra categorias para bezerro/bezerra mamando. Na MORTE, filtra categorias para aquelas presentes no piquete.
+- **Mover rebanho**: origem filtra pool (só piquetes com gado); destino segue livre.
+- Schema version 2 → 3 com drop/recreate de `herd` e `herd_events`, re-seed automático de `herd` via `SEED_HERD_SQL` extraído do seed.
+
+**Fallback:** `git checkout v0.3.0` — volta ao modelo sem pool (herd.paddock_id NOT NULL). Atenção: se houver gado desalocado (paddock_id NULL) no momento do rollback, essas linhas precisarão ser realocadas ou removidas manualmente antes de operar no v0.3.0.
+
+---
+
 ## v0.3.0 — "App Expo + Refinamentos de Fluxo" (2026-04-14)
 
 Primeira versão do app Expo/React Native funcional no navegador e mobile. Inclui as features de base (auth, ronda, rebanho, estoque, mapa, admin, reabastecimento) e um conjunto de refinamentos de UX aplicados após validação em campo/browser:
