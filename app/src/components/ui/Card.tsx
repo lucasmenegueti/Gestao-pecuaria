@@ -1,9 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, ViewStyle, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, StyleProp, ViewStyle, TextStyle, TouchableOpacity } from 'react-native';
 
 interface CardProps {
   children: React.ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   onPress?: () => void;
   borderColor?: string;
 }
@@ -27,7 +27,7 @@ export function Card({ children, style, onPress, borderColor }: CardProps) {
 
 interface CardTitleProps {
   children: string;
-  style?: any;
+  style?: StyleProp<TextStyle>;
 }
 
 export function CardTitle({ children, style }: CardTitleProps) {

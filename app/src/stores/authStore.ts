@@ -24,8 +24,8 @@ async function emailForUsername(username: string): Promise<string> {
   return String(data);
 }
 
-function isNetworkError(err: any): boolean {
-  const msg = String(err?.message ?? err ?? '');
+function isNetworkError(err: unknown): boolean {
+  const msg = String((err as { message?: unknown })?.message ?? err ?? '');
   return /network|fetch|offline|timeout|failed to fetch/i.test(msg);
 }
 

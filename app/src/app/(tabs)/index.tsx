@@ -1,64 +1,46 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
-import { router } from 'expo-router';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
 import { useDatabase } from '@/lib/db/provider';
 import { useAuthStore } from '@/stores/authStore';
-import { useSyncStore } from '@/stores/syncStore';
-import { Card, CardTitle, Button, Badge } from '@/components/ui';
+import { Card, CardTitle } from '@/components/ui';
 import { Colors } from '@/constants';
+import { loadAlerts, AlertsData } from '@/lib/alerts';
+import { getSyncStatus } from '@/lib/sync/engine';
+import { forceSync, isOnline } from '@/lib/sync/daemon';
+
+const SECTION_COLOR = {
+  ronda: Colors.suplementacao, // reusa cor da ronda
+  rebanho: Colors.rebanho,
+  estoque: Colors.peso,
+} as const;
 
 export default function DashboardScreen() {
   const db = useDatabase();
   const user = useAuthStore((s) => s.user);
-  const pendingCount = useSyncStore((s) => s.pendingCount);
-  const [totalPaddocks, setTotalPaddocks] = useState(0);
-  const [rondaCount, setRondaCount] = useState(0);
-  const [alerts, setAlerts] = useState<Array<{ paddock: string; message: string; type: string }>>([]);
+  const offlineMode = useAuthStore((s) => s.offlineMode);
+  const [alerts, setAlerts] = useState<AlertsData | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<{ pending: number; last_pull_at: string | null } | null>(null);
 
-  useEffect(() => {
-    loadDashboard();
-  }, []);
+  const refresh = useCallback(() => {
+    loadAlerts(db).then(setAlerts).catch(() => setAlerts(null));
+    getSyncStatus(db).then(setSyncStatus).catch(() => setSyncStatus(null));
+  }, [db]);
 
-  async function loadDashboard() {
-    const paddocks = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM paddocks WHERE active = 1');
-    setTotalPaddocks(paddocks?.count || 0);
+  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
-    const today = new Date().toISOString().split('T')[0];
-    const rondas = await db.getFirstAsync<{ count: number }>(
-      'SELECT COUNT(DISTINCT paddock_id) as count FROM rondas WHERE date = ?',
-      [today]
-    );
-    setRondaCount(rondas?.count || 0);
-
-    // Check alerts: empty bombonas, low stock, etc.
-    const lowBombonas = await db.getAllAsync<{ name: string; quantity_sacks: number }>(
-      `SELECT p.name, i.quantity_sacks FROM inventory i
-       JOIN paddocks p ON p.id = i.paddock_id
-       WHERE i.location = 'bombona' AND i.quantity_sacks <= 1`
-    );
-
-    const lowCentral = await db.getAllAsync<{ name: string; quantity_sacks: number; min_sacks: number }>(
-      `SELECT f.name, i.quantity_sacks, i.min_sacks FROM inventory i
-       JOIN formulas f ON f.id = i.formula_id
-       WHERE i.location = 'central' AND i.quantity_sacks < i.min_sacks`
-    );
-
-    const newAlerts: typeof alerts = [];
-    lowBombonas.forEach((b) => {
-      newAlerts.push({
-        paddock: b.name,
-        message: b.quantity_sacks === 0 ? 'Cocho vazio!' : 'Cocho quase vazio',
-        type: b.quantity_sacks === 0 ? 'danger' : 'warning',
-      });
-    });
-    lowCentral.forEach((c) => {
-      newAlerts.push({
-        paddock: c.name,
-        message: 'Estoque central abaixo do mínimo',
-        type: 'danger',
-      });
-    });
-    setAlerts(newAlerts);
+  async function handleSync() {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      const stats = await forceSync(db);
+      if (__DEV__) console.log('[painel] sync', stats);
+    } catch (e: any) {
+      if (__DEV__) console.warn('[painel] sync falhou:', e?.message);
+    }
+    setSyncing(false);
+    refresh();
   }
 
   const greeting = () => {
@@ -68,27 +50,61 @@ export default function DashboardScreen() {
     return 'BOA NOITE';
   };
 
-  const progress = totalPaddocks > 0 ? (rondaCount / totalPaddocks) * 100 : 0;
+  const rondasToday = alerts?.rondasToday ?? 0;
+  const totalPaddocks = alerts?.paddocksWithCattle ?? 0;
+  const progress = totalPaddocks > 0 ? (rondasToday / totalPaddocks) * 100 : 0;
 
   return (
     <SafeAreaView style={styles.safe}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Painel</Text>
-        <TouchableOpacity onPress={() => router.push('/admin/formulas')}>
-          <Text style={styles.settingsIcon}>⚙️</Text>
+        <View style={styles.headerActions}>
+          <TouchableOpacity onPress={() => router.push('/admin/formulas')}>
+            <Text style={styles.settingsIcon}>⚙️</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              useAuthStore.getState().logout();
+              router.replace('/(auth)/login');
+            }}
+            hitSlop={8}
+          >
+            <Text style={styles.logoutText}>SAIR</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={styles.syncBar}>
+        <TouchableOpacity onPress={handleSync} disabled={syncing} activeOpacity={0.7} style={{ flex: 1, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}>
+          {syncing ? (
+            <>
+              <ActivityIndicator size="small" color={Colors.warning} />
+              <Text style={[styles.syncText, { marginLeft: 8 }]}>Sincronizando…</Text>
+            </>
+          ) : offlineMode ? (
+            <Text style={[styles.syncText, { color: Colors.warning }]}>
+              ⚠ Modo offline · entre online pra sincronizar
+            </Text>
+          ) : !isOnline() ? (
+            <Text style={[styles.syncText, { color: Colors.danger }]}>
+              📵 Offline · {syncStatus?.pending ?? 0} pra subir quando reconectar
+            </Text>
+          ) : (syncStatus?.pending ?? 0) > 0 ? (
+            <Text style={styles.syncText}>
+              🔄 {syncStatus?.pending} pra subir · toque pra sincronizar
+            </Text>
+          ) : (
+            <Text style={[styles.syncText, { color: Colors.success }]}>
+              ✓ Sincronizado {formatSince(syncStatus?.last_pull_at)}
+            </Text>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.push('/admin/logs')} hitSlop={8} style={styles.logsBtn}>
+          <Text style={styles.logsBtnText}>LOGS</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Sync bar */}
-      {pendingCount > 0 && (
-        <View style={styles.syncBar}>
-          <Text style={styles.syncText}>🔄 {pendingCount} registros aguardando sincronização</Text>
-        </View>
-      )}
-
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        {/* Greeting */}
         <Text style={styles.greeting}>
           {greeting()}, {user?.name?.split(' ')[0]?.toUpperCase() || 'PEÃO'}!
         </Text>
@@ -96,24 +112,11 @@ export default function DashboardScreen() {
           {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
         </Text>
 
-        {/* Alerts */}
-        {alerts.length > 0 && (
-          <Card style={{ marginTop: 16 }}>
-            <CardTitle>⚠️ Alertas</CardTitle>
-            {alerts.map((alert, i) => (
-              <View key={i} style={styles.alertRow}>
-                <Badge label={alert.paddock} variant={alert.type as any} />
-                <Text style={styles.alertText}>{alert.message}</Text>
-              </View>
-            ))}
-          </Card>
-        )}
-
-        {/* Ronda Progress */}
-        <Card style={{ marginTop: 12 }}>
+        {/* Progress de ronda — principal indicador diário */}
+        <Card style={{ marginTop: 16 }}>
           <CardTitle>Rondas feitas hoje</CardTitle>
           <View style={styles.progressRow}>
-            <Text style={styles.progressText}>{rondaCount} de {totalPaddocks}</Text>
+            <Text style={styles.progressText}>{rondasToday} de {totalPaddocks}</Text>
             <Text style={styles.progressPercent}>{Math.round(progress)}%</Text>
           </View>
           <View style={styles.progressBar}>
@@ -121,42 +124,158 @@ export default function DashboardScreen() {
           </View>
         </Card>
 
-        {/* Quick Actions */}
-        <Button
-          title="INICIAR RONDA"
-          onPress={() => router.push('/(tabs)/ronda')}
-          size="large"
-          icon="🔍"
-          style={{ marginTop: 16 }}
+        {/* Ronda alerts */}
+        <AlertSection
+          title="RONDA"
+          color={SECTION_COLOR.ronda}
+          emptyMsg="Nenhum problema em aberto"
+          onHeaderPress={() => router.push('/(tabs)/ronda')}
+          items={(alerts?.ronda ?? []).map((r) => ({
+            severity: r.severity,
+            left: r.paddockName,
+            right: labelKind(r.kind) + ' · ' + r.detail,
+            onPress: () => router.push(`/ronda/${r.paddockId}/menu`),
+          }))}
         />
 
-        <View style={styles.quickRow}>
-          <Button
-            title="Estoque"
-            variant="secondary"
-            onPress={() => router.push('/(tabs)/estoque')}
-            icon="📦"
-            style={styles.quickButton}
-          />
-          <Button
-            title="Rebanho"
-            variant="secondary"
-            onPress={() => router.push('/(tabs)/rebanho')}
-            icon="🐂"
-            style={styles.quickButton}
-          />
-        </View>
+        {/* Rebanho alerts */}
+        <AlertSection
+          title="REBANHO"
+          color={SECTION_COLOR.rebanho}
+          emptyMsg="Todo o gado alocado"
+          onHeaderPress={() => router.push('/(tabs)/rebanho')}
+          items={
+            alerts && alerts.desalocatedTotal > 0
+              ? [
+                  {
+                    severity: 'warning' as const,
+                    left: `${alerts.desalocatedTotal} cab desalocadas`,
+                    right: alerts.desalocated.map((d) => `${d.heads} ${d.category}`).join(' · '),
+                    onPress: () => router.push('/admin/alocar'),
+                  },
+                ]
+              : []
+          }
+        />
 
-        <Button
-          title="VER LOTAÇÃO"
-          variant="outline"
-          onPress={() => router.push('/admin/lotacao')}
-          style={{ marginTop: 12 }}
+        {/* Estoque alerts */}
+        <AlertSection
+          title="ESTOQUE"
+          color={SECTION_COLOR.estoque}
+          emptyMsg="Sem alertas de suprimento"
+          onHeaderPress={() => router.push('/(tabs)/estoque')}
+          items={[
+            ...(alerts?.bombonas ?? []).map((b) => ({
+              severity: b.severity,
+              left: b.paddockName,
+              right:
+                b.daysLeft <= 0
+                  ? `Cocho previsto vazio · ${b.formulaName}`
+                  : `${b.daysLeft} dia(s) · ${b.formulaName}`,
+              onPress: () => router.push(`/ronda/${b.paddockId}/menu`),
+            })),
+            ...(alerts?.central ?? []).map((c) => ({
+              severity: c.severity,
+              left: 'Central: ' + c.formulaName,
+              right: `${c.have} sacos · ${c.daysLeft} dia(s) (precisa ${c.need} p/ 30d)`,
+              onPress: () => router.push('/(tabs)/estoque'),
+            })),
+          ]}
         />
       </ScrollView>
     </SafeAreaView>
   );
 }
+
+function formatSince(iso: string | null | undefined): string {
+  if (!iso) return 'nunca';
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'agora';
+  if (m < 60) return `há ${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `há ${h}h`;
+  return `há ${Math.floor(h / 24)}d`;
+}
+
+function labelKind(k: 'agua' | 'sanidade' | 'cerca') {
+  if (k === 'agua') return '💧 Água';
+  if (k === 'sanidade') return '🩺 Sanidade';
+  return '🧱 Cerca';
+}
+
+interface AlertItem {
+  severity: 'warning' | 'danger';
+  left: string;
+  right: string;
+  onPress?: () => void;
+}
+
+function AlertSection({
+  title, color, items, emptyMsg, onHeaderPress,
+}: {
+  title: string;
+  color: string;
+  items: AlertItem[];
+  emptyMsg: string;
+  onHeaderPress?: () => void;
+}) {
+  return (
+    <View style={[sectionStyles.card, { borderLeftColor: color }]}>
+      <TouchableOpacity onPress={onHeaderPress} disabled={!onHeaderPress} style={sectionStyles.header}>
+        <Text style={[sectionStyles.title, { color }]}>{title}</Text>
+        {onHeaderPress && <Text style={sectionStyles.chev}>›</Text>}
+      </TouchableOpacity>
+      {items.length === 0 ? (
+        <Text style={sectionStyles.empty}>✓ {emptyMsg}</Text>
+      ) : (
+        items.map((it, i) => (
+          <TouchableOpacity
+            key={i}
+            onPress={it.onPress}
+            disabled={!it.onPress}
+            style={[
+              sectionStyles.row,
+              { borderLeftColor: it.severity === 'danger' ? Colors.danger : Colors.warning },
+            ]}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={sectionStyles.rowLeft}>{it.left}</Text>
+              <Text style={sectionStyles.rowRight}>{it.right}</Text>
+            </View>
+          </TouchableOpacity>
+        ))
+      )}
+    </View>
+  );
+}
+
+const sectionStyles = StyleSheet.create({
+  card: {
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 12,
+    borderLeftWidth: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  title: { fontSize: 13, fontWeight: '800', letterSpacing: 0.8 },
+  chev: { fontSize: 20, color: Colors.textMuted, fontWeight: '700' },
+  empty: { fontSize: 13, color: Colors.success, marginTop: 8, fontWeight: '600' },
+  row: {
+    marginTop: 8,
+    paddingLeft: 10,
+    paddingVertical: 6,
+    borderLeftWidth: 3,
+  },
+  rowLeft: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  rowRight: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+});
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
@@ -170,45 +289,26 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   headerTitle: { fontSize: 20, fontWeight: '800', color: Colors.white },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   settingsIcon: { fontSize: 24 },
+  logoutText: { color: Colors.white, fontSize: 14, fontWeight: '700', letterSpacing: 0.5 },
   syncBar: {
     backgroundColor: '#fff3e0',
     padding: 10,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  syncText: { fontSize: 14, color: Colors.warning, fontWeight: '600' },
+  syncText: { fontSize: 13, color: Colors.warning, fontWeight: '600' },
+  logsBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 4, borderWidth: 1, borderColor: Colors.textMuted },
+  logsBtnText: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.5 },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 32 },
   greeting: { fontSize: 24, fontWeight: '800', color: Colors.text },
   date: { fontSize: 16, color: Colors.textMuted, marginTop: 4 },
-  alertRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 8,
-  },
-  alertText: { fontSize: 14, color: Colors.text, flex: 1 },
-  progressRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
+  progressRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   progressText: { fontSize: 16, color: Colors.text, fontWeight: '600' },
   progressPercent: { fontSize: 16, color: Colors.primary, fontWeight: '700' },
-  progressBar: {
-    height: 8,
-    backgroundColor: Colors.border,
-    borderRadius: 4,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: Colors.primary,
-    borderRadius: 4,
-  },
-  quickRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 12,
-  },
-  quickButton: { flex: 1 },
+  progressBar: { height: 8, backgroundColor: Colors.border, borderRadius: 4 },
+  progressFill: { height: '100%', backgroundColor: Colors.primary, borderRadius: 4 },
 });
