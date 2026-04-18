@@ -16,6 +16,7 @@ export interface SyncStats {
 interface SyncState {
   last_pull_at: string | null;
   last_push_at: string | null;
+  last_sync_at: string | null;
 }
 
 interface TableConfig {
@@ -40,8 +41,10 @@ const REMOTE_ONLY_COLS = new Set(['id', 'client_id', 'created_by', 'created_at',
 // ---------------------------------------------------------------------
 
 async function getSyncState(db: SQLite.SQLiteDatabase): Promise<SyncState> {
-  const row = await db.getFirstAsync<SyncState>('SELECT last_pull_at, last_push_at FROM sync_state WHERE id = 1');
-  return row ?? { last_pull_at: null, last_push_at: null };
+  const row = await db.getFirstAsync<SyncState>(
+    'SELECT last_pull_at, last_push_at, last_sync_at FROM sync_state WHERE id = 1'
+  );
+  return row ?? { last_pull_at: null, last_push_at: null, last_sync_at: null };
 }
 
 async function setPullAt(db: SQLite.SQLiteDatabase, iso: string) {
@@ -483,6 +486,12 @@ export async function syncAll(db: SQLite.SQLiteDatabase): Promise<SyncStats> {
     logError('sync', 'sync_failed', { error: e?.message });
     throw e;
   }
+  // Timestamp "última sincronização" — sempre avança em ciclo bem-sucedido,
+  // mesmo sem rows novas. Distinto de last_pull_at (cursor de delta sync).
+  await db.runAsync(
+    'UPDATE sync_state SET last_sync_at = ? WHERE id = 1',
+    [new Date().toISOString()]
+  );
   const duration_ms = Date.now() - t0;
   // Só loga se teve atividade significativa
   const totalPushed = Object.values(pushed).reduce((s, v) => s + v.inserted + v.updated + v.failed, 0);

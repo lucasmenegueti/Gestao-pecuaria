@@ -41,11 +41,16 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
--- sync_state: metadados de sincronização (1 linha só, id=1)
+-- sync_state: metadados de sincronização (1 linha só, id=1).
+-- last_pull_at é o CURSOR de delta sync (avança só quando chegam rows novas).
+-- last_sync_at é o TIMESTAMP DE EXIBIÇÃO ("última sincronização feita") —
+-- avança em todo ciclo bem-sucedido, mesmo sem rows novas. Sem isso o Painel
+-- parecia que nunca ressincronizava quando o server estava em dia.
 CREATE TABLE IF NOT EXISTS sync_state (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   last_pull_at TEXT,
-  last_push_at TEXT
+  last_push_at TEXT,
+  last_sync_at TEXT
 );
 INSERT OR IGNORE INTO sync_state (id) VALUES (1);
 

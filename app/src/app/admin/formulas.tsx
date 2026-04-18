@@ -13,6 +13,7 @@ interface FormulaRow {
   kg_per_sack: number;
   target_g_per_kg_body_day: number;
   active: number;
+  min_sacks: number; // vem de inventory.min_sacks (location='central')
 }
 
 export default function FormulasScreen() {
@@ -23,11 +24,20 @@ export default function FormulasScreen() {
   const [name, setName] = useState('');
   const [kgPerSack, setKgPerSack] = useState('25');
   const [consumption, setConsumption] = useState('0.3');
+  const [minSacks, setMinSacks] = useState('0');
 
   useFocusEffect(useCallback(() => { load(); }, []));
 
   async function load() {
-    const rows = await db.getAllAsync<FormulaRow>('SELECT * FROM formulas ORDER BY active DESC, name');
+    // Junta formula + min_sacks do estoque central (LEFT JOIN pra incluir
+    // formulações que ainda não têm linha de inventory criada).
+    const rows = await db.getAllAsync<FormulaRow>(
+      `SELECT f.id, f.name, f.kg_per_sack, f.target_g_per_kg_body_day, f.active,
+              COALESCE(i.min_sacks, 0) as min_sacks
+         FROM formulas f
+         LEFT JOIN inventory i ON i.formula_id = f.id AND i.location = 'central'
+         ORDER BY f.active DESC, f.name`
+    );
     setFormulas(rows);
   }
 
@@ -36,6 +46,7 @@ export default function FormulasScreen() {
     setName('');
     setKgPerSack('25');
     setConsumption('100');
+    setMinSacks('0');
     setModalVisible(true);
   }
 
@@ -44,18 +55,38 @@ export default function FormulasScreen() {
     setName(f.name);
     setKgPerSack(String(f.kg_per_sack));
     setConsumption(String(f.target_g_per_kg_body_day));
+    setMinSacks(String(f.min_sacks));
     setModalVisible(true);
   }
 
   async function handleSave() {
     if (!name.trim()) { Alert.alert('Erro', 'Preencha o nome'); return; }
+    const minSacksNum = Number(minSacks) || 0;
     try {
+      let formulaId: number;
       if (editId) {
         await db.runAsync('UPDATE formulas SET name=?, kg_per_sack=?, target_g_per_kg_body_day=? WHERE id=?',
           [name.trim(), Number(kgPerSack), Number(consumption), editId]);
+        formulaId = editId;
       } else {
-        await db.runAsync('INSERT INTO formulas (name, kg_per_sack, target_g_per_kg_body_day) VALUES (?,?,?)',
-          [name.trim(), Number(kgPerSack), Number(consumption)]);
+        const res = await db.runAsync(
+          'INSERT INTO formulas (name, kg_per_sack, target_g_per_kg_body_day) VALUES (?,?,?)',
+          [name.trim(), Number(kgPerSack), Number(consumption)]
+        );
+        formulaId = Number(res.lastInsertRowId);
+      }
+      // min_sacks fica em inventory (location='central'). Cria linha se não existe.
+      const inv = await db.getFirstAsync<{ id: number }>(
+        "SELECT id FROM inventory WHERE formula_id=? AND location='central'",
+        [formulaId]
+      );
+      if (inv) {
+        await db.runAsync('UPDATE inventory SET min_sacks=? WHERE id=?', [minSacksNum, inv.id]);
+      } else {
+        await db.runAsync(
+          "INSERT INTO inventory (formula_id, quantity_sacks, min_sacks, location) VALUES (?,0,?, 'central')",
+          [formulaId, minSacksNum]
+        );
       }
       setModalVisible(false);
       load();
@@ -97,6 +128,7 @@ export default function FormulasScreen() {
             </View>
             <Text style={styles.itemDetail}>{f.kg_per_sack} kg por saco</Text>
             <Text style={styles.itemDetail}>Consumo alvo: {f.target_g_per_kg_body_day} g/kg PV/dia</Text>
+            <Text style={styles.itemDetail}>Estoque mínimo: {f.min_sacks} sacos</Text>
             <View style={styles.itemActions}>
               <TouchableOpacity onPress={() => openEdit(f)} style={styles.actionLink}>
                 <Text style={styles.actionText}>Editar</Text>
@@ -124,6 +156,9 @@ export default function FormulasScreen() {
             <Text style={styles.label}>Consumo alvo (g/kg peso vivo/dia)</Text>
             <Text style={[styles.label, { fontSize: 12, fontWeight: '400', color: Colors.textMuted, marginTop: 0 }]}>Ex.: sal mineral 0.1 • proteinado 0.4 • engorda 7-10</Text>
             <TextInput style={styles.input} value={consumption} onChangeText={setConsumption} keyboardType="numeric" />
+            <Text style={styles.label}>Estoque mínimo (sacos)</Text>
+            <Text style={[styles.label, { fontSize: 12, fontWeight: '400', color: Colors.textMuted, marginTop: 0 }]}>Dispara alerta no Painel quando cai abaixo desse nível</Text>
+            <TextInput style={styles.input} value={minSacks} onChangeText={setMinSacks} keyboardType="numeric" />
             <View style={styles.modalActions}>
               <Button title="CANCELAR" variant="outline" onPress={() => setModalVisible(false)} style={{ flex: 1 }} />
               <Button title="SALVAR" onPress={handleSave} style={{ flex: 1 }} />

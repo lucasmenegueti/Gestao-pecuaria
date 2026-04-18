@@ -57,12 +57,17 @@ const offlineSafeFetch: typeof fetch = async (input, init) => {
         : (input as Request).url;
   const short = offlineShortCircuit(url);
   if (short) return short;
+  // Timeout — Wi-Fi conectado mas sem internet trava fetch ~30s (TCP connect).
+  // Com 20+ tabelas no sync vira "sync eterno" visível pro usuário.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
   try {
-    return await fetch(input, init);
+    return await fetch(input, { ...init, signal: controller.signal });
   } catch (e) {
-    // Rede caiu entre a última leitura do NetInfo e o OS. Mapeamos pra 503
-    // pra não vazar TypeError pro auth-js (que logaria console.error).
+    // Rede caiu ou timeout. Mapeamos pra 503 pra não vazar TypeError pro auth-js.
     return offlineResponse('network', (e as Error)?.message ?? 'Network request failed');
+  } finally {
+    clearTimeout(timer);
   }
 };
 

@@ -22,7 +22,7 @@ export default function DashboardScreen() {
   const offlineMode = useAuthStore((s) => s.offlineMode);
   const [alerts, setAlerts] = useState<AlertsData | null>(null);
   const [syncing, setSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<{ pending: number; last_pull_at: string | null } | null>(null);
+  const [syncStatus, setSyncStatus] = useState<{ pending: number; last_sync_at: string | null } | null>(null);
 
   const refresh = useCallback(() => {
     loadAlerts(db).then(setAlerts).catch(() => setAlerts(null));
@@ -33,6 +33,18 @@ export default function DashboardScreen() {
 
   async function handleSync() {
     if (syncing) return;
+    // Sem rede: não tenta sincronizar — syncAll chegaria em timeout longo
+    // (20 tabelas × fetch offline). UI volta ao status offline imediatamente.
+    if (!isOnline()) {
+      refresh();
+      return;
+    }
+    // offlineMode = logado por cache, sem JWT válido. Sync falharia com 401
+    // em cada request — melhor aguardar o daemon re-autenticar silenciosamente.
+    if (useAuthStore.getState().offlineMode) {
+      refresh();
+      return;
+    }
     setSyncing(true);
     try {
       const stats = await forceSync(db);
@@ -96,7 +108,7 @@ export default function DashboardScreen() {
             </Text>
           ) : (
             <Text style={[styles.syncText, { color: Colors.success }]}>
-              ✓ Sincronizado {formatSince(syncStatus?.last_pull_at)}
+              ✓ Sincronizado {formatSince(syncStatus?.last_sync_at)}
             </Text>
           )}
         </TouchableOpacity>
@@ -221,12 +233,20 @@ function AlertSection({
   emptyMsg: string;
   onHeaderPress?: () => void;
 }) {
+  // Card inteiro clicável: tocar em qualquer ponto (título, linha de alerta sem
+  // onPress próprio, área de empty) navega pra seção. Linhas de alerta com
+  // onPress próprio consomem o toque antes de chegar aqui (RN touch dispatch).
   return (
-    <View style={[sectionStyles.card, { borderLeftColor: color }]}>
-      <TouchableOpacity onPress={onHeaderPress} disabled={!onHeaderPress} style={sectionStyles.header}>
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={onHeaderPress}
+      disabled={!onHeaderPress}
+      style={[sectionStyles.card, { borderLeftColor: color }]}
+    >
+      <View style={sectionStyles.header}>
         <Text style={[sectionStyles.title, { color }]}>{title}</Text>
         {onHeaderPress && <Text style={sectionStyles.chev}>›</Text>}
-      </TouchableOpacity>
+      </View>
       {items.length === 0 ? (
         <Text style={sectionStyles.empty}>✓ {emptyMsg}</Text>
       ) : (
@@ -247,7 +267,7 @@ function AlertSection({
           </TouchableOpacity>
         ))
       )}
-    </View>
+    </TouchableOpacity>
   );
 }
 

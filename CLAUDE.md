@@ -35,11 +35,32 @@ npx expo start --tunnel  # fallback when LAN/firewall blocks Expo Go
 
 No tests, no lint script configured yet. Type check via `npx tsc --noEmit` in `app/`.
 
+## Dev / Release Flow (obrigatório)
+
+Toda alteração passa por três estágios, **nessa ordem**. NÃO pular estágio — cada um pega classe diferente de bug.
+
+1. **Local (Expo Go no Tab A9)** — `npx expo start --tunnel` na máquina do Lucas, Tab A9 escaneia QR no Expo Go (app gratuito na Play Store). Hot reload em segundos. **Pega:** bugs de JS, layout, lógica, rotas, sync, DB, SQL. **Não pega:** tiles empacotados (Expo Go não tem `assets/tiles/` do app), native modules novos (só via prebuild), permissões nativas alteradas em app.json.
+2. **APK preview (EAS Build)** — `eas build --profile preview --platform android --non-interactive --no-wait`. ~15-25 min na cloud. URL do `.apk` no final, Tab A9 baixa pelo Chrome e instala. **Pega:** o que o Expo Go não pega (tiles, native modules, edge-to-edge, permissões). Valida em ambiente igualzinho ao de produção, sem passar pelas lojas.
+3. **Produção (Google Play + App Store — ainda a ser criada)** — `eas build --profile production --platform all` + `eas submit --profile production --platform all`. Review Apple ~24h na primeira build. Peões instalam via Play Store / TestFlight.
+
+**Regra de ouro:** não sobe pro estágio N+1 sem validação OK no estágio N. Se algo quebra no APK preview mas não no Expo Go, investigar antes de empurrar pra loja — comum ser diferença de runtime nativo.
+
+### Como iniciar dev local
+
+```bash
+cd app
+npx expo start --tunnel
+```
+
+Deixa rodando. Terminal mostra QR code. Tab A9 abre **Expo Go** → "Scan QR code" → scan → carrega o app do metro. Hot-reload em qualquer edit de JS/TS.
+
 ### Known gotchas
 
 - **`expo-sqlite` + Web**: requires `.wasm` as bundled asset. `app/metro.config.js` adds `wasm` to `resolver.assetExts`. Don't remove this — SQLite web worker fails to resolve `wa-sqlite.wasm` otherwise.
 - **Port 8081 stuck**: `netstat -ano | grep :8081` → `taskkill //F //PID <pid>` (Windows bash).
 - **Schema migration**: `app/src/lib/db/provider.tsx` uses `PRAGMA user_version` + `SCHEMA_VERSION` constant. Bump `SCHEMA_VERSION` and list tables to drop in the migration block whenever a table changes shape. Seed tables (users, formulas, grass_types, paddocks, herd) are **not** dropped to preserve fixtures.
+- **Tiles do mapa são empacotados**: `app/assets/tiles/` contém ~2700 PNGs do OSM para o bbox da fazenda (zooms 12–17, ~55 MB). O bundle React Native (APK/IPA) contém todos — o mapa funciona offline a partir do primeiro boot. Para atualizar a base OSM (~1×/mês), rodar `cd app && node scripts/fetch-tiles.mjs` e commitar `assets/tiles/` + `src/components/map/tile-manifest.ts`. O script respeita rate-limit OSM (2 req/s), leva ~35 min. Quando o KML dos piquetes mudar (bbox diferente), roda-se o `fetch-tiles.mjs` também — tiles fora do novo bbox são apagados automaticamente.
+- **Leaflet inline no WebView**: nativo não usa CDN para Leaflet. `scripts/bundle-leaflet-inline.mjs` copia `leaflet.css` + `leaflet.js` de node_modules para strings em `src/components/map/leaflet-inline.ts`, que são injetados no HTML do WebView. Regenerar se a versão do Leaflet mudar em package.json.
 
 ## Architecture
 
@@ -95,7 +116,7 @@ Reusable primitives — treat as the design system. Don't introduce new button/i
 - **Bombona**: per-paddock supplement storage. **Separate from Suplementação** — each has its own item in the evaluation menu and its own eval table (`bombona_evals`).
 - **Reabastecimento**: 3-phase tractor route — Load at sede → Distribute to bombonas → Return leftover
 - **Lotação**: cab/ha (heads per hectare), per paddock and overall
-- **Categorias de gado**: BEZERRO MAMANDO, BEZERRA MAMANDO, BEZERRO, GARROTE, BOI, BEZERRA, NOVILHA, VACA, TOURO
+- **Categorias de gado**: GARROTE, NOVILHA, VACA PARIDA, VACA PRENHA, VACA SOLTEIRA, BEZERRO MAMANDO, BEZERRA MAMANDO (7 categorias; definidas em `constants/index.ts CATTLE_CATEGORIES`). Lote de pares = VACA PARIDA + BEZERRO/A MAMANDO no mesmo piquete (`PAIR_CATEGORIES`).
 - **Formulações**: supplement formulas (CRUD) — `kg_per_sack`, `target_consumption_g_per_day`
 - **Tipos de Capim**: grass types (CRUD) with entry/exit height targets (cm)
 

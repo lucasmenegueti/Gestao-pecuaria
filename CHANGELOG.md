@@ -6,6 +6,21 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.5.3 — "Mapa via expo-asset + sync UX + min stock" (2026-04-18)
+
+Segundo round de fixes após teste do APK preview no Tab A9:
+
+- **Mapa** (`FarmMap.native.tsx`): tile URIs agora via `expo-asset` `Asset.loadAsync()` em vez de `Image.resolveAssetSource` — garante `file://` path confiável em Expo Go (dev server) e APK release (bundle). Loading state enquanto resolve, botão `⟳` discreto no canto superior direito pra forçar reload manual se algo travar.
+- **Sync timestamp correto**: nova coluna `sync_state.last_sync_at` (schema v16, drop automático). `syncAll` grava timestamp em todo ciclo bem-sucedido, separado do cursor de delta sync (`last_pull_at`). Painel passa a mostrar "Sincronizado agora" imediatamente após click, não mais data antiga.
+- **Sync não trava offline**: `handleSync` no Painel checa `isOnline()` + `offlineMode` antes de tentar. Se offline, só refresh da UI e volta ao status. Bônus: fetch do Supabase ganhou timeout de 10s pra não travar 30s+ quando Wi-Fi está conectado mas sem internet real.
+- **Estoque mínimo por formulação** (`admin/formulas.tsx`): novo campo "Estoque mínimo (sacos)" no modal. Grava em `inventory.min_sacks WHERE location='central'` (cria linha se não existir). Dispara alertas no Painel quando cai abaixo.
+- **Dashboard: seção inteira clicável**: cards RONDA / REBANHO / ESTOQUE agora são `TouchableOpacity` completo. Tocar em qualquer ponto (inclusive área de "sem alertas") navega pra aba. Linhas de alerta com onPress próprio continuam consumindo o toque.
+- **Dev/Release flow registrado no CLAUDE.md**: Local (Expo Go) → APK preview → Produção. Obriga validação em cada estágio antes de promover.
+
+**Fallback:** `git checkout v0.5.2` — volta ao estado com mapa sem tiles, sync timestamp estático, sync travando offline.
+
+---
+
 ## v0.5.2 — "Safe area + ronda rule + tiles offline" (2026-04-18)
 
 Hotfix pros 3 bugs encontrados no primeiro APK instalado no Tab A9:

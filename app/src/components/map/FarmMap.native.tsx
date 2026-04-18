@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { Image } from 'react-native';
+import { Asset } from 'expo-asset';
 import * as Location from 'expo-location';
 import { FarmMapProps, parsePolygon, stylePaddock } from './types';
 import { Colors } from '@/constants';
@@ -163,19 +163,38 @@ export function FarmMap({ paddocks, waterTanks, selectedId, onSelect, mode = 'ga
   const webRef = useRef<WebView | null>(null);
   const [hasLocation, setHasLocation] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
+  const [tileUris, setTileUris] = useState<Record<string, string>>({});
+  const [tilesReady, setTilesReady] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0); // bump p/ forçar recarga manual
 
-  // URI map {z_x_y: url}. Resolução é síncrona via Image.resolveAssetSource —
-  // em Expo Go retorna http://<metro>/assets/... (servido pelo dev server);
-  // em APK release retorna file:///android_asset/... (bundled).
-  // Ambos são URLs válidas para <img src> / L.TileLayer no WebView.
-  const tileUris = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const [key, mod] of Object.entries(TILE_MODULES)) {
-      const src = Image.resolveAssetSource(mod as any);
-      if (src?.uri) map[key] = src.uri;
-    }
-    return map;
-  }, []);
+  // Resolve URIs de todos os tiles via expo-asset — funciona no Expo Go
+  // (baixa/cacheia do metro) e no APK release (desempacota pro FS local).
+  // Image.resolveAssetSource é síncrono mas devolve URIs que a WebView nem
+  // sempre consegue abrir (asset:/... fora do baseUrl); Asset.loadAsync garante
+  // `file://` path válido em ambos os ambientes.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const entries = Object.entries(TILE_MODULES);
+        const modules = entries.map(([, mod]) => mod);
+        const assets = await Asset.loadAsync(modules as any);
+        if (cancelled) return;
+        const map: Record<string, string> = {};
+        entries.forEach(([key], i) => {
+          const uri = assets[i]?.localUri ?? assets[i]?.uri;
+          if (uri) map[key] = uri;
+        });
+        setTileUris(map);
+        setTilesReady(true);
+      } catch {
+        if (!cancelled) setTilesReady(true); // renderiza mesmo sem tiles (só polígonos)
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
 
   const payload = useMemo(() => {
     const parsed = paddocks
@@ -277,27 +296,46 @@ export function FarmMap({ paddocks, waterTanks, selectedId, onSelect, mode = 'ga
 
   return (
     <View style={[styles.container, style]}>
-      <WebView
-        ref={webRef}
-        originWhitelist={['*']}
-        // baseUrl 'file:///' dá ao HTML um origin `file://`, permitindo que
-        // <img src="file:///android_asset/..."> dos tiles carregue. Sem isso o
-        // WebView cai em `about:blank` e same-origin policy bloqueia file://.
-        source={webSource}
-        style={styles.map}
-        javaScriptEnabled
-        domStorageEnabled
-        allowFileAccess
-        allowFileAccessFromFileURLs
-        allowUniversalAccessFromFileURLs
-        mixedContentMode="always"
-        onMessage={(e) => {
-          try {
-            const msg = JSON.parse(e.nativeEvent.data);
-            if (msg.type === 'select' && typeof msg.id === 'number') onSelect?.(msg.id);
-          } catch {}
+      {!tilesReady ? (
+        <View style={styles.loading}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Carregando mapa…</Text>
+        </View>
+      ) : (
+        <WebView
+          key={reloadKey}
+          ref={webRef}
+          originWhitelist={['*']}
+          // baseUrl 'file:///' dá ao HTML um origin file://, permitindo <img src="file://...">
+          // dos tiles carregarem (mesmo origin). Sem isso WebView cai em about:blank.
+          source={webSource}
+          style={styles.map}
+          javaScriptEnabled
+          domStorageEnabled
+          allowFileAccess
+          allowFileAccessFromFileURLs
+          allowUniversalAccessFromFileURLs
+          mixedContentMode="always"
+          onMessage={(e) => {
+            try {
+              const msg = JSON.parse(e.nativeEvent.data);
+              if (msg.type === 'select' && typeof msg.id === 'number') onSelect?.(msg.id);
+            } catch {}
+          }}
+        />
+      )}
+      {/* Botão discreto de refresh — útil quando tiles não carregam no primeiro
+          render (caso raro de cache/URI inconsistente). Recarrega assets + WebView. */}
+      <TouchableOpacity
+        style={styles.refreshBtn}
+        onPress={() => {
+          setTilesReady(false);
+          setReloadKey((k) => k + 1);
         }}
-      />
+        hitSlop={6}
+      >
+        <Text style={styles.refreshIcon}>⟳</Text>
+      </TouchableOpacity>
       {hasLocation && (
         <TouchableOpacity style={styles.locateBtn} onPress={recenterOnUser}>
           <Text style={styles.locateIcon}>◎</Text>
@@ -315,6 +353,25 @@ export function FarmMap({ paddocks, waterTanks, selectedId, onSelect, mode = 'ga
 const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { flex: 1, backgroundColor: '#eee' },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#eee', gap: 12 },
+  loadingText: { fontSize: 14, color: Colors.textMuted, fontWeight: '600' },
+  refreshBtn: {
+    position: 'absolute',
+    right: 8,
+    top: 8,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+  },
+  refreshIcon: { fontSize: 16, color: Colors.primary, fontWeight: '900', lineHeight: 18 },
   locateBtn: {
     position: 'absolute',
     right: 12,
