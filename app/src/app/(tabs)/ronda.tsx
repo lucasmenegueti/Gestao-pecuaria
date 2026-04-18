@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput } from 'react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { useDatabase } from '@/lib/db/provider';
 import { useRondaStore } from '@/stores/rondaStore';
 import { Card, Badge } from '@/components/ui';
-import { Colors, calculateSupplementDays } from '@/constants';
+import { Colors, calculateSupplementDays, dailyConsumptionKg } from '@/constants';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface PaddockRow {
   id: number;
@@ -15,14 +16,22 @@ interface PaddockRow {
   total_heads: number;
   bombona_sacks: number | null;
   formula_kg: number | null;
-  formula_consumption: number | null;
+  formula_g_per_kg_body_day: number | null;
   last_ronda: string | null;
+}
+
+interface HerdLot {
+  paddock_id: number;
+  category: string;
+  head_count: number;
+  avg_weight_kg: number | null;
 }
 
 export default function RondaScreen() {
   const db = useDatabase();
   const setCurrentPaddock = useRondaStore((s) => s.setCurrentPaddock);
   const [paddocks, setPaddocks] = useState<PaddockRow[]>([]);
+  const [lotsByPaddock, setLotsByPaddock] = useState<Record<number, HerdLot[]>>({});
   const [search, setSearch] = useState('');
 
   useFocusEffect(
@@ -32,28 +41,40 @@ export default function RondaScreen() {
   );
 
   async function loadPaddocks() {
+    // Só piquetes com gado alocado aparecem na ronda — piquete vazio não precisa de avaliação.
     const rows = await db.getAllAsync<PaddockRow>(`
       SELECT p.id, p.name, p.area_hectares,
         gt.name as grass_name,
-        COALESCE((SELECT SUM(h.head_count) FROM herd h WHERE h.paddock_id = p.id), 0) as total_heads,
+        SUM(h.head_count) as total_heads,
         (SELECT i.quantity_sacks FROM inventory i WHERE i.paddock_id = p.id AND i.location = 'bombona' LIMIT 1) as bombona_sacks,
         (SELECT f.kg_per_sack FROM inventory i JOIN formulas f ON f.id = i.formula_id WHERE i.paddock_id = p.id AND i.location = 'bombona' LIMIT 1) as formula_kg,
-        (SELECT f.target_consumption_g_per_day FROM inventory i JOIN formulas f ON f.id = i.formula_id WHERE i.paddock_id = p.id AND i.location = 'bombona' LIMIT 1) as formula_consumption,
+        (SELECT f.target_g_per_kg_body_day FROM inventory i JOIN formulas f ON f.id = i.formula_id WHERE i.paddock_id = p.id AND i.location = 'bombona' LIMIT 1) as formula_g_per_kg_body_day,
         (SELECT MAX(r.date) FROM rondas r WHERE r.paddock_id = p.id) as last_ronda
       FROM paddocks p
       JOIN grass_types gt ON gt.id = p.grass_type_id
-      WHERE p.active = 1
+      JOIN herd h ON h.paddock_id = p.id
+      WHERE p.active = 1 AND h.head_count > 0
+      GROUP BY p.id
       ORDER BY p.name
     `);
     setPaddocks(rows);
+    const lots = await db.getAllAsync<HerdLot>(
+      'SELECT paddock_id, category, head_count, avg_weight_kg FROM herd WHERE paddock_id IS NOT NULL AND head_count > 0'
+    );
+    const map: Record<number, HerdLot[]> = {};
+    for (const l of lots) {
+      (map[l.paddock_id] ||= []).push(l);
+    }
+    setLotsByPaddock(map);
   }
 
   function getStatus(p: PaddockRow): { status: 'ok' | 'warning' | 'danger'; message: string } {
     if (p.bombona_sacks !== null && p.bombona_sacks === 0) {
       return { status: 'danger', message: 'Cocho VAZIO!' };
     }
-    if (p.bombona_sacks !== null && p.formula_kg && p.formula_consumption) {
-      const days = calculateSupplementDays(p.bombona_sacks, p.formula_kg, p.total_heads, p.formula_consumption);
+    if (p.bombona_sacks !== null && p.formula_kg && p.formula_g_per_kg_body_day) {
+      const daily = dailyConsumptionKg(lotsByPaddock[p.id] ?? [], p.formula_g_per_kg_body_day);
+      const days = calculateSupplementDays(p.bombona_sacks, p.formula_kg, daily);
       if (days <= 1) return { status: 'danger', message: `Cocho: ${days} dia restante` };
       if (days <= 3) return { status: 'warning', message: `Cocho: ${days} dias restantes` };
       return { status: 'ok', message: `Cocho: ${days} dias restantes` };

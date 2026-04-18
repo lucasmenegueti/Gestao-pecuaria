@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useDatabase } from '@/lib/db/provider';
 import { useAuthStore } from '@/stores/authStore';
@@ -8,6 +8,7 @@ import { Colors } from '@/constants';
 import { loadAlerts, AlertsData } from '@/lib/alerts';
 import { getSyncStatus } from '@/lib/sync/engine';
 import { forceSync, isOnline } from '@/lib/sync/daemon';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const SECTION_COLOR = {
   ronda: Colors.suplementacao, // reusa cor da ronda

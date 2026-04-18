@@ -1,17 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { useDatabase } from '@/lib/db/provider';
-import { Card, CardTitle, Button, Badge } from '@/components/ui';
+import { Card, Button, Badge } from '@/components/ui';
 import { Colors } from '@/constants';
-
-interface CentralItem {
-  id: number;
-  formula_name: string;
-  quantity_sacks: number;
-  min_sacks: number;
-}
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface BombonaItem {
   id: number;
@@ -21,11 +15,17 @@ interface BombonaItem {
   last_resupply_date: string | null;
 }
 
+interface FormulaTotal {
+  formula_name: string;
+  total: number;
+}
+
 export default function EstoqueScreen() {
   const db = useDatabase();
   const [tab, setTab] = useState<'central' | 'bombonas'>('central');
-  const [centralItems, setCentralItems] = useState<CentralItem[]>([]);
   const [bombonaItems, setBombonaItems] = useState<BombonaItem[]>([]);
+  const [centralTotals, setCentralTotals] = useState<FormulaTotal[]>([]);
+  const [bombonaTotals, setBombonaTotals] = useState<FormulaTotal[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -34,13 +34,14 @@ export default function EstoqueScreen() {
   );
 
   async function loadInventory() {
-    const central = await db.getAllAsync<CentralItem>(`
-      SELECT i.id, f.name as formula_name, i.quantity_sacks, i.min_sacks
+    const central = await db.getAllAsync<FormulaTotal>(`
+      SELECT f.name as formula_name, SUM(i.quantity_sacks) as total
       FROM inventory i JOIN formulas f ON f.id = i.formula_id
       WHERE i.location = 'central'
-      ORDER BY i.quantity_sacks ASC
+      GROUP BY f.id
+      ORDER BY f.name
     `);
-    setCentralItems(central);
+    setCentralTotals(central);
 
     const bombonas = await db.getAllAsync<BombonaItem>(`
       SELECT i.id, p.name as paddock_name, f.name as formula_name,
@@ -52,13 +53,19 @@ export default function EstoqueScreen() {
       ORDER BY i.quantity_sacks ASC
     `);
     setBombonaItems(bombonas);
+
+    const bombTotals = await db.getAllAsync<FormulaTotal>(`
+      SELECT f.name as formula_name, SUM(i.quantity_sacks) as total
+      FROM inventory i JOIN formulas f ON f.id = i.formula_id
+      WHERE i.location = 'bombona'
+      GROUP BY f.id
+      ORDER BY f.name
+    `);
+    setBombonaTotals(bombTotals);
   }
 
-  function getStockStatus(qty: number, min: number): { label: string; variant: 'ok' | 'warning' | 'danger' } {
-    if (qty <= min * 0.3) return { label: 'CRÍTICO', variant: 'danger' };
-    if (qty <= min) return { label: 'BAIXO', variant: 'warning' };
-    return { label: 'OK', variant: 'ok' };
-  }
+  const totals = tab === 'central' ? centralTotals : bombonaTotals;
+  const grandTotal = totals.reduce((s, r) => s + (r.total || 0), 0);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -66,7 +73,6 @@ export default function EstoqueScreen() {
         <Text style={styles.headerTitle}>Estoque</Text>
       </View>
 
-      {/* Tab switch */}
       <View style={styles.tabRow}>
         <TouchableOpacity
           style={[styles.tab, tab === 'central' && styles.tabActive]}
@@ -83,33 +89,50 @@ export default function EstoqueScreen() {
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <Text style={styles.sectionTitle}>TOTAIS POR INSUMO</Text>
+        <Card>
+          {totals.length === 0 ? (
+            <Text style={styles.emptyRow}>Sem estoque nesta localização.</Text>
+          ) : (
+            totals.map((t) => (
+              <View key={t.formula_name} style={styles.totalRow}>
+                <Text style={styles.totalCat}>{t.formula_name}</Text>
+                <Text style={styles.totalCount}>{t.total || 0} sacos</Text>
+              </View>
+            ))
+          )}
+          <View style={[styles.totalRow, styles.totalSum]}>
+            <Text style={styles.totalSumLabel}>TOTAL</Text>
+            <Text style={styles.totalSumCount}>{grandTotal} sacos</Text>
+          </View>
+        </Card>
+
         {tab === 'central' ? (
           <>
-            {centralItems.map((item) => {
-              const { label, variant } = getStockStatus(item.quantity_sacks, item.min_sacks);
-              const pct = Math.min(100, (item.quantity_sacks / Math.max(item.min_sacks * 3, 1)) * 100);
-              return (
-                <Card key={item.id}>
-                  <View style={styles.itemHeader}>
-                    <Text style={styles.itemName}>{item.formula_name.toUpperCase()}</Text>
-                    <Badge label={label} variant={variant} />
-                  </View>
-                  <Text style={styles.itemQty}>{item.quantity_sacks} sacos</Text>
-                  <Text style={styles.itemMin}>Mínimo: {item.min_sacks} sacos</Text>
-                  <View style={styles.bar}>
-                    <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: variant === 'ok' ? Colors.success : variant === 'warning' ? Colors.warning : Colors.danger }]} />
-                  </View>
-                </Card>
-              );
-            })}
-
-            <View style={styles.actionRow}>
-              <Button title="ENTRADA" variant="success" onPress={() => router.push('/estoque/entrada')} style={styles.actionBtn} />
-              <Button title="SAÍDA" variant="danger" onPress={() => router.push('/estoque/saida')} style={styles.actionBtn} />
-            </View>
+            <Button
+              title="ENTRADA DE ESTOQUE"
+              variant="success"
+              onPress={() => router.push('/estoque/entrada')}
+              size="large"
+              style={{ marginTop: 16 }}
+            />
+            <TouchableOpacity
+              onPress={() => router.push('/estoque/ajuste')}
+              style={styles.adjustBtn}
+            >
+              <Text style={styles.adjustBtnText}>Ajuste manual (perda)</Text>
+            </TouchableOpacity>
+            <Text style={styles.adjustHint}>
+              Saídas normais são feitas via reabastecimento (trator → bombona).
+              Ajuste manual só para registrar perda, desvio ou diferença de inventário.
+            </Text>
           </>
         ) : (
           <>
+            <Text style={styles.sectionTitle}>POR BOMBONA</Text>
+            {bombonaItems.length === 0 && (
+              <Text style={styles.emptyRow}>Nenhuma bombona cadastrada.</Text>
+            )}
             {bombonaItems.map((item) => {
               const variant = item.quantity_sacks === 0 ? 'danger' : item.quantity_sacks <= 2 ? 'warning' : 'ok';
               return (
@@ -125,16 +148,16 @@ export default function EstoqueScreen() {
                 </Card>
               );
             })}
+
+            <Button
+              title="REABASTECER BOMBONAS"
+              variant="warning"
+              onPress={() => router.push('/reabastecimento/carregar')}
+              icon="🚜"
+              style={{ marginTop: 16 }}
+            />
           </>
         )}
-
-        <Button
-          title="REABASTECER BOMBONAS"
-          variant="warning"
-          onPress={() => router.push('/reabastecimento/carregar')}
-          icon="🚜"
-          style={{ marginTop: 16 }}
-        />
       </ScrollView>
     </SafeAreaView>
   );
@@ -161,6 +184,20 @@ const styles = StyleSheet.create({
   tabTextActive: { color: Colors.primary },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 32 },
+  sectionTitle: { fontSize: 13, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.5, marginTop: 16, marginBottom: 8 },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  totalCat: { fontSize: 15, color: Colors.text, fontWeight: '600' },
+  totalCount: { fontSize: 15, fontWeight: '700', color: Colors.text },
+  totalSum: { borderBottomWidth: 0, borderTopWidth: 2, borderTopColor: Colors.primary, paddingTop: 12, marginTop: 4 },
+  totalSumLabel: { fontSize: 16, fontWeight: '800', color: Colors.primary },
+  totalSumCount: { fontSize: 16, fontWeight: '800', color: Colors.primary },
+  emptyRow: { fontSize: 14, color: Colors.textMuted, fontStyle: 'italic', textAlign: 'center', paddingVertical: 12 },
   itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   itemName: { fontSize: 16, fontWeight: '800', color: Colors.text },
   itemQty: { fontSize: 18, fontWeight: '700', color: Colors.text, marginTop: 4 },
@@ -169,4 +206,23 @@ const styles = StyleSheet.create({
   barFill: { height: '100%', borderRadius: 3 },
   actionRow: { flexDirection: 'row', gap: 12, marginTop: 16 },
   actionBtn: { flex: 1 },
+  adjustBtn: {
+    alignSelf: 'center',
+    marginTop: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  adjustBtnText: { fontSize: 13, fontWeight: '700', color: Colors.danger },
+  adjustHint: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    marginTop: 6,
+    fontStyle: 'italic',
+    lineHeight: 15,
+    paddingHorizontal: 8,
+  },
 });

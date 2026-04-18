@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useDatabase } from '@/lib/db/provider';
 import { BottomNav } from '@/components/ui';
 import { Colors } from '@/constants';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const EVAL_ITEMS = [
   { key: 'suplementacao', label: 'SUPLEMENTAÇÃO', icon: '🍶', color: Colors.suplementacao, route: 'supplement/step1' },
@@ -27,13 +28,18 @@ export default function EvalMenuScreen() {
 
   useEffect(() => {
     initRonda();
-    loadLastEvals();
-  }, []);
+  }, [user, paddockId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadLastEvals();
+    }, [paddockId])
+  );
 
   async function initRonda() {
     if (!user || !paddockId) return;
     const existing = await db.getFirstAsync<{ id: number }>(
-      "SELECT id FROM rondas WHERE paddock_id = ? AND user_id = ? AND date = date('now')",
+      "SELECT id FROM rondas WHERE paddock_id = ? AND user_id = ? AND date = date('now','localtime')",
       [Number(paddockId), user.id]
     );
     if (existing) {

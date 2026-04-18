@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TextInput, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, Alert, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useDatabase } from '@/lib/db/provider';
 import { Button, MultiChoice, SliderInput } from '@/components/ui';
 import { Colors, CATTLE_CATEGORIES } from '@/constants';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const EVENT_TYPES = [
   { value: 'NASCIMENTO', label: 'Nascimento', color: Colors.success },
@@ -15,6 +16,8 @@ const EVENT_TYPES = [
 export default function EventoScreen() {
   const db = useDatabase();
   const [paddocks, setPaddocks] = useState<Array<{ id: number; name: string }>>([]);
+  const [paddockCategories, setPaddockCategories] = useState<string[]>([]);
+  const [hasVaca, setHasVaca] = useState(false);
   const [eventType, setEventType] = useState<string | null>(null);
   const [paddockId, setPaddockId] = useState<string | null>(null);
   const [category, setCategory] = useState<string | null>(null);
@@ -22,9 +25,35 @@ export default function EventoScreen() {
   const [notes, setNotes] = useState('');
 
   useEffect(() => {
-    db.getAllAsync<{ id: number; name: string }>('SELECT id, name FROM paddocks WHERE active=1 ORDER BY name')
-      .then(setPaddocks);
+    db.getAllAsync<{ id: number; name: string }>(
+      'SELECT id, name FROM paddocks WHERE active=1 ORDER BY name'
+    ).then(setPaddocks);
   }, []);
+
+  // Quando trocar piquete, carregar categorias presentes (usado em NASCIMENTO e MORTE)
+  useEffect(() => {
+    if (!paddockId) {
+      setPaddockCategories([]);
+      setHasVaca(false);
+      return;
+    }
+    db.getAllAsync<{ category: string }>(
+      'SELECT category FROM herd WHERE paddock_id = ? ORDER BY category',
+      [Number(paddockId)]
+    ).then((rows) => {
+      const cats = rows.map((r) => r.category);
+      setPaddockCategories(cats);
+      // Qualquer variante de vaca conta pra sugerir bezerro em NASCIMENTO
+      setHasVaca(cats.some((c) => c.startsWith('VACA')));
+    });
+  }, [paddockId]);
+
+  // Sugerir categoria automática no NASCIMENTO quando há VACA no piquete
+  useEffect(() => {
+    if (eventType === 'NASCIMENTO' && hasVaca && !category) {
+      setCategory('BEZERRO MAMANDO');
+    }
+  }, [eventType, hasVaca]);
 
   async function handleSave() {
     if (!eventType || !paddockId || !category || count <= 0) {
@@ -33,10 +62,9 @@ export default function EventoScreen() {
     }
     try {
       await db.runAsync(
-        'INSERT INTO herd_events (paddock_id, event_type, category, head_count, notes, date) VALUES (?,?,?,?,?,date("now"))',
+        'INSERT INTO herd_events (paddock_id, event_type, category, head_count, notes, date) VALUES (?,?,?,?,?,date(\'now\',\'localtime\'))',
         [Number(paddockId), eventType, category, count, notes]
       );
-      // Update herd
       const isAdd = eventType === 'NASCIMENTO' || eventType === 'COMPRA';
       const existing = await db.getFirstAsync<{ id: number }>(
         'SELECT id FROM herd WHERE paddock_id=? AND category=?',
@@ -49,14 +77,28 @@ export default function EventoScreen() {
           await db.runAsync('UPDATE herd SET head_count = MAX(0, head_count - ?) WHERE id=?', [count, existing.id]);
         }
       } else if (isAdd) {
-        await db.runAsync('INSERT INTO herd (paddock_id, category, head_count) VALUES (?,?,?)',
-          [Number(paddockId), category, count]);
+        await db.runAsync(
+          'INSERT INTO herd (paddock_id, category, head_count) VALUES (?,?,?)',
+          [Number(paddockId), category, count]
+        );
       }
       await db.runAsync('DELETE FROM herd WHERE head_count <= 0');
       Alert.alert('Sucesso', 'Evento registrado!', [{ text: 'OK', onPress: () => router.back() }]);
     } catch (err) {
       Alert.alert('Erro', 'Falha ao registrar evento');
     }
+  }
+
+  // No NASCIMENTO com VACA, mostrar só BEZERRO MAMANDO / BEZERRA MAMANDO.
+  // Na MORTE, mostrar só categorias presentes.
+  // Outros eventos: lista completa.
+  let categoryOptions = CATTLE_CATEGORIES;
+  if (eventType === 'NASCIMENTO' && hasVaca) {
+    categoryOptions = CATTLE_CATEGORIES.filter((c) =>
+      c.value === 'BEZERRO MAMANDO' || c.value === 'BEZERRA MAMANDO'
+    );
+  } else if (eventType === 'MORTE' && paddockCategories.length > 0) {
+    categoryOptions = CATTLE_CATEGORIES.filter((c) => paddockCategories.includes(c.value));
   }
 
   return (
@@ -70,7 +112,7 @@ export default function EventoScreen() {
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <Text style={styles.label}>TIPO DE EVENTO</Text>
-        <MultiChoice options={EVENT_TYPES} value={eventType} onChange={setEventType} />
+        <MultiChoice options={EVENT_TYPES} value={eventType} onChange={(v) => { setEventType(v); setCategory(null); }} />
 
         <Text style={[styles.label, { marginTop: 20 }]}>PIQUETE</Text>
         <MultiChoice
@@ -80,7 +122,13 @@ export default function EventoScreen() {
         />
 
         <Text style={[styles.label, { marginTop: 20 }]}>CATEGORIA</Text>
-        <MultiChoice options={CATTLE_CATEGORIES} value={category} onChange={setCategory} />
+        {eventType === 'NASCIMENTO' && hasVaca && (
+          <Text style={styles.hint}>Piquete tem VACAs — sugestão: bezerro/bezerra mamando.</Text>
+        )}
+        {eventType === 'MORTE' && paddockCategories.length === 0 && paddockId && (
+          <Text style={styles.hint}>Piquete sem gado.</Text>
+        )}
+        <MultiChoice options={categoryOptions} value={category} onChange={setCategory} />
 
         <Text style={[styles.label, { marginTop: 20 }]}>QUANTIDADE</Text>
         <SliderInput value={count} onValueChange={setCount} min={1} max={100} step={1} unit="cab" color={Colors.primary} />
@@ -110,5 +158,6 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 40 },
   label: { fontSize: 18, fontWeight: '800', color: '#2c2c2c', marginBottom: 10 },
+  hint: { fontSize: 13, color: Colors.textMuted, marginBottom: 8, fontStyle: 'italic' },
   textarea: { minHeight: 80, backgroundColor: '#ffffff', borderRadius: 12, borderWidth: 2, borderColor: '#e0dcd5', padding: 16, fontSize: 16 },
 });

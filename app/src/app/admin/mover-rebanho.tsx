@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useDatabase } from '@/lib/db/provider';
 import { Card, Button, SliderInput, MultiChoice } from '@/components/ui';
 import { Colors, CATTLE_CATEGORIES } from '@/constants';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface PaddockOption {
   id: number;
@@ -12,7 +13,8 @@ interface PaddockOption {
 
 export default function MoverRebanhoScreen() {
   const db = useDatabase();
-  const [paddocks, setPaddocks] = useState<PaddockOption[]>([]);
+  const [fromPaddocks, setFromPaddocks] = useState<PaddockOption[]>([]);
+  const [toPaddocks, setToPaddocks] = useState<PaddockOption[]>([]);
   const [fromPaddock, setFromPaddock] = useState<string | null>(null);
   const [toPaddock, setToPaddock] = useState<string | null>(null);
   const [category, setCategory] = useState<string | null>(null);
@@ -20,8 +22,17 @@ export default function MoverRebanhoScreen() {
   const [maxCount, setMaxCount] = useState(500);
 
   useEffect(() => {
-    db.getAllAsync<PaddockOption>('SELECT id, name FROM paddocks WHERE active=1 ORDER BY name')
-      .then(setPaddocks);
+    // Origem: apenas piquetes com gado (exclui pool desalocada — paddock_id IS NULL não bate no JOIN)
+    db.getAllAsync<PaddockOption>(`
+      SELECT DISTINCT p.id, p.name FROM paddocks p
+      JOIN herd h ON h.paddock_id = p.id
+      WHERE p.active = 1
+      ORDER BY p.name
+    `).then(setFromPaddocks);
+    // Destino: qualquer piquete ativo
+    db.getAllAsync<PaddockOption>(
+      'SELECT id, name FROM paddocks WHERE active=1 ORDER BY name'
+    ).then(setToPaddocks);
   }, []);
 
   useEffect(() => {
@@ -47,8 +58,17 @@ export default function MoverRebanhoScreen() {
       return;
     }
     try {
+      const origin = await db.getFirstAsync<{ head_count: number }>(
+        'SELECT head_count FROM herd WHERE paddock_id=? AND category=?',
+        [Number(fromPaddock), category]
+      );
+      const available = origin?.head_count ?? 0;
+      if (available < count) {
+        Alert.alert('Erro', 'Quantidade insuficiente na origem');
+        return;
+      }
       // Decrease from origin
-      await db.runAsync('UPDATE herd SET head_count = head_count - ? WHERE paddock_id=? AND category=?',
+      await db.runAsync('UPDATE herd SET head_count = MAX(0, head_count - ?) WHERE paddock_id=? AND category=?',
         [count, Number(fromPaddock), category]);
       // Increase or insert at destination
       const existing = await db.getFirstAsync<{ id: number }>(
@@ -63,7 +83,7 @@ export default function MoverRebanhoScreen() {
       }
       // Log event
       await db.runAsync(
-        'INSERT INTO herd_events (paddock_id, event_type, category, head_count, target_paddock_id, date) VALUES (?,?,?,?,?,date("now"))',
+        'INSERT INTO herd_events (paddock_id, event_type, category, head_count, target_paddock_id, date) VALUES (?,?,?,?,?,date(\'now\',\'localtime\'))',
         [Number(fromPaddock), 'TRANSFERENCIA', category, count, Number(toPaddock)]
       );
       // Remove empty rows
@@ -86,7 +106,7 @@ export default function MoverRebanhoScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <Text style={styles.label}>DE (Origem)</Text>
         <MultiChoice
-          options={paddocks.map((p) => ({ value: String(p.id), label: p.name }))}
+          options={fromPaddocks.map((p) => ({ value: String(p.id), label: p.name }))}
           value={fromPaddock}
           onChange={setFromPaddock}
         />
@@ -111,7 +131,7 @@ export default function MoverRebanhoScreen() {
 
         <Text style={[styles.label, { marginTop: 20 }]}>PARA (Destino)</Text>
         <MultiChoice
-          options={paddocks.filter((p) => String(p.id) !== fromPaddock).map((p) => ({ value: String(p.id), label: p.name }))}
+          options={toPaddocks.filter((p) => String(p.id) !== fromPaddock).map((p) => ({ value: String(p.id), label: p.name }))}
           value={toPaddock}
           onChange={setToPaddock}
         />

@@ -6,6 +6,20 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.5.2 — "Safe area + ronda rule + tiles offline" (2026-04-18)
+
+Hotfix pros 3 bugs encontrados no primeiro APK instalado no Tab A9:
+
+- **Android edge-to-edge**: `SafeAreaProvider` agora envolve o root (`app/_layout.tsx`) e todas as 21 telas migradas para `SafeAreaView` do `react-native-safe-area-context` (em vez do SafeAreaView do react-native, que não respeita `edgeToEdgeEnabled: true`). O `(tabs)/_layout.tsx` aplica `insets.bottom` no tabBar pra não sobrepor a nav bar do sistema.
+- **Ronda só conta como feita com ≥ 2 itens**: `alerts.ts` agora filtra por `COUNT(DISTINCT tipo_de_avaliacao) >= 2` antes de incluir no progresso "rondas feitas hoje". Abrir piquete + preencher só um item não conta mais. Query usa `UNION ALL` + `DISTINCT` por subquery (barato, semanticamente correto — múltiplas avaliações do mesmo tipo não inflam o count).
+- **Mapa satélite offline**: `FarmMap.native.tsx` agora usa `baseUrl: 'file:///'` no WebView + `mixedContentMode="always"` pra permitir que tiles empacotados (`file:///android_asset/...`) carreguem de dentro de HTML inline. Sem isso, o WebView caía em `about:blank` e same-origin bloqueava as imagens — só apareciam os polígonos dos piquetes.
+- **Ganho de perf junto**: `WebView.source` memoizado (evita reload do Leaflet + 2700 tile lookups a cada re-render do parent); 9 índices SQLite aditivos em `rondas(date)` + `ronda_id` das 8 eval tables (dashboard focus não faz mais full-scan).
+- **EAS deploy**: projeto inicializado no EAS (`extra.eas.projectId` em app.json), eas.json ganha campo `environment` em cada profile pra variáveis do Supabase serem injetadas no build, `.easignore` exclui pastas de debug (`bugs app/`, `erros/`, `prints/`, `tmp/`).
+
+**Fallback:** `git checkout v0.5.1` — volta ao estado anterior (safe area quebrada no Android 15, ronda contando com 1 item, mapa sem tiles).
+
+---
+
 ## v0.5.1 — "Logout offline silencioso" (2026-04-17)
 
 Hotfix pra red box do LogBox (`TypeError: Network request failed`) que aparecia ao sair do app em modo avião.

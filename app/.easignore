@@ -1,0 +1,17 @@
+# Arquivos e pastas que não devem ir pro tarball enviado ao EAS Build.
+# Herda de .gitignore — só lista extras aqui.
+
+# Screenshots de debug / bug reports (pastas locais, não versionadas)
+bugs app/
+erros/
+prints/
+
+# Extrações temporárias
+tmp/
+kml/v5_extracted/
+
+# Protótipo HTML (não vai no app)
+prototipo/
+
+# Docs locais
+CHANGES.md

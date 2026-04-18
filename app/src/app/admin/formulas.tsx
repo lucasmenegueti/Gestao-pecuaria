@@ -1,16 +1,17 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TextInput, Alert, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, Alert, TouchableOpacity, Modal } from 'react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { useDatabase } from '@/lib/db/provider';
 import { Card, Button, Badge } from '@/components/ui';
 import { Colors } from '@/constants';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface FormulaRow {
   id: number;
   name: string;
   kg_per_sack: number;
-  target_consumption_g_per_day: number;
+  target_g_per_kg_body_day: number;
   active: number;
 }
 
@@ -21,7 +22,7 @@ export default function FormulasScreen() {
   const [editId, setEditId] = useState<number | null>(null);
   const [name, setName] = useState('');
   const [kgPerSack, setKgPerSack] = useState('25');
-  const [consumption, setConsumption] = useState('100');
+  const [consumption, setConsumption] = useState('0.3');
 
   useFocusEffect(useCallback(() => { load(); }, []));
 
@@ -42,7 +43,7 @@ export default function FormulasScreen() {
     setEditId(f.id);
     setName(f.name);
     setKgPerSack(String(f.kg_per_sack));
-    setConsumption(String(f.target_consumption_g_per_day));
+    setConsumption(String(f.target_g_per_kg_body_day));
     setModalVisible(true);
   }
 
@@ -50,10 +51,10 @@ export default function FormulasScreen() {
     if (!name.trim()) { Alert.alert('Erro', 'Preencha o nome'); return; }
     try {
       if (editId) {
-        await db.runAsync('UPDATE formulas SET name=?, kg_per_sack=?, target_consumption_g_per_day=? WHERE id=?',
+        await db.runAsync('UPDATE formulas SET name=?, kg_per_sack=?, target_g_per_kg_body_day=? WHERE id=?',
           [name.trim(), Number(kgPerSack), Number(consumption), editId]);
       } else {
-        await db.runAsync('INSERT INTO formulas (name, kg_per_sack, target_consumption_g_per_day) VALUES (?,?,?)',
+        await db.runAsync('INSERT INTO formulas (name, kg_per_sack, target_g_per_kg_body_day) VALUES (?,?,?)',
           [name.trim(), Number(kgPerSack), Number(consumption)]);
       }
       setModalVisible(false);
@@ -95,7 +96,7 @@ export default function FormulasScreen() {
               <Badge label={f.active ? 'Ativa' : 'Inativa'} variant={f.active ? 'ok' : 'muted'} />
             </View>
             <Text style={styles.itemDetail}>{f.kg_per_sack} kg por saco</Text>
-            <Text style={styles.itemDetail}>Consumo alvo: {f.target_consumption_g_per_day} g/cab/dia</Text>
+            <Text style={styles.itemDetail}>Consumo alvo: {f.target_g_per_kg_body_day} g/kg PV/dia</Text>
             <View style={styles.itemActions}>
               <TouchableOpacity onPress={() => openEdit(f)} style={styles.actionLink}>
                 <Text style={styles.actionText}>Editar</Text>
@@ -120,7 +121,8 @@ export default function FormulasScreen() {
             <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Ex: Sal Mineral" />
             <Text style={styles.label}>Kg por saco</Text>
             <TextInput style={styles.input} value={kgPerSack} onChangeText={setKgPerSack} keyboardType="numeric" />
-            <Text style={styles.label}>Consumo alvo (g/cab/dia)</Text>
+            <Text style={styles.label}>Consumo alvo (g/kg peso vivo/dia)</Text>
+            <Text style={[styles.label, { fontSize: 12, fontWeight: '400', color: Colors.textMuted, marginTop: 0 }]}>Ex.: sal mineral 0.1 • proteinado 0.4 • engorda 7-10</Text>
             <TextInput style={styles.input} value={consumption} onChangeText={setConsumption} keyboardType="numeric" />
             <View style={styles.modalActions}>
               <Button title="CANCELAR" variant="outline" onPress={() => setModalVisible(false)} style={{ flex: 1 }} />

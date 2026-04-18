@@ -1,10 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { useDatabase } from '@/lib/db/provider';
 import { Card, Badge } from '@/components/ui';
 import { Colors, calculateStockingRate } from '@/constants';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface PaddockLot {
   id: number;

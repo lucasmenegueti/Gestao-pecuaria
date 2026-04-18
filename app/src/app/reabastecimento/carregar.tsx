@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useDatabase } from '@/lib/db/provider';
 import { useAuthStore } from '@/stores/authStore';
 import { Card, Button, SliderInput } from '@/components/ui';
 import { Colors } from '@/constants';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface LoadItem {
   formula_id: number;
@@ -40,10 +41,14 @@ export default function CarregarScreen() {
 
   async function handleStart() {
     if (selectedItems.length === 0) return;
+    if (!user?.id) {
+      console.warn('[carregar] sem user autenticado, abortando');
+      return;
+    }
     try {
       const result = await db.runAsync(
-        "INSERT INTO resupply_routes (user_id, start_time, status) VALUES (?, datetime('now'), 'in_progress')",
-        [user?.id || 1]
+        "INSERT INTO resupply_routes (user_id, start_time, status) VALUES (?, datetime('now','localtime'), 'in_progress')",
+        [user.id]
       );
       const routeId = result.lastInsertRowId;
       for (const item of selectedItems) {
@@ -52,8 +57,13 @@ export default function CarregarScreen() {
           [routeId, item.formula_id, item.loading]
         );
         await db.runAsync(
-          "UPDATE inventory SET quantity_sacks = quantity_sacks - ? WHERE formula_id=? AND location='central'",
+          "UPDATE inventory SET quantity_sacks = MAX(0, quantity_sacks - ?) WHERE formula_id=? AND location='central'",
           [item.loading, item.formula_id]
+        );
+        await db.runAsync(
+          `INSERT INTO inventory_events (event_type, formula_id, paddock_id, sacks_delta, reason, user_id)
+           VALUES ('SAIDA_CENTRAL_ROTA', ?, NULL, ?, ?, ?)`,
+          [item.formula_id, -item.loading, `Carregamento rota #${routeId}`, user?.id ?? null]
         );
       }
       router.replace(`/reabastecimento/rota?routeId=${routeId}`);
@@ -73,6 +83,20 @@ export default function CarregarScreen() {
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        {items.length === 0 && (
+          <Card>
+            <Text style={styles.emptyTitle}>Sem ração disponível na central</Text>
+            <Text style={styles.emptyText}>
+              Registre uma ENTRADA em Estoque → Central para poder carregar o trator.
+            </Text>
+            <Button
+              title="IR PARA ESTOQUE"
+              variant="outline"
+              onPress={() => router.replace('/(tabs)/estoque')}
+              style={{ marginTop: 12 }}
+            />
+          </Card>
+        )}
         {items.map((item, idx) => (
           <Card key={idx} borderColor={item.selected ? Colors.suplementacao : undefined}>
             <TouchableOpacity onPress={() => toggleItem(idx)}>
@@ -134,4 +158,6 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: 16, fontWeight: '800', color: '#e67e22', marginBottom: 4 },
   totalItem: { fontSize: 14, color: '#2c2c2c' },
   totalSum: { fontSize: 16, fontWeight: '700', color: '#2c2c2c', marginTop: 4 },
+  emptyTitle: { fontSize: 16, fontWeight: '800', color: '#2c2c2c', textAlign: 'center' },
+  emptyText: { fontSize: 14, color: '#7a7a7a', textAlign: 'center', marginTop: 8, lineHeight: 20 },
 });
