@@ -23,7 +23,7 @@ export default function WaterSummary() {
         'INSERT INTO water_evals (ronda_id, available, quality, photo_uri) VALUES (?, ?, ?, ?)',
         [store.currentRondaId, water.available ? 1 : 0, water.quality, photo]
       );
-      router.replace(`/ronda/${paddockId}/menu`);
+      router.dismissAll();
     } catch (err) {
       Alert.alert('Erro', 'Falha ao salvar');
     }

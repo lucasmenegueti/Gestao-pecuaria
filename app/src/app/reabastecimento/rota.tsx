@@ -409,7 +409,7 @@ export default function RotaScreen() {
                         onValueChange={(v) => setDelivering({ ...delivering, manualAdjust: v })}
                         min={-Math.max(delivering.currentDbSacks, 5)}
                         max={10}
-                        step={0.5}
+                        step={1}
                         unit="sacos"
                         color={NSA.danger}
                       />
@@ -430,7 +430,7 @@ export default function RotaScreen() {
                       Math.max(loads.find((l) => l.formula_id === delivering.formulaId)?.remaining ?? 0, 1),
                       10,
                     )}
-                    step={0.5}
+                    step={1}
                     unit="sacos"
                   />
 

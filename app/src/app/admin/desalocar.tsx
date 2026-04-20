@@ -33,7 +33,7 @@ export default function DesalocarScreen() {
       SELECT DISTINCT p.id, p.name
       FROM paddocks p
       JOIN herd h ON h.paddock_id = p.id
-      WHERE p.active = 1
+      WHERE p.active = 1 AND h.head_count > 0 AND h.deleted_at IS NULL
       ORDER BY p.name
     `).then(setPaddocks);
   }, []);
@@ -45,7 +45,7 @@ export default function DesalocarScreen() {
       return;
     }
     db.getAllAsync<CategoryRow>(
-      'SELECT category, head_count FROM herd WHERE paddock_id = ? ORDER BY category',
+      'SELECT category, head_count FROM herd WHERE paddock_id = ? AND head_count > 0 AND deleted_at IS NULL ORDER BY category',
       [Number(paddockId)]
     ).then((rows) => {
       setCategories(rows);
@@ -169,12 +169,13 @@ export default function DesalocarScreen() {
                 formar novos lotes.
               </Text>
             </Card>
+          </ScrollView>
 
+          <View style={styles.stickyFooter}>
             <Button
               title={submitting ? 'Processando…' : 'Confirmar'}
               onPress={handleConfirm}
               disabled={submitting}
-              style={{ marginTop: 14 }}
             />
             <Button
               title="Voltar e ajustar"
@@ -183,7 +184,7 @@ export default function DesalocarScreen() {
               disabled={submitting}
               style={{ marginTop: 10 }}
             />
-          </ScrollView>
+          </View>
         </SafeAreaView>
       </View>
     );
@@ -248,13 +249,6 @@ export default function DesalocarScreen() {
                   Total a desalocar · <Text style={styles.summaryBold}>{selectedTotal} cab</Text>
                 </Text>
               </Card>
-
-              <Button
-                title="Revisar e confirmar"
-                onPress={goToReview}
-                disabled={selectedTotal === 0}
-                style={{ marginTop: 14 }}
-              />
             </>
           )}
 
@@ -262,6 +256,16 @@ export default function DesalocarScreen() {
             <Text style={styles.empty}>Este piquete não tem gado.</Text>
           )}
         </ScrollView>
+
+        {paddockId && categories.length > 0 && (
+          <View style={styles.stickyFooter}>
+            <Button
+              title="Revisar e confirmar"
+              onPress={goToReview}
+              disabled={selectedTotal === 0}
+            />
+          </View>
+        )}
       </SafeAreaView>
     </View>
   );
@@ -270,7 +274,13 @@ export default function DesalocarScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: NSA.bg },
   scroll: { flex: 1 },
-  scrollContent: { padding: 20, paddingBottom: 32 },
+  scrollContent: { padding: 20, paddingBottom: 110 },
+  stickyFooter: {
+    backgroundColor: NSA.bgElevated,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: NSA.border,
+  },
   label: {
     fontSize: 11,
     fontFamily: Fonts.medium,

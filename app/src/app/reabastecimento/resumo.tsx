@@ -199,15 +199,15 @@ export default function ResumoScreen() {
               <Text style={styles.returnEmpty}>Nada voltando — trator vazio.</Text>
             )}
           </Card>
+        </ScrollView>
 
+        <View style={styles.stickyFooter}>
           <Button
             title={finishing ? 'Finalizando…' : 'Confirmar e finalizar'}
             onPress={handleFinish}
             disabled={finishing}
-            
-            style={{ marginTop: 14 }}
           />
-        </ScrollView>
+        </View>
       </SafeAreaView>
     </View>
   );
@@ -216,7 +216,13 @@ export default function ResumoScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: NSA.bg },
   scroll: { flex: 1 },
-  scrollContent: { padding: 20, paddingBottom: 40 },
+  scrollContent: { padding: 20, paddingBottom: 110 },
+  stickyFooter: {
+    backgroundColor: NSA.bgElevated,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: NSA.border,
+  },
   sectionTitle: {
     fontSize: 11,
     fontFamily: Fonts.medium,

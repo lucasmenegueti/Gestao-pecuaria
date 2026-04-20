@@ -143,14 +143,15 @@ export default function CarregarScreen() {
               <Text style={styles.totalSum}>Total · {totalSacks} sacos</Text>
             </Card>
           )}
+        </ScrollView>
 
+        <View style={styles.stickyFooter}>
           <Button
             title={submitting ? 'Iniciando…' : 'Iniciar rota'}
             onPress={handleStart}
             disabled={totalSacks === 0 || submitting}
-            style={{ marginTop: 14 }}
           />
-        </ScrollView>
+        </View>
       </SafeAreaView>
     </View>
   );
@@ -159,7 +160,13 @@ export default function CarregarScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: NSA.bg },
   scroll: { flex: 1 },
-  scrollContent: { padding: 20, paddingBottom: 32 },
+  scrollContent: { padding: 20, paddingBottom: 110 },
+  stickyFooter: {
+    backgroundColor: NSA.bgElevated,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: NSA.border,
+  },
   itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   itemName: { fontSize: 14, fontFamily: Fonts.semibold, color: NSA.inkPrimary, letterSpacing: -0.15 },
   itemAvail: { fontSize: 12, color: NSA.inkMuted, fontFamily: Fonts.regular },

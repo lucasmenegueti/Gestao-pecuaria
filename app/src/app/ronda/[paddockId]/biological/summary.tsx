@@ -34,7 +34,7 @@ export default function BiologicalSummary() {
           biologicalWater.photoUri,
         ]
       );
-      router.replace(`/ronda/${paddockId}/menu`);
+      router.dismissAll();
     } catch (err) {
       Alert.alert('Erro', 'Falha ao salvar');
     }

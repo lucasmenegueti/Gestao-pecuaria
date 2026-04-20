@@ -42,7 +42,7 @@ export default function EvoluirScreen() {
     );
     setPaddockName(p?.name ?? '');
     const rows = await db.getAllAsync<Lot>(
-      'SELECT category, head_count FROM herd WHERE paddock_id = ? AND head_count > 0 ORDER BY category',
+      'SELECT category, head_count FROM herd WHERE paddock_id = ? AND head_count > 0 AND deleted_at IS NULL ORDER BY category',
       [paddockId]
     );
     setLots(rows);
@@ -204,16 +204,6 @@ export default function EvoluirScreen() {
                 );
               })}
 
-              <Button
-                title={
-                  selectedTotal === 0
-                    ? 'Ajuste as quantidades'
-                    : submitting ? 'Processando…' : `Confirmar · ${selectedTotal} cab`
-                }
-                onPress={handleConfirm}
-                disabled={submitting || selectedTotal === 0}
-                style={{ marginTop: 14 }}
-              />
             </>
           ) : (
             <Card>
@@ -297,6 +287,20 @@ export default function EvoluirScreen() {
             </Card>
           )}
         </ScrollView>
+
+        {evolvableLots.length > 0 && (
+          <View style={styles.stickyFooter}>
+            <Button
+              title={
+                selectedTotal === 0
+                  ? 'Ajuste as quantidades'
+                  : submitting ? 'Processando…' : `Confirmar · ${selectedTotal} cab`
+              }
+              onPress={handleConfirm}
+              disabled={submitting || selectedTotal === 0}
+            />
+          </View>
+        )}
       </SafeAreaView>
     </View>
   );
@@ -309,7 +313,13 @@ function prettyLabel(cat: string): string {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: NSA.bg },
   scroll: { flex: 1 },
-  scrollContent: { padding: 20, paddingBottom: 32 },
+  scrollContent: { padding: 20, paddingBottom: 110 },
+  stickyFooter: {
+    backgroundColor: NSA.bgElevated,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: NSA.border,
+  },
   label: {
     fontSize: 11,
     fontFamily: Fonts.medium,

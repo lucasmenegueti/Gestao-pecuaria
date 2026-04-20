@@ -23,12 +23,12 @@ export default function ForageStep1() {
       onNext={() => router.push(`/ronda/${paddockId}/forage/step2`)}
       nextDisabled={!forage.measurementType}
     >
-      <Text style={styles.question}>TIPO DE MEDIÇÃO?</Text>
+      <Text style={styles.question}>Qual é o tipo de medição?</Text>
       <MultiChoice
         options={[
-          { value: 'ENTRADA', label: 'ENTRADA', description: 'Gado entrando no pasto', color: Colors.success, icon: '🟢' },
-          { value: 'AFERICAO', label: 'AFERIÇÃO', description: 'Medição de acompanhamento', color: Colors.warning, icon: '🟡' },
-          { value: 'SAIDA', label: 'SAÍDA', description: 'Gado saindo do pasto', color: Colors.danger, icon: '🔴' },
+          { value: 'ENTRADA', label: 'Entrada', description: 'Gado entrando no pasto', color: NSA.ok },
+          { value: 'AFERICAO', label: 'Aferição', description: 'Medição de acompanhamento', color: NSA.warn },
+          { value: 'SAIDA', label: 'Saída', description: 'Gado saindo do pasto', color: NSA.danger },
         ]}
         value={forage.measurementType}
         onChange={(v) => updateForage({ measurementType: v })}

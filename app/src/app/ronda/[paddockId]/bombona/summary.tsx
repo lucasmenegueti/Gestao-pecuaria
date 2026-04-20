@@ -33,7 +33,7 @@ export default function BombonaSummary() {
           photo,
         ]
       );
-      router.replace(`/ronda/${paddockId}/menu`);
+      router.dismissAll();
     } catch (err) {
       Alert.alert('Erro', 'Falha ao salvar avaliação');
     }

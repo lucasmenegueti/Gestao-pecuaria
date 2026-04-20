@@ -24,9 +24,9 @@ export default function ForageStep5() {
       <Text style={styles.question}>Qual a qualidade desse capim?</Text>
       <MultiChoice
         options={[
-          { value: 'BOM', label: 'BOM', color: Colors.success, icon: '🟢' },
-          { value: 'REGULAR', label: 'REGULAR', color: Colors.warning, icon: '🟡' },
-          { value: 'RUIM', label: 'RUIM', color: Colors.danger, icon: '🔴' },
+          { value: 'BOM', label: 'Bom', color: NSA.ok },
+          { value: 'REGULAR', label: 'Regular', color: NSA.warn },
+          { value: 'RUIM', label: 'Ruim', color: NSA.danger },
         ]}
         value={forage.quality}
         onChange={(v) => updateForage({ quality: v })}

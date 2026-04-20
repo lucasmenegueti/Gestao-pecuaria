@@ -32,10 +32,11 @@ export default function AlocarScreen() {
 
   useEffect(() => {
     db.getAllAsync<PoolCat>(
-      'SELECT category, SUM(head_count) AS total FROM herd WHERE paddock_id IS NULL GROUP BY category'
+      'SELECT category, SUM(head_count) AS total FROM herd WHERE paddock_id IS NULL AND deleted_at IS NULL GROUP BY category HAVING SUM(head_count) > 0'
     ).then((rows) => {
-      setPool(rows);
-      setAmounts(Object.fromEntries(rows.map((r) => [r.category, 0])));
+      const alive = rows.filter((r) => r.total > 0);
+      setPool(alive);
+      setAmounts(Object.fromEntries(alive.map((r) => [r.category, 0])));
     });
 
     db.getAllAsync<PaddockOption>(`

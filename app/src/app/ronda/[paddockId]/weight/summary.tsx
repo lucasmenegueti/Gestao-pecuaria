@@ -31,7 +31,7 @@ export default function WeightSummary() {
         'UPDATE herd SET avg_weight_kg = ? WHERE paddock_id = ? AND category = ?',
         [visualWeight.estimatedWeight, Number(paddockId), visualWeight.category]
       );
-      router.replace(`/ronda/${paddockId}/menu`);
+      router.dismissAll();
     } catch (err) {
       Alert.alert('Erro', 'Falha ao salvar');
     }

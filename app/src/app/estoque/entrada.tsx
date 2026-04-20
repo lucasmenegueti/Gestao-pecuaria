@@ -82,13 +82,13 @@ export default function EntradaEstoqueScreen() {
                 e registrada no ledger (relatório de movimentações).
               </Text>
             </Card>
+          </ScrollView>
 
+          <View style={styles.stickyFooter}>
             <Button
               title={submitting ? 'Registrando…' : `Confirmar entrada · ${quantity} sacos`}
               onPress={handleConfirm}
-              
               disabled={submitting}
-              style={{ marginTop: 14 }}
             />
             <Button
               title="Voltar e ajustar"
@@ -97,7 +97,7 @@ export default function EntradaEstoqueScreen() {
               disabled={submitting}
               style={{ marginTop: 10 }}
             />
-          </ScrollView>
+          </View>
         </SafeAreaView>
       </View>
     );

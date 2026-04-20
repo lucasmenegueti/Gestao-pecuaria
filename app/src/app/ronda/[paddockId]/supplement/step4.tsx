@@ -25,9 +25,9 @@ export default function SupplementStep4() {
       <SliderInput
         value={supplement.sacksInTrough}
         onValueChange={(v) => updateSupplement({ sacksInTrough: v })}
-        min={0.5}
+        min={1}
         max={10}
-        step={0.5}
+        step={1}
         unit="sacos"
         color={Colors.suplementacao}
       />

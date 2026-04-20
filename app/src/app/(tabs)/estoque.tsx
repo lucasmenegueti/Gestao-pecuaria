@@ -159,20 +159,15 @@ export default function EstoqueScreen() {
               </>
             )}
 
-            <Button
-              title="Entrada de estoque"
-              onPress={() => router.push('/estoque/entrada')}
-              style={{ marginTop: 14 }}
-            />
             <TouchableOpacity
               onPress={() => router.push('/estoque/ajuste')}
               style={styles.adjustBtn}
             >
-              <Text style={styles.adjustBtnText}>Ajuste manual (perda)</Text>
+              <Text style={styles.adjustBtnText}>Ajuste manual (entrada ou perda)</Text>
             </TouchableOpacity>
             <Text style={styles.adjustHint}>
               Saídas normais são feitas via reabastecimento (trator → bombona).
-              Ajuste manual só para registrar perda, desvio ou diferença de inventário.
+              Ajuste manual só para registrar perda, desvio, entrada extra ou diferença de inventário.
             </Text>
           </>
         ) : (
@@ -198,7 +193,17 @@ export default function EstoqueScreen() {
                 </Card>
               );
             })}
+          </>
+        )}
+        </ScrollView>
 
+        <View style={styles.stickyFooter}>
+          {tab === 'central' ? (
+            <Button
+              title="Entrada de estoque"
+              onPress={() => router.push('/estoque/entrada')}
+            />
+          ) : (
             <Button
               title={activeRoute ? 'Continuar rota em andamento' : 'Reabastecer bombonas'}
               onPress={() =>
@@ -206,11 +211,9 @@ export default function EstoqueScreen() {
                   ? router.push(`/reabastecimento/rota?routeId=${activeRoute.id}`)
                   : router.push('/reabastecimento/carregar')
               }
-              style={{ marginTop: 14 }}
             />
-          </>
-        )}
-        </ScrollView>
+          )}
+        </View>
       </SafeAreaView>
     </View>
   );
@@ -243,7 +246,13 @@ const styles = StyleSheet.create({
   tabText: { fontSize: 14, fontFamily: Fonts.medium, color: NSA.inkMuted },
   tabTextActive: { color: NSA.green800, fontFamily: Fonts.semibold },
   scroll: { flex: 1 },
-  scrollContent: { padding: 20, paddingBottom: 24 },
+  scrollContent: { padding: 20, paddingBottom: 100 },
+  stickyFooter: {
+    backgroundColor: NSA.bgElevated,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: NSA.border,
+  },
   sectionTitle: {
     fontSize: 11,
     fontFamily: Fonts.medium,

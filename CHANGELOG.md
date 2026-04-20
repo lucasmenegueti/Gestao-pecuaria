@@ -6,6 +6,23 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.5.7 — "Polimento UI + ajuste ±  + NOVILHA PRENHA + logo novo" (2026-04-20)
+
+Rodada de fixes pós-teste no Tab A9:
+
+- **Alocar/desalocar/evoluir/mover sem categoria zerada** (`admin/alocar.tsx`, `admin/desalocar.tsx`, `admin/evoluir.tsx`, `admin/mover-rebanho.tsx`): as 4 telas aplicam `AND h.deleted_at IS NULL` + `AND h.head_count > 0` (ou `HAVING SUM > 0`) pra nunca mostrar BEZERRO MAMANDO · disponível 0. Consistente com o filtro já aplicado em `(tabs)/rebanho.tsx` na v0.5.6.
+- **Voltar sempre volta pra tela de piquetes** (10 summaries de ronda + `washing/step1.tsx`): trocado `router.replace('/ronda/X/menu')` por `router.dismissAll()`. O replace deixava os steps do wizard empilhados no Stack aninhado (`[paddockId]/forage/_layout.tsx` etc.), então depois de finalizar N rondas o user precisava apertar voltar N vezes. dismissAll pops só o wizard nested Stack e aterrissa no menu original do piquete — 1 press basta.
+- **UI antiga em 3 telas** (`supplement/step7.tsx`, `forage/step1.tsx`, `forage/step5.tsx`): removidos emojis (`🟢🟡🔴`) das MultiChoice — o CLAUDE.md já proíbe mas essas 3 telas escaparam. Labels convertidos de CAIXA ALTA pra Sentence case (`BOM` → `Bom`, `ENTRADA` → `Entrada`, etc.). Valores no banco mantidos inalterados (não requer migration).
+- **Categoria NOVILHA PRENHA** (`constants/index.ts`): novo estágio etário entre NOVILHA e VACA PARIDA. Peso default 310 kg. Fluxo: `NOVILHA → [VACA SOLTEIRA, NOVILHA PRENHA]` (MultiChoice no evoluir.tsx) e `NOVILHA PRENHA → VACA PARIDA` (destino único quando pare).
+- **Sacos só em inteiros** (`bombona/step3.tsx`, `supplement/step4.tsx`, `reabastecimento/rota.tsx` ×2): `step={0.5}` → `step={1}`. Peão não fracciona saco na prática. Clique no número do SliderInput abre teclado numérico pra digitar qualquer valor dentro do range — já existia, preservado.
+- **Sticky footer universal** (`(tabs)/estoque.tsx`, `reabastecimento/carregar.tsx`, `reabastecimento/resumo.tsx`, `estoque/ajuste.tsx`, `estoque/entrada.tsx`, `admin/desalocar.tsx`, `admin/evoluir.tsx`): todos os CTAs primários ("Reabastecer bombonas", "Iniciar rota", "Confirmar e finalizar", "Revisar e confirmar", etc.) agora ficam travados no pé da tela, fora do ScrollView. Peão não precisa mais rolar até o fim pra achar o botão. `paddingBottom` do scroll aumentado pra não deixar a última Card ficar embaixo do footer.
+- **Ajuste manual com entrada + saída** (`estoque/ajuste.tsx` reescrito): toggle ± no topo. Modo **Adicionar** aplica delta positivo com `event_type='AJUSTE_GANHO_CENTRAL'` e cria a inventory row se ela não existir (permite abrir saldo de fórmula nova). Modo **Remover** (antigo fluxo) continua como `AJUSTE_PERDA_CENTRAL`. Seletor de produto mostra todas as fórmulas ativas quando modo=add, só as com saldo quando mode=remove. Copy do aviso agora genérico ("Diferenças positivas ou negativas são contabilizadas"). Cor do botão final muda conforme o modo (primary / danger).
+- **Logo do launcher novo** (`app/assets/icon.png`, `adaptive-icon.png`, `splash-icon.png`, `favicon.png`): substituídos por `logos/icon_1024.png` (1024×1024 RGBA) e `logos/icon_512.png` (favicon). `app.json` bump para `version: 1.0.1` pra forçar atualização do ícone no APK preview.
+
+**Fallback:** `git checkout v0.5.6` — volta ao estado anterior (categorias com 0 aparecendo, voltar precisando press múltiplos, emojis na UI, só remover no ajuste, sliders em 0.5, logo antigo).
+
+---
+
 ## v0.5.6 — "Reabastecimento persistente + voltar confiável + rebanho sem zeros" (2026-04-19)
 
 Três fixes focados em confiabilidade de fluxo e contabilidade:

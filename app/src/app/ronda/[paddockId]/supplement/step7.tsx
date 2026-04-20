@@ -24,8 +24,8 @@ export default function SupplementStep7() {
       <Text style={styles.question}>Como está o acesso ao cocho?</Text>
       <MultiChoice
         options={[
-          { value: 'BOM', label: 'BOM', description: 'Animais acessam sem problemas', color: Colors.success, icon: '🟢' },
-          { value: 'RUIM', label: 'RUIM', description: 'Acesso difícil, precisa corrigir', color: Colors.danger, icon: '🔴' },
+          { value: 'BOM', label: 'Bom', description: 'Animais acessam sem problemas', color: NSA.ok },
+          { value: 'RUIM', label: 'Ruim', description: 'Acesso difícil, precisa corrigir', color: NSA.danger },
         ]}
         value={supplement.troughAccess}
         onChange={(v) => updateSupplement({ troughAccess: v })}

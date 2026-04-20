@@ -46,7 +46,7 @@ export default function MoverRebanhoScreen() {
     db.getAllAsync<PaddockOption>(`
       SELECT DISTINCT p.id, p.name FROM paddocks p
       JOIN herd h ON h.paddock_id = p.id
-      WHERE p.active = 1 AND h.head_count > 0
+      WHERE p.active = 1 AND h.head_count > 0 AND h.deleted_at IS NULL
       ORDER BY p.name
     `).then(setFromPaddocks);
     db.getAllAsync<PaddockOption>(
@@ -61,7 +61,7 @@ export default function MoverRebanhoScreen() {
       return;
     }
     db.getAllAsync<Lot>(
-      'SELECT category, head_count FROM herd WHERE paddock_id = ? AND head_count > 0 ORDER BY category',
+      'SELECT category, head_count FROM herd WHERE paddock_id = ? AND head_count > 0 AND deleted_at IS NULL ORDER BY category',
       [Number(fromPaddock)]
     ).then((rows) => {
       setLots(rows);
