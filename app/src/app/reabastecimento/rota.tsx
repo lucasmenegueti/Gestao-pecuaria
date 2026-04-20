@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useDatabase } from '@/lib/db/provider';
-import { Card, Button, SliderInput } from '@/components/ui';
-import { useAuthStore } from '@/stores/authStore';
-import { Colors } from '@/constants';
+import { Truck, Search, X, CheckCircle2, AlertTriangle } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useDatabase } from '@/lib/db/provider';
+import { Card, Button, SliderInput, BrandHeader } from '@/components/ui';
+import { useAuthStore } from '@/stores/authStore';
+import { NSA, Fonts, Radius } from '@/theme/nsa';
+import { cancelActiveRoute } from '@/lib/reabastecimento/active-route';
 
 interface LoadInfo {
   formula_id: number;
@@ -208,6 +210,45 @@ export default function RotaScreen() {
     }
   }
 
+  function handleCancelRoute() {
+    const total = loads.reduce((s, l) => s + l.remaining, 0);
+    Alert.alert(
+      'Cancelar rota?',
+      total > 0
+        ? `${total} sacos voltam ao estoque central. As entregas já feitas nas bombonas continuam.`
+        : 'Não há sacos no trator. A rota será finalizada como cancelada.',
+      [
+        { text: 'Voltar', style: 'cancel' },
+        {
+          text: 'Cancelar rota',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Confirmar',
+              'Tem certeza? Os sacos voltam à central e essa rota não pode mais ser retomada.',
+              [
+                { text: 'Não', style: 'cancel' },
+                {
+                  text: 'Sim, cancelar',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      await cancelActiveRoute(db, Number(routeId), user?.id ?? null);
+                      router.replace('/(tabs)/estoque');
+                    } catch (err) {
+                      console.error('[rota] cancelar falhou', err);
+                      Alert.alert('Erro', 'Falha ao cancelar rota.');
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  }
+
   const totalRemaining = loads.reduce((s, l) => s + l.remaining, 0);
   const abastecidos = paddocks.filter((p) => p.delivered_to_here > 0).length;
   const q = search.trim().toLowerCase();
@@ -216,17 +257,23 @@ export default function RotaScreen() {
     : paddocks;
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.back}>← VOLTAR</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>FASE 2: ROTA EM ANDAMENTO</Text>
-        <Text style={styles.headerSub}>Fechar o app não perde nada — tudo é salvo ao confirmar</Text>
-      </View>
+    <View style={styles.root}>
+      <BrandHeader
+        title="Rota em andamento"
+        context="Fase 2 · Reabastecimento"
+        fallback="/(tabs)/estoque"
+        right={
+          <TouchableOpacity onPress={handleCancelRoute} hitSlop={8} style={styles.cancelBtn}>
+            <Text style={styles.cancelBtnText}>Cancelar</Text>
+          </TouchableOpacity>
+        }
+      />
 
       <View style={styles.tratorBar}>
-        <Text style={styles.tratorLabel}>🚜 NO TRATOR</Text>
+        <View style={styles.tratorHeader}>
+          <Truck size={14} color={NSA.green800} strokeWidth={1.75} />
+          <Text style={styles.tratorLabel}>NO TRATOR</Text>
+        </View>
         {loads.map((l) => (
           <View key={l.formula_id} style={styles.tratorRow}>
             <Text style={styles.tratorName}>{l.formula_name}</Text>
@@ -239,14 +286,15 @@ export default function RotaScreen() {
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text style={styles.listTitle}>
-          PIQUETES ({abastecidos}/{paddocks.length} abastecidos)
+          PIQUETES · {abastecidos}/{paddocks.length} abastecidos
         </Text>
 
         <View style={styles.searchWrap}>
+          <Search size={16} color={NSA.inkMuted} strokeWidth={1.75} />
           <TextInput
             style={styles.searchInput}
-            placeholder="🔍 Buscar piquete..."
-            placeholderTextColor="#9a9a9a"
+            placeholder="Buscar piquete"
+            placeholderTextColor={NSA.inkDisabled}
             value={search}
             onChangeText={setSearch}
             autoCorrect={false}
@@ -255,7 +303,7 @@ export default function RotaScreen() {
           />
           {search.length > 0 && (
             <TouchableOpacity onPress={() => setSearch('')} style={styles.searchClear} hitSlop={10}>
-              <Text style={styles.searchClearText}>✕</Text>
+              <X size={14} color={NSA.inkMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           )}
         </View>
@@ -268,29 +316,32 @@ export default function RotaScreen() {
           const isOpen = delivering?.paddockId === p.paddock_id;
           const delivered = p.delivered_to_here > 0;
           return (
-            <Card key={p.paddock_id} borderColor={delivered ? Colors.success : undefined}>
+            <Card key={p.paddock_id} borderColor={delivered ? NSA.ok : undefined}>
               <View style={styles.itemRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.itemName}>{p.paddock_name.toUpperCase()}</Text>
+                  <Text style={styles.itemName}>{p.paddock_name}</Text>
                   {p.bombonas.length === 0 ? (
                     <Text style={styles.itemDetailMuted}>Sem bombona — será criada ao entregar</Text>
                   ) : (
                     p.bombonas.map((b) => (
                       <Text key={b.formula_id} style={styles.itemDetail}>
-                        {b.formula_name}: {b.db_sacks} sacos
+                        {b.formula_name} · {b.db_sacks} sacos
                       </Text>
                     ))
                   )}
                   {delivered && (
-                    <Text style={styles.deliveredText}>✅ Abastecido nesta rota: +{p.delivered_to_here}</Text>
+                    <View style={styles.deliveredRow}>
+                      <CheckCircle2 size={14} color={NSA.green800} strokeWidth={1.75} />
+                      <Text style={styles.deliveredText}>Abastecido nesta rota · +{p.delivered_to_here}</Text>
+                    </View>
                   )}
                 </View>
               </View>
 
               {!isOpen && (
                 <Button
-                  title={delivered ? 'ABASTECER MAIS / AJUSTAR' : 'ABASTECER / AJUSTAR'}
-                  variant={delivered ? 'secondary' : 'warning'}
+                  title={delivered ? 'Abastecer mais / ajustar' : 'Abastecer / ajustar'}
+                  variant={delivered ? 'outline' : 'primary'}
                   onPress={() => openDelivery(p)}
                   disabled={totalRemaining === 0 && !delivered}
                   style={{ marginTop: 10 }}
@@ -343,10 +394,12 @@ export default function RotaScreen() {
 
                   {delivering.showManualAdjust && (
                     <View style={styles.adjustBox}>
-                      <Text style={styles.adjustWarn}>
-                        ⚠️ Esse ajuste será registrado como <Text style={{ fontWeight: '800' }}>perda</Text> ou
-                        recontagem no relatório de inventário.
-                      </Text>
+                      <View style={styles.adjustWarnRow}>
+                        <AlertTriangle size={14} color={NSA.dangerFg} strokeWidth={1.75} />
+                        <Text style={styles.adjustWarn}>
+                          Esse ajuste será registrado como <Text style={{ fontFamily: Fonts.semibold }}>perda</Text> ou recontagem no relatório de inventário.
+                        </Text>
+                      </View>
                       <Text style={styles.formLabel}>Diferença em sacos</Text>
                       <Text style={styles.formHint}>
                         Negativo = sumiu; Positivo = tem mais do que o app mostra
@@ -358,7 +411,7 @@ export default function RotaScreen() {
                         max={10}
                         step={0.5}
                         unit="sacos"
-                        color={Colors.danger}
+                        color={NSA.danger}
                       />
                     </View>
                   )}
@@ -379,7 +432,6 @@ export default function RotaScreen() {
                     )}
                     step={0.5}
                     unit="sacos"
-                    color={Colors.warning}
                   />
 
                   <View style={styles.formTotal}>
@@ -390,18 +442,8 @@ export default function RotaScreen() {
                   </View>
 
                   <View style={styles.deliverActions}>
-                    <Button
-                      title="CANCELAR"
-                      variant="outline"
-                      onPress={() => setDelivering(null)}
-                      style={{ flex: 1 }}
-                    />
-                    <Button
-                      title="CONFIRMAR"
-                      variant="warning"
-                      onPress={handleConfirm}
-                      style={{ flex: 1 }}
-                    />
+                    <Button title="Cancelar" variant="outline" onPress={() => setDelivering(null)} style={{ flex: 1 }} />
+                    <Button title="Confirmar" onPress={handleConfirm} style={{ flex: 1 }} />
                   </View>
                 </View>
               )}
@@ -416,130 +458,149 @@ export default function RotaScreen() {
         </Card>
       </ScrollView>
 
-      {/* Sticky footer — sempre visível mesmo com 125 piquetes na lista */}
-      <View style={styles.stickyFooter}>
+      <SafeAreaView edges={['bottom']} style={styles.stickyFooter}>
         <Button
-          title={`ENCERRAR ROTA · ${totalRemaining} sacos voltam`}
-          variant="danger"
+          title={`Encerrar rota · ${totalRemaining} sacos voltam`}
           onPress={() => router.replace(`/reabastecimento/resumo?routeId=${routeId}`)}
-          size="large"
         />
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f4f1ec' },
-  header: { backgroundColor: '#e67e22', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
-  back: { color: 'rgba(255,255,255,0.9)', fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#ffffff' },
-  headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 2, fontStyle: 'italic' },
-  tratorBar: { backgroundColor: '#fff3e0', padding: 12, borderBottomWidth: 1, borderBottomColor: '#e0dcd5' },
-  tratorLabel: { fontSize: 13, fontWeight: '800', color: '#e67e22', marginBottom: 6 },
+  root: { flex: 1, backgroundColor: NSA.bg },
+  tratorBar: {
+    backgroundColor: NSA.green50,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: NSA.border,
+  },
+  tratorHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  tratorLabel: { fontSize: 11, fontFamily: Fonts.medium, letterSpacing: 1.2, textTransform: 'uppercase', color: NSA.green800 },
   tratorRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 },
-  tratorName: { fontSize: 14, color: '#2c2c2c', fontWeight: '600' },
-  tratorQty: { fontSize: 14, color: '#2c2c2c' },
-  tratorQtyBold: { fontWeight: '800' },
+  tratorName: { fontSize: 13, color: NSA.inkPrimary, fontFamily: Fonts.medium },
+  tratorQty: { fontSize: 13, color: NSA.inkPrimary, fontFamily: Fonts.regular },
+  tratorQtyBold: { fontFamily: Fonts.semibold },
   scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 110 },
+  scrollContent: { padding: 20, paddingBottom: 110 },
   stickyFooter: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#fff',
-    padding: 12,
+    backgroundColor: NSA.bgElevated,
+    paddingHorizontal: 16,
+    paddingTop: 14,
     borderTopWidth: 1,
-    borderTopColor: '#e0dcd5',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 8,
+    borderTopColor: NSA.border,
   },
-  listTitle: { fontSize: 13, fontWeight: '800', color: '#7a7a7a', letterSpacing: 0.5, marginBottom: 8 },
+  listTitle: {
+    fontSize: 11,
+    fontFamily: Fonts.medium,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: NSA.inkMuted,
+    marginBottom: 10,
+  },
   itemRow: { flexDirection: 'row', alignItems: 'center' },
-  itemName: { fontSize: 16, fontWeight: '800', color: '#2c2c2c' },
-  itemDetail: { fontSize: 13, color: '#2c2c2c', marginTop: 2 },
-  itemDetailMuted: { fontSize: 13, color: '#7a7a7a', marginTop: 2, fontStyle: 'italic' },
-  deliveredText: { fontSize: 13, color: '#2d8a4e', fontWeight: '700', marginTop: 4 },
+  itemName: { fontSize: 14, fontFamily: Fonts.semibold, color: NSA.inkPrimary, letterSpacing: -0.15 },
+  itemDetail: { fontSize: 12, color: NSA.inkSecondary, marginTop: 2, fontFamily: Fonts.regular },
+  itemDetailMuted: { fontSize: 12, color: NSA.inkMuted, marginTop: 2, fontStyle: 'italic', fontFamily: Fonts.regular },
+  deliveredRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  deliveredText: { fontSize: 12, color: NSA.okFg, fontFamily: Fonts.medium },
   deliverForm: { marginTop: 12 },
-  formLabel: { fontSize: 14, fontWeight: '800', color: '#2c2c2c', marginTop: 4 },
-  formHint: { fontSize: 12, color: '#7a7a7a', marginBottom: 4, fontStyle: 'italic' },
+  formLabel: { fontSize: 12, fontFamily: Fonts.medium, color: NSA.inkSecondary, marginTop: 6 },
+  formHint: { fontSize: 11, color: NSA.inkMuted, marginBottom: 4, fontFamily: Fonts.regular },
   formulaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
   formulaChip: {
-    borderWidth: 2,
-    borderColor: '#e0dcd5',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: NSA.border,
+    borderRadius: Radius.md,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: NSA.bgElevated,
   },
-  formulaChipSel: { borderColor: '#e67e22', backgroundColor: '#fff3e0' },
-  formulaChipText: { fontSize: 13, color: '#2c2c2c', fontWeight: '700' },
-  formulaChipQty: { fontSize: 11, color: '#7a7a7a', marginTop: 2 },
-  formulaChipTextSel: { color: '#e67e22' },
-  sep: { height: 1, backgroundColor: '#e0dcd5', marginVertical: 12 },
+  formulaChipSel: { borderColor: NSA.green800, backgroundColor: NSA.green50 },
+  formulaChipText: { fontSize: 12, color: NSA.inkPrimary, fontFamily: Fonts.medium },
+  formulaChipQty: { fontSize: 10, color: NSA.inkMuted, marginTop: 2 },
+  formulaChipTextSel: { color: NSA.green800 },
+  sep: { height: 1, backgroundColor: NSA.borderSubtle, marginVertical: 12 },
   currentRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 12,
-    paddingVertical: 6,
+    marginTop: 10,
+    paddingVertical: 4,
   },
-  currentLabel: { fontSize: 14, color: '#2c2c2c', fontWeight: '600' },
-  currentValue: { fontSize: 16, fontWeight: '800', color: '#2c2c2c' },
-  currentAdj: { color: Colors.danger, fontWeight: '700', fontSize: 13 },
+  currentLabel: { fontSize: 13, color: NSA.inkSecondary, fontFamily: Fonts.regular },
+  currentValue: { fontSize: 14, fontFamily: Fonts.semibold, color: NSA.inkPrimary },
+  currentAdj: { color: NSA.danger, fontFamily: Fonts.semibold, fontSize: 12 },
   adjustToggle: {
     alignSelf: 'flex-start',
     paddingVertical: 4,
-    paddingHorizontal: 2,
   },
   adjustToggleText: {
-    fontSize: 12,
-    color: Colors.textMuted,
+    fontSize: 11,
+    color: NSA.inkMuted,
     textDecorationLine: 'underline',
-    fontWeight: '600',
+    fontFamily: Fonts.medium,
   },
   adjustBox: {
     marginTop: 8,
-    padding: 10,
-    backgroundColor: '#fdecea',
-    borderRadius: 8,
+    padding: 12,
+    backgroundColor: NSA.dangerBg,
+    borderRadius: Radius.lg,
     borderLeftWidth: 3,
-    borderLeftColor: Colors.danger,
+    borderLeftColor: NSA.danger,
   },
-  adjustWarn: { fontSize: 11, color: '#2c2c2c', marginBottom: 8, lineHeight: 15 },
+  adjustWarnRow: { flexDirection: 'row', gap: 8, marginBottom: 8, alignItems: 'flex-start' },
+  adjustWarn: { fontSize: 11, color: NSA.inkPrimary, lineHeight: 15, fontFamily: Fonts.regular, flex: 1 },
   formTotal: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#fff3e0',
+    backgroundColor: NSA.green50,
     padding: 10,
-    borderRadius: 8,
+    borderRadius: Radius.lg,
     marginTop: 4,
   },
-  formTotalLabel: { fontSize: 14, color: '#2c2c2c', fontWeight: '600' },
-  formTotalValue: { fontSize: 16, fontWeight: '800', color: '#e67e22' },
-  deliverActions: { flexDirection: 'row', gap: 12, marginTop: 12 },
-  progressText: { fontSize: 15, fontWeight: '700', color: '#2c2c2c', textAlign: 'center' },
+  formTotalLabel: { fontSize: 13, color: NSA.inkSecondary, fontFamily: Fonts.medium },
+  formTotalValue: { fontSize: 14, fontFamily: Fonts.semibold, color: NSA.green800 },
+  deliverActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  progressText: { fontSize: 13, fontFamily: Fonts.medium, color: NSA.inkPrimary, textAlign: 'center' },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    gap: 8,
+    backgroundColor: NSA.bgElevated,
     borderWidth: 1,
-    borderColor: '#e0dcd5',
-    borderRadius: 10,
-    paddingHorizontal: 12,
+    borderColor: NSA.borderStrong,
+    borderRadius: Radius.lg,
+    paddingHorizontal: 10,
     marginBottom: 12,
   },
   searchInput: {
     flex: 1,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#2c2c2c',
+    paddingVertical: 10,
+    fontSize: 14,
+    color: NSA.inkPrimary,
+    fontFamily: Fonts.regular,
   },
   searchClear: { padding: 4 },
-  searchClearText: { fontSize: 18, color: '#7a7a7a', fontWeight: '700' },
-  noMatch: { fontSize: 14, color: '#7a7a7a', textAlign: 'center', fontStyle: 'italic', marginTop: 8 },
+  noMatch: { fontSize: 13, color: NSA.inkMuted, textAlign: 'center', marginTop: 8, fontFamily: Fonts.regular },
+  cancelBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,227,0.4)',
+  },
+  cancelBtnText: {
+    fontSize: 11,
+    fontFamily: Fonts.semibold,
+    letterSpacing: 0.8,
+    color: NSA.cream,
+    textTransform: 'uppercase',
+  },
 });

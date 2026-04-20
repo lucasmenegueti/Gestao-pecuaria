@@ -2,10 +2,17 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
+import { Truck, ChevronRight } from 'lucide-react-native';
 import { useDatabase } from '@/lib/db/provider';
-import { Card, Button, Badge } from '@/components/ui';
-import { Colors } from '@/constants';
+import { Card, Button, StatusPill, BrandHeader } from '@/components/ui';
+import { NSA, Fonts, Radius, tokensForStatus } from '@/theme/nsa';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  getActiveRoute,
+  getInTransitTotals,
+  type ActiveRoute,
+  type InTransitTotal,
+} from '@/lib/reabastecimento/active-route';
 
 interface BombonaItem {
   id: number;
@@ -26,6 +33,8 @@ export default function EstoqueScreen() {
   const [bombonaItems, setBombonaItems] = useState<BombonaItem[]>([]);
   const [centralTotals, setCentralTotals] = useState<FormulaTotal[]>([]);
   const [bombonaTotals, setBombonaTotals] = useState<FormulaTotal[]>([]);
+  const [activeRoute, setActiveRoute] = useState<ActiveRoute | null>(null);
+  const [inTransit, setInTransit] = useState<InTransitTotal[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -34,6 +43,13 @@ export default function EstoqueScreen() {
   );
 
   async function loadInventory() {
+    const [active, transit] = await Promise.all([
+      getActiveRoute(db),
+      getInTransitTotals(db),
+    ]);
+    setActiveRoute(active);
+    setInTransit(transit);
+
     const central = await db.getAllAsync<FormulaTotal>(`
       SELECT f.name as formula_name, SUM(i.quantity_sacks) as total
       FROM inventory i JOIN formulas f ON f.id = i.formula_id
@@ -68,27 +84,44 @@ export default function EstoqueScreen() {
   const grandTotal = totals.reduce((s, r) => s + (r.total || 0), 0);
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Estoque</Text>
-      </View>
-
+    <View style={styles.root}>
+      <BrandHeader title="Estoque" context={`${grandTotal} sacos · ${tab === 'central' ? 'central' : 'bombonas'}`} />
       <View style={styles.tabRow}>
         <TouchableOpacity
           style={[styles.tab, tab === 'central' && styles.tabActive]}
           onPress={() => setTab('central')}
         >
-          <Text style={[styles.tabText, tab === 'central' && styles.tabTextActive]}>CENTRAL</Text>
+          <Text style={[styles.tabText, tab === 'central' && styles.tabTextActive]}>Central</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, tab === 'bombonas' && styles.tabActive]}
           onPress={() => setTab('bombonas')}
         >
-          <Text style={[styles.tabText, tab === 'bombonas' && styles.tabTextActive]}>BOMBONAS</Text>
+          <Text style={[styles.tabText, tab === 'bombonas' && styles.tabTextActive]}>Bombonas</Text>
         </TouchableOpacity>
       </View>
+      <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        {activeRoute && (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => router.push(`/reabastecimento/rota?routeId=${activeRoute.id}`)}
+            style={styles.activeRouteBanner}
+          >
+            <View style={styles.activeRouteIcon}>
+              <Truck size={18} color={NSA.infoFg} strokeWidth={1.75} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.activeRouteTitle}>Rota em andamento</Text>
+              <Text style={styles.activeRouteDetail}>
+                {activeRoute.total_remaining} sacos no trator · iniciada {formatStarted(activeRoute.start_time)}
+              </Text>
+            </View>
+            <ChevronRight size={16} color={NSA.infoFg} strokeWidth={1.75} />
+          </TouchableOpacity>
+        )}
+
         <Text style={styles.sectionTitle}>TOTAIS POR INSUMO</Text>
         <Card>
           {totals.length === 0 ? (
@@ -109,12 +142,27 @@ export default function EstoqueScreen() {
 
         {tab === 'central' ? (
           <>
+            {inTransit.length > 0 && (
+              <>
+                <Text style={styles.sectionTitle}>NO TRATOR (rotas em andamento)</Text>
+                <Card borderColor={NSA.info}>
+                  {inTransit.map((t) => (
+                    <View key={t.formula_id} style={styles.totalRow}>
+                      <Text style={styles.totalCat}>{t.formula_name}</Text>
+                      <Text style={styles.totalCount}>{t.total} sacos</Text>
+                    </View>
+                  ))}
+                  <Text style={styles.inTransitHint}>
+                    Contabilizados fora da central até a rota ser encerrada ou cancelada.
+                  </Text>
+                </Card>
+              </>
+            )}
+
             <Button
-              title="ENTRADA DE ESTOQUE"
-              variant="success"
+              title="Entrada de estoque"
               onPress={() => router.push('/estoque/entrada')}
-              size="large"
-              style={{ marginTop: 16 }}
+              style={{ marginTop: 14 }}
             />
             <TouchableOpacity
               onPress={() => router.push('/estoque/ajuste')}
@@ -134,95 +182,155 @@ export default function EstoqueScreen() {
               <Text style={styles.emptyRow}>Nenhuma bombona cadastrada.</Text>
             )}
             {bombonaItems.map((item) => {
-              const variant = item.quantity_sacks === 0 ? 'danger' : item.quantity_sacks <= 2 ? 'warning' : 'ok';
+              const kind = item.quantity_sacks === 0 ? 'danger' : item.quantity_sacks <= 2 ? 'warn' : 'ok';
+              const t = tokensForStatus(kind);
+              const label = kind === 'danger' ? 'Crítico' : t.label;
               return (
-                <Card key={item.id} borderColor={variant === 'danger' ? Colors.danger : variant === 'warning' ? Colors.warning : Colors.success}>
+                <Card key={item.id} borderColor={t.edge}>
                   <View style={styles.itemHeader}>
-                    <Text style={styles.itemName}>{item.paddock_name.toUpperCase()}</Text>
-                    <Badge label={variant === 'ok' ? 'OK' : variant === 'warning' ? 'ATENÇÃO' : 'CRÍTICO'} variant={variant} />
+                    <Text style={styles.itemName}>{item.paddock_name}</Text>
+                    <StatusPill kind={kind}>{label}</StatusPill>
                   </View>
-                  <Text style={styles.itemQty}>{item.formula_name}: {item.quantity_sacks} sacos</Text>
+                  <Text style={styles.itemQty}>{item.formula_name} · {item.quantity_sacks} sacos</Text>
                   {item.last_resupply_date && (
-                    <Text style={styles.itemMin}>Últ. reab: {item.last_resupply_date}</Text>
+                    <Text style={styles.itemMin}>Últ. reab {item.last_resupply_date}</Text>
                   )}
                 </Card>
               );
             })}
 
             <Button
-              title="REABASTECER BOMBONAS"
-              variant="warning"
-              onPress={() => router.push('/reabastecimento/carregar')}
-              icon="🚜"
-              style={{ marginTop: 16 }}
+              title={activeRoute ? 'Continuar rota em andamento' : 'Reabastecer bombonas'}
+              onPress={() =>
+                activeRoute
+                  ? router.push(`/reabastecimento/rota?routeId=${activeRoute.id}`)
+                  : router.push('/reabastecimento/carregar')
+              }
+              style={{ marginTop: 14 }}
             />
           </>
         )}
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
+function formatStarted(iso: string): string {
+  // iso vem como 'YYYY-MM-DD HH:MM:SS' (datetime('now','localtime')).
+  const parsed = new Date(iso.replace(' ', 'T'));
+  if (isNaN(parsed.getTime())) return iso;
+  const now = new Date();
+  const sameDay =
+    parsed.getFullYear() === now.getFullYear() &&
+    parsed.getMonth() === now.getMonth() &&
+    parsed.getDate() === now.getDate();
+  const hh = parsed.getHours().toString().padStart(2, '0');
+  const mm = parsed.getMinutes().toString().padStart(2, '0');
+  return sameDay ? `às ${hh}:${mm}` : `em ${parsed.toLocaleDateString('pt-BR')}`;
+}
+
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 16,
-  },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: Colors.white },
+  root: { flex: 1, backgroundColor: NSA.bg },
   tabRow: {
     flexDirection: 'row',
-    backgroundColor: Colors.card,
+    backgroundColor: NSA.bgElevated,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: NSA.border,
   },
   tab: { flex: 1, paddingVertical: 14, alignItems: 'center' },
-  tabActive: { borderBottomWidth: 3, borderBottomColor: Colors.primary },
-  tabText: { fontSize: 16, fontWeight: '700', color: Colors.textMuted },
-  tabTextActive: { color: Colors.primary },
+  tabActive: { borderBottomWidth: 2, borderBottomColor: NSA.green800 },
+  tabText: { fontSize: 14, fontFamily: Fonts.medium, color: NSA.inkMuted },
+  tabTextActive: { color: NSA.green800, fontFamily: Fonts.semibold },
   scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 32 },
-  sectionTitle: { fontSize: 13, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.5, marginTop: 16, marginBottom: 8 },
+  scrollContent: { padding: 20, paddingBottom: 24 },
+  sectionTitle: {
+    fontSize: 11,
+    fontFamily: Fonts.medium,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: NSA.inkMuted,
+    marginTop: 18,
+    marginBottom: 10,
+  },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: NSA.borderSubtle,
   },
-  totalCat: { fontSize: 15, color: Colors.text, fontWeight: '600' },
-  totalCount: { fontSize: 15, fontWeight: '700', color: Colors.text },
-  totalSum: { borderBottomWidth: 0, borderTopWidth: 2, borderTopColor: Colors.primary, paddingTop: 12, marginTop: 4 },
-  totalSumLabel: { fontSize: 16, fontWeight: '800', color: Colors.primary },
-  totalSumCount: { fontSize: 16, fontWeight: '800', color: Colors.primary },
-  emptyRow: { fontSize: 14, color: Colors.textMuted, fontStyle: 'italic', textAlign: 'center', paddingVertical: 12 },
+  totalCat: { fontSize: 13, color: NSA.inkPrimary, fontFamily: Fonts.medium },
+  totalCount: { fontSize: 13, color: NSA.inkPrimary, fontFamily: Fonts.semibold },
+  totalSum: {
+    borderBottomWidth: 0,
+    borderTopWidth: 1,
+    borderTopColor: NSA.green800,
+    paddingTop: 12,
+    marginTop: 4,
+  },
+  totalSumLabel: { fontSize: 14, fontFamily: Fonts.semibold, color: NSA.green800 },
+  totalSumCount: { fontSize: 14, fontFamily: Fonts.semibold, color: NSA.green800 },
+  emptyRow: { fontSize: 13, color: NSA.inkMuted, fontStyle: 'italic', textAlign: 'center', paddingVertical: 12 },
   itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  itemName: { fontSize: 16, fontWeight: '800', color: Colors.text },
-  itemQty: { fontSize: 18, fontWeight: '700', color: Colors.text, marginTop: 4 },
-  itemMin: { fontSize: 14, color: Colors.textMuted, marginTop: 2 },
-  bar: { height: 6, backgroundColor: Colors.border, borderRadius: 3, marginTop: 8 },
-  barFill: { height: '100%', borderRadius: 3 },
-  actionRow: { flexDirection: 'row', gap: 12, marginTop: 16 },
-  actionBtn: { flex: 1 },
+  itemName: { fontSize: 14, fontFamily: Fonts.semibold, color: NSA.inkPrimary, letterSpacing: -0.15 },
+  itemQty: { fontSize: 14, fontFamily: Fonts.medium, color: NSA.inkPrimary, marginTop: 4 },
+  itemMin: { fontSize: 12, color: NSA.inkMuted, fontFamily: Fonts.regular, marginTop: 2 },
   adjustBtn: {
     alignSelf: 'center',
     marginTop: 12,
     paddingVertical: 6,
     paddingHorizontal: 12,
-    borderRadius: 6,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: NSA.border,
   },
-  adjustBtnText: { fontSize: 13, fontWeight: '700', color: Colors.danger },
+  adjustBtnText: { fontSize: 12, fontFamily: Fonts.medium, color: NSA.danger },
   adjustHint: {
     fontSize: 11,
-    color: Colors.textMuted,
+    color: NSA.inkMuted,
     textAlign: 'center',
     marginTop: 6,
-    fontStyle: 'italic',
+    fontFamily: Fonts.regular,
     lineHeight: 15,
     paddingHorizontal: 8,
+  },
+  activeRouteBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: NSA.infoBg,
+    borderWidth: 1,
+    borderColor: NSA.info,
+    borderRadius: Radius.xl,
+    padding: 14,
+    marginBottom: 6,
+  },
+  activeRouteIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: Radius.lg,
+    backgroundColor: NSA.bgElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeRouteTitle: {
+    fontSize: 13,
+    fontFamily: Fonts.semibold,
+    color: NSA.infoFg,
+    letterSpacing: -0.15,
+  },
+  activeRouteDetail: {
+    fontSize: 12,
+    fontFamily: Fonts.regular,
+    color: NSA.inkSecondary,
+    marginTop: 2,
+  },
+  inTransitHint: {
+    fontSize: 11,
+    color: NSA.inkMuted,
+    fontFamily: Fonts.regular,
+    marginTop: 10,
+    lineHeight: 15,
   },
 });

@@ -79,6 +79,13 @@ interface RondaState {
     photoUri: string | null;
   };
 
+  // Biological in water wizard state
+  biologicalWater: {
+    applied: boolean | null;
+    quantityG: number;
+    photoUri: string | null;
+  };
+
   setCurrentPaddock: (id: number, name: string, heads: number, area: number, grassType: string) => void;
   setRondaId: (id: number) => void;
   updateSupplement: (data: Partial<RondaState['supplement']>) => void;
@@ -89,6 +96,7 @@ interface RondaState {
   updateFence: (data: Partial<RondaState['fence']>) => void;
   updateVisualWeight: (data: Partial<RondaState['visualWeight']>) => void;
   updateWashing: (data: Partial<RondaState['washing']>) => void;
+  updateBiologicalWater: (data: Partial<RondaState['biologicalWater']>) => void;
   resetSupplement: () => void;
   resetBombona: () => void;
   resetForage: () => void;
@@ -97,6 +105,7 @@ interface RondaState {
   resetFence: () => void;
   resetVisualWeight: () => void;
   resetWashing: () => void;
+  resetBiologicalWater: () => void;
   resetAll: () => void;
 }
 
@@ -163,6 +172,12 @@ const initialWashing: RondaState['washing'] = {
   photoUri: null,
 };
 
+const initialBiologicalWater: RondaState['biologicalWater'] = {
+  applied: null,
+  quantityG: 100,
+  photoUri: null,
+};
+
 export const useRondaStore = create<RondaState>((set) => ({
   currentRondaId: null,
   currentPaddockId: null,
@@ -178,6 +193,7 @@ export const useRondaStore = create<RondaState>((set) => ({
   fence: { ...initialFence },
   visualWeight: { ...initialVisualWeight },
   washing: { ...initialWashing },
+  biologicalWater: { ...initialBiologicalWater },
 
   setCurrentPaddock: (id, name, heads, area, grassType) =>
     set({ currentPaddockId: id, currentPaddockName: name, currentPaddockHeads: heads, currentPaddockArea: area, currentGrassTypeName: grassType }),
@@ -190,6 +206,7 @@ export const useRondaStore = create<RondaState>((set) => ({
   updateFence: (data) => set((s) => ({ fence: { ...s.fence, ...data } })),
   updateVisualWeight: (data) => set((s) => ({ visualWeight: { ...s.visualWeight, ...data } })),
   updateWashing: (data) => set((s) => ({ washing: { ...s.washing, ...data } })),
+  updateBiologicalWater: (data) => set((s) => ({ biologicalWater: { ...s.biologicalWater, ...data } })),
   resetSupplement: () => set({ supplement: { ...initialSupplement } }),
   resetBombona: () => set({ bombona: { ...initialBombona } }),
   resetForage: () => set({ forage: { ...initialForage } }),
@@ -198,6 +215,7 @@ export const useRondaStore = create<RondaState>((set) => ({
   resetFence: () => set({ fence: { ...initialFence } }),
   resetVisualWeight: () => set({ visualWeight: { ...initialVisualWeight } }),
   resetWashing: () => set({ washing: { ...initialWashing } }),
+  resetBiologicalWater: () => set({ biologicalWater: { ...initialBiologicalWater } }),
   resetAll: () => set({
     currentRondaId: null,
     currentPaddockId: null,
@@ -213,5 +231,6 @@ export const useRondaStore = create<RondaState>((set) => ({
     fence: { ...initialFence },
     visualWeight: { ...initialVisualWeight },
     washing: { ...initialWashing },
+    biologicalWater: { ...initialBiologicalWater },
   }),
 }));

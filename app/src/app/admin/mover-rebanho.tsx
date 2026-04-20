@@ -1,153 +1,322 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
-import { router } from 'expo-router';
-import { useDatabase } from '@/lib/db/provider';
-import { Card, Button, SliderInput, MultiChoice } from '@/components/ui';
-import { Colors, CATTLE_CATEGORIES } from '@/constants';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Alert, TextInput, TouchableOpacity } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Search, X } from 'lucide-react-native';
+import { useDatabase } from '@/lib/db/provider';
+import { Card, Button, SliderInput, MultiChoice, BrandHeader, SummaryRow } from '@/components/ui';
+import { NSA, Fonts, Radius } from '@/theme/nsa';
 
 interface PaddockOption {
   id: number;
   name: string;
 }
 
+interface Lot {
+  category: string;
+  head_count: number;
+}
+
+/**
+ * Mover rebanho: categoria é deduzida do piquete de origem.
+ *
+ * - 1 categoria no piquete  → slider de quantidade + destino. Sem MultiChoice.
+ * - múltiplas categorias    → default move o lote inteiro (tudo). Botão
+ *   "Desagregar" abre sliders por categoria pra escolher quanto move de cada.
+ *
+ * Origem aceita `?paddockId=` e trava quando presente.
+ */
 export default function MoverRebanhoScreen() {
   const db = useDatabase();
+  const params = useLocalSearchParams<{ paddockId?: string }>();
+  const lockedOrigin = !!params.paddockId;
+
   const [fromPaddocks, setFromPaddocks] = useState<PaddockOption[]>([]);
   const [toPaddocks, setToPaddocks] = useState<PaddockOption[]>([]);
-  const [fromPaddock, setFromPaddock] = useState<string | null>(null);
+  const [fromPaddock, setFromPaddock] = useState<string | null>(params.paddockId ?? null);
   const [toPaddock, setToPaddock] = useState<string | null>(null);
-  const [category, setCategory] = useState<string | null>(null);
-  const [count, setCount] = useState(10);
-  const [maxCount, setMaxCount] = useState(500);
+  const [lots, setLots] = useState<Lot[]>([]);
+  const [disaggregate, setDisaggregate] = useState(false);
+  const [amounts, setAmounts] = useState<Record<string, number>>({});
+  const [destSearch, setDestSearch] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
-    // Origem: apenas piquetes com gado (exclui pool desalocada — paddock_id IS NULL não bate no JOIN)
     db.getAllAsync<PaddockOption>(`
       SELECT DISTINCT p.id, p.name FROM paddocks p
       JOIN herd h ON h.paddock_id = p.id
-      WHERE p.active = 1
+      WHERE p.active = 1 AND h.head_count > 0
       ORDER BY p.name
     `).then(setFromPaddocks);
-    // Destino: qualquer piquete ativo
     db.getAllAsync<PaddockOption>(
       'SELECT id, name FROM paddocks WHERE active=1 ORDER BY name'
     ).then(setToPaddocks);
   }, []);
 
   useEffect(() => {
-    if (fromPaddock && category) {
-      db.getFirstAsync<{ head_count: number }>(
-        'SELECT head_count FROM herd WHERE paddock_id=? AND category=?',
-        [Number(fromPaddock), category]
-      ).then((row) => {
-        const max = row?.head_count || 0;
-        setMaxCount(max);
-        if (count > max) setCount(max);
-      });
-    }
-  }, [fromPaddock, category]);
-
-  async function handleMove() {
-    if (!fromPaddock || !toPaddock || !category || count <= 0) {
-      Alert.alert('Erro', 'Preencha todos os campos');
+    if (!fromPaddock) {
+      setLots([]);
+      setAmounts({});
       return;
     }
+    db.getAllAsync<Lot>(
+      'SELECT category, head_count FROM herd WHERE paddock_id = ? AND head_count > 0 ORDER BY category',
+      [Number(fromPaddock)]
+    ).then((rows) => {
+      setLots(rows);
+      // Default: move tudo de cada lote
+      const init: Record<string, number> = {};
+      for (const l of rows) init[l.category] = l.head_count;
+      setAmounts(init);
+      setDisaggregate(false);
+    });
+  }, [fromPaddock]);
+
+  const fromName = fromPaddocks.find((p) => String(p.id) === fromPaddock)?.name ?? '';
+  const singleCat = lots.length === 1 ? lots[0] : null;
+
+  const selectedEntries = Object.entries(amounts).filter(([, v]) => v > 0);
+  const selectedTotal = selectedEntries.reduce((s, [, v]) => s + v, 0);
+
+  function setAmount(cat: string, v: number) {
+    setAmounts((prev) => ({ ...prev, [cat]: v }));
+  }
+
+  async function handleMove() {
+    if (submittingRef.current) return;
+    if (!fromPaddock || !toPaddock || selectedTotal <= 0) return;
     if (fromPaddock === toPaddock) {
       Alert.alert('Erro', 'Origem e destino devem ser diferentes');
       return;
     }
+    submittingRef.current = true;
+    setSubmitting(true);
     try {
-      const origin = await db.getFirstAsync<{ head_count: number }>(
-        'SELECT head_count FROM herd WHERE paddock_id=? AND category=?',
-        [Number(fromPaddock), category]
-      );
-      const available = origin?.head_count ?? 0;
-      if (available < count) {
-        Alert.alert('Erro', 'Quantidade insuficiente na origem');
-        return;
+      for (const [cat, qty] of selectedEntries) {
+        await db.runAsync(
+          'UPDATE herd SET head_count = MAX(0, head_count - ?) WHERE paddock_id = ? AND category = ?',
+          [qty, Number(fromPaddock), cat]
+        );
+        const existing = await db.getFirstAsync<{ id: number }>(
+          'SELECT id FROM herd WHERE paddock_id = ? AND category = ?',
+          [Number(toPaddock), cat]
+        );
+        if (existing) {
+          await db.runAsync('UPDATE herd SET head_count = head_count + ? WHERE id = ?', [qty, existing.id]);
+        } else {
+          await db.runAsync(
+            'INSERT INTO herd (paddock_id, category, head_count) VALUES (?, ?, ?)',
+            [Number(toPaddock), cat, qty]
+          );
+        }
+        await db.runAsync(
+          `INSERT INTO herd_events (paddock_id, event_type, category, head_count, target_paddock_id, date)
+           VALUES (?, 'TRANSFERENCIA', ?, ?, ?, date('now','localtime'))`,
+          [Number(fromPaddock), cat, qty, Number(toPaddock)]
+        );
       }
-      // Decrease from origin
-      await db.runAsync('UPDATE herd SET head_count = MAX(0, head_count - ?) WHERE paddock_id=? AND category=?',
-        [count, Number(fromPaddock), category]);
-      // Increase or insert at destination
-      const existing = await db.getFirstAsync<{ id: number }>(
-        'SELECT id FROM herd WHERE paddock_id=? AND category=?',
-        [Number(toPaddock), category]
-      );
-      if (existing) {
-        await db.runAsync('UPDATE herd SET head_count = head_count + ? WHERE id=?', [count, existing.id]);
-      } else {
-        await db.runAsync('INSERT INTO herd (paddock_id, category, head_count) VALUES (?,?,?)',
-          [Number(toPaddock), category, count]);
-      }
-      // Log event
-      await db.runAsync(
-        'INSERT INTO herd_events (paddock_id, event_type, category, head_count, target_paddock_id, date) VALUES (?,?,?,?,?,date(\'now\',\'localtime\'))',
-        [Number(fromPaddock), 'TRANSFERENCIA', category, count, Number(toPaddock)]
-      );
-      // Remove empty rows
-      await db.runAsync('DELETE FROM herd WHERE head_count <= 0');
-      Alert.alert('Sucesso', `${count} ${category} movidos!`, [{ text: 'OK', onPress: () => router.back() }]);
-    } catch (err) {
-      Alert.alert('Erro', 'Falha ao mover rebanho');
+      if (router.canGoBack()) router.back();
+      else router.replace('/(tabs)/rebanho');
+    } catch (err: any) {
+      Alert.alert('Erro', err?.message ?? 'Falha ao mover rebanho');
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   }
 
+  const q = destSearch.trim().toLowerCase();
+  const filteredDest = toPaddocks.filter((p) =>
+    String(p.id) !== fromPaddock && (!q || p.name.toLowerCase().includes(q))
+  );
+
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.back}>← VOLTAR</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mover Rebanho</Text>
-      </View>
-
+    <View style={styles.root}>
+      <BrandHeader title="Mover rebanho" context="Rebanho" onBack={() => router.back()} />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.label}>DE (Origem)</Text>
-        <MultiChoice
-          options={fromPaddocks.map((p) => ({ value: String(p.id), label: p.name }))}
-          value={fromPaddock}
-          onChange={setFromPaddock}
-        />
+        <Text style={styles.label}>DE (origem)</Text>
+        {lockedOrigin && fromName ? (
+          <View style={styles.lockedOrigin}>
+            <Text style={styles.lockedOriginValue}>{fromName}</Text>
+          </View>
+        ) : (
+          <MultiChoice
+            options={fromPaddocks.map((p) => ({ value: String(p.id), label: p.name }))}
+            value={fromPaddock}
+            onChange={setFromPaddock}
+          />
+        )}
 
-        <Text style={[styles.label, { marginTop: 20 }]}>CATEGORIA</Text>
-        <MultiChoice
-          options={CATTLE_CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
-          value={category}
-          onChange={setCategory}
-        />
+        {fromPaddock && lots.length === 0 && (
+          <Text style={[styles.sublabel, { marginTop: 14 }]}>Piquete sem gado.</Text>
+        )}
 
-        <Text style={[styles.label, { marginTop: 20 }]}>QUANTIDADE</Text>
-        <SliderInput
-          value={count}
-          onValueChange={setCount}
-          min={1}
-          max={Math.max(maxCount, 1)}
-          step={1}
-          unit="cab"
-          color={Colors.primary}
-        />
+        {singleCat && (
+          <>
+            <Text style={[styles.label, { marginTop: 22 }]}>QUANTIDADE</Text>
+            <Text style={styles.sublabel}>
+              {singleCat.category} · {singleCat.head_count} cab disponível
+            </Text>
+            <Card>
+              <SliderInput
+                value={amounts[singleCat.category] ?? 0}
+                onValueChange={(v) => setAmount(singleCat.category, v)}
+                min={1}
+                max={singleCat.head_count}
+                step={1}
+                unit="cab"
+              />
+            </Card>
+          </>
+        )}
 
-        <Text style={[styles.label, { marginTop: 20 }]}>PARA (Destino)</Text>
-        <MultiChoice
-          options={toPaddocks.filter((p) => String(p.id) !== fromPaddock).map((p) => ({ value: String(p.id), label: p.name }))}
-          value={toPaddock}
-          onChange={setToPaddock}
-        />
+        {!singleCat && lots.length > 1 && (
+          <>
+            <Text style={[styles.label, { marginTop: 22 }]}>LOTE</Text>
+            {!disaggregate ? (
+              <>
+                <Text style={styles.sublabel}>Movendo o lote inteiro</Text>
+                <Card>
+                  {lots.map((l) => (
+                    <SummaryRow key={l.category} label={l.category} value={`${l.head_count} cab`} />
+                  ))}
+                  <Button
+                    title="Desagregar por categoria"
+                    variant="outline"
+                    onPress={() => setDisaggregate(true)}
+                    style={{ marginTop: 10 }}
+                  />
+                </Card>
+              </>
+            ) : (
+              <>
+                <Text style={styles.sublabel}>Ajuste quanto de cada categoria move</Text>
+                {lots.map((l) => (
+                  <Card key={l.category}>
+                    <Text style={styles.lotTitle}>
+                      {l.category} · disponível {l.head_count}
+                    </Text>
+                    <SliderInput
+                      value={amounts[l.category] ?? 0}
+                      onValueChange={(v) => setAmount(l.category, v)}
+                      min={0}
+                      max={l.head_count}
+                      step={1}
+                      unit="cab"
+                    />
+                  </Card>
+                ))}
+                <Button
+                  title="Mover o lote inteiro"
+                  variant="outline"
+                  onPress={() => {
+                    const init: Record<string, number> = {};
+                    for (const l of lots) init[l.category] = l.head_count;
+                    setAmounts(init);
+                    setDisaggregate(false);
+                  }}
+                />
+              </>
+            )}
+          </>
+        )}
 
-        <Button title="MOVER REBANHO" onPress={handleMove} size="large" style={{ marginTop: 24 }} />
+        {lots.length > 0 && (
+          <>
+            <Text style={[styles.label, { marginTop: 22 }]}>PARA (destino)</Text>
+            <View style={styles.searchWrap}>
+              <Search size={16} color={NSA.inkMuted} strokeWidth={1.75} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Buscar piquete"
+                placeholderTextColor={NSA.inkDisabled}
+                value={destSearch}
+                onChangeText={setDestSearch}
+                autoCorrect={false}
+                autoCapitalize="none"
+              />
+              {destSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setDestSearch('')} hitSlop={10} style={styles.searchClear}>
+                  <X size={14} color={NSA.inkMuted} strokeWidth={1.75} />
+                </TouchableOpacity>
+              )}
+            </View>
+            {filteredDest.length === 0 ? (
+              <Text style={styles.noMatch}>Nenhum piquete encontrado{q ? ` para "${destSearch}"` : ''}.</Text>
+            ) : (
+              <MultiChoice
+                options={filteredDest.map((p) => ({ value: String(p.id), label: p.name }))}
+                value={toPaddock}
+                onChange={setToPaddock}
+              />
+            )}
+          </>
+        )}
       </ScrollView>
-    </SafeAreaView>
+
+      {lots.length > 0 && (
+        <SafeAreaView edges={['bottom']} style={styles.stickyFooter}>
+          <Button
+            title={
+              selectedTotal === 0
+                ? 'Ajuste a quantidade'
+                : !toPaddock
+                  ? 'Escolha o destino'
+                  : submitting ? 'Movendo…' : `Mover · ${selectedTotal} cab`
+            }
+            onPress={handleMove}
+            disabled={submitting || selectedTotal === 0 || !toPaddock}
+          />
+        </SafeAreaView>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f4f1ec' },
-  header: { backgroundColor: '#1a6b54', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
-  back: { color: 'rgba(255,255,255,0.9)', fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#ffffff' },
+  root: { flex: 1, backgroundColor: NSA.bg },
   scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 40 },
-  label: { fontSize: 18, fontWeight: '800', color: '#2c2c2c', marginBottom: 10 },
+  scrollContent: { padding: 20, paddingBottom: 110 },
+  stickyFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: NSA.bgElevated,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: NSA.border,
+  },
+  label: {
+    fontSize: 11,
+    fontFamily: Fonts.medium,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: NSA.inkMuted,
+    marginBottom: 2,
+  },
+  sublabel: { fontSize: 12, color: NSA.inkMuted, marginBottom: 12, fontFamily: Fonts.regular },
+  lockedOrigin: {
+    backgroundColor: NSA.green50,
+    padding: 12,
+    borderRadius: Radius.lg,
+  },
+  lockedOriginValue: { fontSize: 16, fontFamily: Fonts.semibold, color: NSA.inkPrimary, letterSpacing: -0.15 },
+  lotTitle: { fontSize: 13, fontFamily: Fonts.medium, color: NSA.inkPrimary, marginBottom: 6 },
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: NSA.bgElevated,
+    borderWidth: 1,
+    borderColor: NSA.borderStrong,
+    borderRadius: Radius.lg,
+    paddingHorizontal: 10,
+    marginBottom: 12,
+  },
+  searchInput: { flex: 1, paddingVertical: 10, fontSize: 14, color: NSA.inkPrimary, fontFamily: Fonts.regular },
+  searchClear: { padding: 4 },
+  noMatch: { fontSize: 13, color: NSA.inkMuted, textAlign: 'center', marginTop: 8, fontFamily: Fonts.regular },
 });

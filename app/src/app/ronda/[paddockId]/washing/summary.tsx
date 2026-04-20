@@ -3,8 +3,9 @@ import { View, StyleSheet, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { useDatabase } from '@/lib/db/provider';
-import { WizardFlow, SummaryRow, ResultCard, Button } from '@/components/ui';
+import { WizardFlow, SummaryRow, ResultCard, Button, Card } from '@/components/ui';
 import { Colors } from '@/constants';
+import { NSA } from '@/theme/nsa';
 
 export default function WashingSummary() {
   const { paddockId } = useLocalSearchParams();
@@ -30,7 +31,7 @@ export default function WashingSummary() {
 
   return (
     <WizardFlow
-      title="LAVAGEM"
+      title="Lavagem"
       subtitle={store.currentPaddockName || ''}
       step={3}
       totalSteps={3}
@@ -38,29 +39,25 @@ export default function WashingSummary() {
       onBack={() => router.back()}
     >
       <ResultCard
-        icon="🚿"
         value="LAVAGEM REGISTRADA"
         label="Bebedouro limpo ✓"
-        color={Colors.success}
+        color={NSA.green800}
       />
 
-      <View style={styles.summaryBox}>
+      <Card>
         <SummaryRow label="Data" value={new Date().toLocaleDateString('pt-BR')} />
         <SummaryRow label="Foto" value={washing.photoUri ? '📸 Anexada' : 'Sem foto'} />
-      </View>
+      </Card>
 
       <Button
-        title={saving ? 'SALVANDO...' : 'CONFIRMAR ✅'}
+        title={saving ? 'Salvando…' : 'Confirmar'}
         onPress={handleSave}
         disabled={saving}
-        variant="success"
-        size="large"
-        style={{ marginTop: 24 }}
+        
       />
     </WizardFlow>
   );
 }
 
 const styles = StyleSheet.create({
-  summaryBox: { backgroundColor: '#ffffff', borderRadius: 12, padding: 16, elevation: 2, marginTop: 16 },
 });

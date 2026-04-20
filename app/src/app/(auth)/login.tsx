@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Alert, TouchableOpacity, Image } from 'react-native';
 import { router } from 'expo-router';
+import { Check, Wifi } from 'lucide-react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/authStore';
 import { useDatabase } from '@/lib/db/provider';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
 import { syncAll } from '@/lib/sync/engine';
 import { Button } from '@/components/ui';
-import { Colors } from '@/constants';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { NSA, Fonts } from '@/theme/nsa';
 
 export default function LoginScreen() {
   const login = useAuthStore((s) => s.login);
@@ -19,7 +20,6 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
-  // Zustand persist é assíncrono — usamos effect pra pegar cache após rehidratação
   useEffect(() => {
     if (offlineCache) {
       setUsername(offlineCache.username ?? '');
@@ -40,7 +40,6 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(username, password, remember);
-      // Só tenta sync se login entrou em modo online (tem JWT válido)
       const inOfflineMode = useAuthStore.getState().offlineMode;
       if (!inOfflineMode) {
         setSyncMsg('Sincronizando com a fazenda…');
@@ -66,33 +65,38 @@ export default function LoginScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.container}>
-        <View style={styles.logoContainer}>
-          <Text style={styles.logoEmoji}>🐄</Text>
-          <Text style={styles.title}>Gestão Pecuária</Text>
-          <Text style={styles.farmName}>Fazenda Nossa Senhora Aparecida</Text>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <View style={styles.hero}>
+        <Image source={require('../../../assets/logo-nsa-green.png')} style={styles.logo} resizeMode="contain" />
+        <View style={styles.captions}>
+          <Text style={styles.caption}>Gestão de Pecuária</Text>
+          <Text style={styles.subCaption}>Fazenda N.S.A</Text>
         </View>
 
         <View style={styles.form}>
-          <Text style={styles.label}>Usuário</Text>
-          <TextInput
-            style={styles.input}
-            value={username}
-            onChangeText={setUsername}
-            placeholder="ex: lucas"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-
-          <Text style={styles.label}>Senha</Text>
-          <TextInput
-            style={styles.input}
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Digite sua senha"
-            secureTextEntry
-          />
+          <View style={styles.field}>
+            <Text style={styles.label}>Usuário</Text>
+            <TextInput
+              style={styles.input}
+              value={username}
+              onChangeText={setUsername}
+              placeholder="seu.nome"
+              placeholderTextColor={NSA.inkDisabled}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+          <View style={styles.field}>
+            <Text style={styles.label}>Senha</Text>
+            <TextInput
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="••••••"
+              placeholderTextColor={NSA.inkDisabled}
+              secureTextEntry
+            />
+          </View>
 
           <TouchableOpacity
             style={styles.rememberRow}
@@ -100,65 +104,114 @@ export default function LoginScreen() {
             activeOpacity={0.7}
           >
             <View style={[styles.checkbox, remember && styles.checkboxChecked]}>
-              {remember && <Text style={styles.checkboxMark}>✓</Text>}
+              {remember && <Check size={12} color={NSA.cream} strokeWidth={2.5} />}
             </View>
-            <Text style={styles.rememberText}>Lembrar usuário e senha</Text>
+            <Text style={styles.rememberText}>Lembrar-me neste aparelho</Text>
           </TouchableOpacity>
 
           <Button
-            title={loading ? (syncMsg ?? 'ENTRANDO...') : 'ENTRAR'}
+            title={loading ? (syncMsg ?? 'Entrando…') : 'Entrar'}
             onPress={handleLogin}
             disabled={loading}
-            style={{ marginTop: 16 }}
+            style={{ marginTop: 4 }}
           />
-
-          <Text style={styles.note}>Primeiro acesso requer internet</Text>
         </View>
+      </View>
+
+      <View style={styles.footer}>
+        <Wifi size={12} color={NSA.inkMuted} strokeWidth={1.75} />
+        <Text style={styles.footerText}>Primeiro acesso requer internet</Text>
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.primary },
-  container: { flex: 1, justifyContent: 'center', padding: 24 },
-  logoContainer: { alignItems: 'center', marginBottom: 48 },
-  logoEmoji: { fontSize: 80, marginBottom: 16 },
-  title: { fontSize: 28, fontWeight: '800', color: Colors.white },
-  farmName: { fontSize: 16, color: 'rgba(255,255,255,0.7)', marginTop: 4, textAlign: 'center' },
-  form: { backgroundColor: Colors.card, borderRadius: 16, padding: 24 },
-  label: { fontSize: 16, fontWeight: '600', color: Colors.text, marginBottom: 8, marginTop: 12 },
+  safe: { flex: 1, backgroundColor: NSA.cream },
+  hero: {
+    flex: 1,
+    paddingHorizontal: 28,
+    paddingTop: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 28,
+  },
+  logo: { width: 180, height: 180 },
+  captions: { alignItems: 'center', gap: 6 },
+  caption: {
+    fontFamily: Fonts.loraSemibold,
+    fontSize: 13,
+    letterSpacing: 2.8,
+    color: NSA.inkSecondary,
+    textTransform: 'uppercase',
+  },
+  subCaption: {
+    fontFamily: Fonts.medium,
+    fontSize: 11,
+    letterSpacing: 2.4,
+    color: NSA.inkMuted,
+    textTransform: 'uppercase',
+  },
+  form: {
+    width: '100%',
+    gap: 14,
+    marginTop: 8,
+  },
+  field: {},
+  label: {
+    fontSize: 12,
+    fontFamily: Fonts.medium,
+    color: NSA.inkSecondary,
+    marginBottom: 6,
+  },
   input: {
-    height: 56,
-    borderWidth: 2,
-    borderColor: Colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 18,
-    backgroundColor: Colors.background,
+    height: 44,
+    borderWidth: 1,
+    borderColor: NSA.borderStrong,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    fontFamily: Fonts.regular,
+    color: NSA.inkPrimary,
+    backgroundColor: NSA.bgElevated,
   },
   rememberRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 16,
-    gap: 10,
-    paddingVertical: 8,
+    gap: 8,
+    marginTop: 4,
+    marginBottom: 4,
   },
   checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: Colors.border,
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: NSA.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.background,
+    backgroundColor: NSA.bgElevated,
   },
   checkboxChecked: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: NSA.green800,
+    borderColor: NSA.green800,
   },
-  checkboxMark: { color: Colors.white, fontSize: 16, fontWeight: '800' },
-  rememberText: { fontSize: 15, color: Colors.text, fontWeight: '600' },
-  note: { fontSize: 14, color: Colors.textMuted, textAlign: 'center', marginTop: 16 },
+  rememberText: {
+    fontSize: 13,
+    color: NSA.inkSecondary,
+    fontFamily: Fonts.regular,
+  },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+  },
+  footerText: {
+    fontSize: 11,
+    color: NSA.inkMuted,
+    fontFamily: Fonts.mono,
+  },
 });

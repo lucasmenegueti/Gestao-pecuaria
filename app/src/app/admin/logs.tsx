@@ -4,6 +4,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { fetchLogs, clearLogs, LogEntry } from '@/lib/log';
 import { Colors } from '@/constants';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Fonts } from '@/theme/nsa';
 
 const LEVEL_COLOR = { info: Colors.primary, warn: Colors.warning, error: Colors.danger } as const;
 
@@ -80,8 +81,8 @@ export default function LogsScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   header: { backgroundColor: Colors.primary, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
-  back: { color: 'rgba(255,255,255,0.9)', fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: Colors.white },
+  back: { color: 'rgba(255,255,255,0.9)', fontSize: 16, fontFamily: Fonts.medium, marginBottom: 4 },
+  headerTitle: { fontSize: 20, fontFamily: Fonts.semibold, color: Colors.white },
   filterRow: {
     flexDirection: 'row',
     backgroundColor: Colors.white,
@@ -99,7 +100,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   filterBtnActive: { backgroundColor: Colors.primaryLight, borderColor: Colors.primary },
-  filterText: { fontSize: 11, fontWeight: '700', color: Colors.textMuted },
+  filterText: { fontSize: 11, fontFamily: Fonts.semibold, color: Colors.textMuted },
   filterTextActive: { color: Colors.primary },
   clearBtn: {
     marginLeft: 'auto',
@@ -109,7 +110,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.danger,
   },
-  clearText: { fontSize: 11, fontWeight: '700', color: Colors.danger },
+  clearText: { fontSize: 11, fontFamily: Fonts.semibold, color: Colors.danger },
   scroll: { flex: 1 },
   entry: {
     backgroundColor: Colors.white,
@@ -121,10 +122,10 @@ const styles = StyleSheet.create({
     borderLeftColor: Colors.border,
   },
   entryHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  level: { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
+  level: { fontSize: 11, fontFamily: Fonts.semibold, letterSpacing: 0.5 },
   category: {
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: Fonts.semibold,
     color: Colors.textMuted,
     backgroundColor: Colors.background,
     paddingHorizontal: 6,
@@ -133,7 +134,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   ts: { fontSize: 10, color: Colors.textMuted, marginLeft: 'auto' },
-  action: { fontSize: 13, fontWeight: '700', color: Colors.text, marginTop: 4 },
+  action: { fontSize: 13, fontFamily: Fonts.semibold, color: Colors.text, marginTop: 4 },
   data: { fontSize: 11, color: Colors.textMuted, marginTop: 4, fontFamily: 'Courier' },
   empty: { textAlign: 'center', padding: 40, color: Colors.textMuted },
 });

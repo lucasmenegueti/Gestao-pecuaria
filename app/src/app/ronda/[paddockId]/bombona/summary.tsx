@@ -3,8 +3,9 @@ import { View, StyleSheet, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { useDatabase } from '@/lib/db/provider';
-import { WizardFlow, SummaryRow, ResultCard, PhotoButton, Button } from '@/components/ui';
+import { WizardFlow, SummaryRow, ResultCard, PhotoButton, Button, Card } from '@/components/ui';
 import { Colors } from '@/constants';
+import { NSA } from '@/theme/nsa';
 
 export default function BombonaSummary() {
   const { paddockId } = useLocalSearchParams();
@@ -32,7 +33,7 @@ export default function BombonaSummary() {
           photo,
         ]
       );
-      router.push(`/ronda/${paddockId}/menu`);
+      router.replace(`/ronda/${paddockId}/menu`);
     } catch (err) {
       Alert.alert('Erro', 'Falha ao salvar avaliação');
     }
@@ -41,7 +42,7 @@ export default function BombonaSummary() {
 
   return (
     <WizardFlow
-      title="BOMBONA"
+      title="Bombona"
       subtitle={store.currentPaddockName || ''}
       step={step}
       totalSteps={totalSteps}
@@ -50,22 +51,20 @@ export default function BombonaSummary() {
     >
       {bombona.hasStock ? (
         <ResultCard
-          icon="🛢️"
-          value={`${bombona.sacks} SACOS`}
+          value={`${bombona.sacks} sacos`}
           label={`${totalKg} kg ${bombona.formulaName || ''}`}
-          color={bombona.sacks > 0 ? Colors.success : Colors.warning}
+          color={bombona.sacks > 0 ? NSA.ok : NSA.warn}
         />
       ) : (
         <ResultCard
-          icon="⚠️"
-          value="BOMBONA VAZIA"
+          value="Bombona vazia"
           label="Reabastecer"
-          color={Colors.danger}
+          color={NSA.danger}
         />
       )}
 
-      <View style={styles.summaryBox}>
-        <SummaryRow label="Tem estoque" value={bombona.hasStock ? '✅ SIM' : '❌ NÃO'} />
+      <Card>
+        <SummaryRow label="Tem estoque" value={bombona.hasStock ? 'Sim' : 'Não'} />
         {bombona.hasStock && (
           <>
             <SummaryRow label="Formulação" value={bombona.formulaName || '-'} />
@@ -73,14 +72,13 @@ export default function BombonaSummary() {
             <SummaryRow label="Total" value={`${totalKg} kg`} />
           </>
         )}
-      </View>
+      </Card>
 
       <PhotoButton uri={photo} onPhoto={setPhoto} />
-      <Button title={saving ? 'SALVANDO...' : 'FINALIZAR ✅'} onPress={handleSave} disabled={saving} variant="success" size="large" style={{ marginTop: 24 }} />
+      <Button title={saving ? 'Salvando…' : 'Finalizar'} onPress={handleSave} disabled={saving}  />
     </WizardFlow>
   );
 }
 
 const styles = StyleSheet.create({
-  summaryBox: { backgroundColor: '#ffffff', borderRadius: 12, padding: 16, elevation: 2 },
 });

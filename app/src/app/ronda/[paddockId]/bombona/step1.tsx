@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { WizardFlow, BinaryChoice } from '@/components/ui';
 import { Colors } from '@/constants';
+import { NSA, Fonts } from '@/theme/nsa';
 
 export default function BombonaStep1() {
   const { paddockId } = useLocalSearchParams();
@@ -13,7 +14,7 @@ export default function BombonaStep1() {
 
   return (
     <WizardFlow
-      title="BOMBONA"
+      title="Bombona"
       subtitle="Estoque do reservatório"
       step={1}
       totalSteps={4}
@@ -39,6 +40,6 @@ export default function BombonaStep1() {
 }
 
 const styles = StyleSheet.create({
-  question: { fontSize: 22, fontWeight: '800', color: '#2c2c2c', marginBottom: 4, textAlign: 'center' },
-  sub: { fontSize: 16, color: '#7a7a7a', textAlign: 'center', marginBottom: 20 },
+  question: { fontSize: 22, fontFamily: Fonts.semibold, color: NSA.inkPrimary, marginBottom: 4, textAlign: 'center' },
+  sub: { fontSize: 16, color: NSA.inkMuted, textAlign: 'center', marginBottom: 20 },
 });

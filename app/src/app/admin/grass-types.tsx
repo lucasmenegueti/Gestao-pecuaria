@@ -2,10 +2,10 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, Alert, TouchableOpacity, Modal } from 'react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
-import { useDatabase } from '@/lib/db/provider';
-import { Card, Button, Badge } from '@/components/ui';
-import { Colors } from '@/constants';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useDatabase } from '@/lib/db/provider';
+import { Card, Button, StatusPill, BrandHeader } from '@/components/ui';
+import { NSA, Fonts, Radius } from '@/theme/nsa';
 
 interface GrassRow {
   id: number;
@@ -59,90 +59,79 @@ export default function GrassTypesScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.back}>← VOLTAR</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tipos de Capim</Text>
-      </View>
-
-      <View style={styles.tabRow}>
-        <TouchableOpacity style={styles.tab} onPress={() => router.replace('/admin/formulas')}>
-          <Text style={styles.tabText}>Formulações</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.tab, styles.tabActive]}>
-          <Text style={[styles.tabText, styles.tabTextActive]}>Tipos de Capim</Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        {types.map((g) => (
-          <Card key={g.id}>
-            <View style={styles.itemHeader}>
-              <Text style={styles.itemName}>{g.name.toUpperCase()}</Text>
-              <Badge label={g.active ? 'Ativo' : 'Inativo'} variant={g.active ? 'ok' : 'muted'} />
-            </View>
-            <Text style={styles.itemDetail}>Entrada ideal: ≥{g.entry_height_cm} cm</Text>
-            <Text style={styles.itemDetail}>Saída ideal: ≥{g.exit_height_cm} cm</Text>
-            <View style={styles.itemActions}>
-              <TouchableOpacity onPress={() => openEdit(g)} style={styles.actionLink}>
-                <Text style={styles.actionText}>Editar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => toggleActive(g)} style={styles.actionLink}>
-                <Text style={[styles.actionText, { color: g.active ? Colors.danger : Colors.success }]}>
-                  {g.active ? 'Desativar' : 'Ativar'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </Card>
-        ))}
-        <Button title="NOVO TIPO DE CAPIM" onPress={openNew} size="large" style={{ marginTop: 8 }} />
-      </ScrollView>
+    <View style={styles.root}>
+      <BrandHeader title="Tipos de capim" context="Configurações" onBack={() => router.back()} />
+      <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          {types.map((g) => (
+            <Card key={g.id}>
+              <View style={styles.itemHeader}>
+                <Text style={styles.itemName}>{g.name}</Text>
+                <StatusPill kind={g.active ? 'ok' : 'neutral'}>{g.active ? 'Ativo' : 'Inativo'}</StatusPill>
+              </View>
+              <Text style={styles.itemDetail}>Entrada ideal · ≥ {g.entry_height_cm} cm</Text>
+              <Text style={styles.itemDetail}>Saída ideal · ≥ {g.exit_height_cm} cm</Text>
+              <View style={styles.itemActions}>
+                <TouchableOpacity onPress={() => openEdit(g)} style={styles.actionLink}>
+                  <Text style={styles.actionText}>Editar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => toggleActive(g)} style={styles.actionLink}>
+                  <Text style={[styles.actionText, { color: g.active ? NSA.danger : NSA.ok }]}>
+                    {g.active ? 'Desativar' : 'Ativar'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </Card>
+          ))}
+          <Button title="Novo tipo de capim" onPress={openNew} style={{ marginTop: 8 }} />
+        </ScrollView>
+      </SafeAreaView>
 
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>{editId ? 'Editar Tipo' : 'Novo Tipo de Capim'}</Text>
+            <Text style={styles.modalTitle}>{editId ? 'Editar tipo' : 'Novo tipo de capim'}</Text>
             <Text style={styles.label}>Nome</Text>
-            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Ex: Mombaça" />
+            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Ex: Mombaça" placeholderTextColor={NSA.inkDisabled} />
             <Text style={styles.label}>Altura entrada ideal (cm)</Text>
             <TextInput style={styles.input} value={entry} onChangeText={setEntry} keyboardType="numeric" />
             <Text style={styles.label}>Altura saída ideal (cm)</Text>
             <TextInput style={styles.input} value={exit} onChangeText={setExit} keyboardType="numeric" />
             <View style={styles.modalActions}>
-              <Button title="CANCELAR" variant="outline" onPress={() => setModalVisible(false)} style={{ flex: 1 }} />
-              <Button title="SALVAR" onPress={handleSave} style={{ flex: 1 }} />
+              <Button title="Cancelar" variant="outline" onPress={() => setModalVisible(false)} style={{ flex: 1 }} />
+              <Button title="Salvar" onPress={handleSave} style={{ flex: 1 }} />
             </View>
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f4f1ec' },
-  header: { backgroundColor: '#1a6b54', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
-  back: { color: 'rgba(255,255,255,0.9)', fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#ffffff' },
-  tabRow: { flexDirection: 'row', backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#e0dcd5' },
-  tab: { flex: 1, paddingVertical: 14, alignItems: 'center' },
-  tabActive: { borderBottomWidth: 3, borderBottomColor: '#1a6b54' },
-  tabText: { fontSize: 16, fontWeight: '700', color: '#7a7a7a' },
-  tabTextActive: { color: '#1a6b54' },
+  root: { flex: 1, backgroundColor: NSA.bg },
   scroll: { flex: 1 },
-  scrollContent: { padding: 16 },
-  itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  itemName: { fontSize: 16, fontWeight: '800', color: '#2c2c2c' },
-  itemDetail: { fontSize: 14, color: '#7a7a7a', marginTop: 2 },
+  scrollContent: { padding: 20 },
+  itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  itemName: { fontSize: 15, fontFamily: Fonts.semibold, color: NSA.inkPrimary, letterSpacing: -0.15 },
+  itemDetail: { fontSize: 13, color: NSA.inkSecondary, marginTop: 2, fontFamily: Fonts.regular },
   itemActions: { flexDirection: 'row', gap: 16, marginTop: 12 },
   actionLink: { paddingVertical: 4 },
-  actionText: { fontSize: 14, fontWeight: '700', color: '#1a6b54' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 },
-  modalContent: { backgroundColor: '#ffffff', borderRadius: 16, padding: 24 },
-  modalTitle: { fontSize: 20, fontWeight: '800', color: '#2c2c2c', marginBottom: 16 },
-  label: { fontSize: 16, fontWeight: '600', color: '#2c2c2c', marginBottom: 4, marginTop: 12 },
-  input: { height: 48, borderWidth: 2, borderColor: '#e0dcd5', borderRadius: 12, paddingHorizontal: 16, fontSize: 16 },
-  modalActions: { flexDirection: 'row', gap: 12, marginTop: 24 },
+  actionText: { fontSize: 13, fontFamily: Fonts.semibold, color: NSA.green800 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,15,13,0.5)', justifyContent: 'center', padding: 24 },
+  modalContent: { backgroundColor: NSA.bgElevated, borderRadius: Radius.xl, padding: 20 },
+  modalTitle: { fontSize: 18, fontFamily: Fonts.loraSemibold, color: NSA.inkPrimary, marginBottom: 14, letterSpacing: -0.3 },
+  label: { fontSize: 12, fontFamily: Fonts.medium, color: NSA.inkSecondary, marginBottom: 4, marginTop: 12 },
+  input: {
+    height: 44,
+    borderWidth: 1,
+    borderColor: NSA.borderStrong,
+    borderRadius: Radius.lg,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    fontFamily: Fonts.regular,
+    color: NSA.inkPrimary,
+    backgroundColor: NSA.bgElevated,
+  },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: 20 },
 });

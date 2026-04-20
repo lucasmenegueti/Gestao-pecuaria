@@ -1,11 +1,22 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Text, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '@/constants';
+import { LayoutDashboard, Footprints, Beef, Package, Map as MapIcon, ClipboardList } from 'lucide-react-native';
+import { NSA, Fonts } from '@/theme/nsa';
 
-function TabIcon({ emoji, focused }: { emoji: string; focused: boolean }) {
-  return <Text style={[styles.icon, focused && styles.iconFocused]}>{emoji}</Text>;
+const ICON_BY_NAME = {
+  painel: LayoutDashboard,
+  ronda: Footprints,
+  rebanho: Beef,
+  estoque: Package,
+  mapa: MapIcon,
+  relatorio: ClipboardList,
+} as const;
+
+function Icon({ name, focused }: { name: keyof typeof ICON_BY_NAME; focused: boolean }) {
+  const Cmp = ICON_BY_NAME[name];
+  return <Cmp size={22} color={focused ? NSA.green800 : NSA.inkMuted} strokeWidth={focused ? 2 : 1.75} />;
 }
 
 export default function TabLayout() {
@@ -17,10 +28,10 @@ export default function TabLayout() {
         tabBarStyle: [
           styles.tabBar,
           // Android edge-to-edge: adiciona espaço pra nav bar / gesture bar do sistema.
-          { height: 70 + insets.bottom, paddingBottom: 8 + insets.bottom },
+          { height: 60 + insets.bottom, paddingBottom: 8 + insets.bottom },
         ],
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textMuted,
+        tabBarActiveTintColor: NSA.green800,
+        tabBarInactiveTintColor: NSA.inkMuted,
         tabBarLabelStyle: styles.tabLabel,
       }}
     >
@@ -28,35 +39,42 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Painel',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="📊" focused={focused} />,
+          tabBarIcon: ({ focused }) => <Icon name="painel" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="ronda"
         options={{
           title: 'Ronda',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🔍" focused={focused} />,
+          tabBarIcon: ({ focused }) => <Icon name="ronda" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="rebanho"
         options={{
           title: 'Rebanho',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🐂" focused={focused} />,
+          tabBarIcon: ({ focused }) => <Icon name="rebanho" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="estoque"
         options={{
           title: 'Estoque',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="📦" focused={focused} />,
+          tabBarIcon: ({ focused }) => <Icon name="estoque" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="mapa"
         options={{
           title: 'Mapa',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🗺️" focused={focused} />,
+          tabBarIcon: ({ focused }) => <Icon name="mapa" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
+        name="relatorio"
+        options={{
+          title: 'Relatório',
+          tabBarIcon: ({ focused }) => <Icon name="relatorio" focused={focused} />,
         }}
       />
     </Tabs>
@@ -65,21 +83,14 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    height: 70,
-    paddingBottom: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    backgroundColor: Colors.card,
+    borderTopColor: NSA.border,
+    backgroundColor: NSA.bgElevated,
   },
   tabLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  icon: {
-    fontSize: 22,
-  },
-  iconFocused: {
-    fontSize: 26,
+    fontSize: 10,
+    fontFamily: Fonts.medium,
+    letterSpacing: -0.1,
   },
 });

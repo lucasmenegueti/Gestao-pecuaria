@@ -5,6 +5,7 @@ import { useRondaStore } from '@/stores/rondaStore';
 import { useDatabase } from '@/lib/db/provider';
 import { WizardFlow, MultiChoice } from '@/components/ui';
 import { Colors } from '@/constants';
+import { NSA, Fonts } from '@/theme/nsa';
 
 export default function WeightStep1() {
   const { paddockId } = useLocalSearchParams();
@@ -22,7 +23,7 @@ export default function WeightStep1() {
 
   return (
     <WizardFlow
-      title="PESO VISUAL"
+      title="Peso visual"
       subtitle="Categoria"
       step={1}
       totalSteps={3}
@@ -31,7 +32,7 @@ export default function WeightStep1() {
       onNext={() => router.push(`/ronda/${paddockId}/weight/step2`)}
       nextDisabled={!visualWeight.category}
     >
-      <Text style={styles.question}>QUAL CATEGORIA?</Text>
+      <Text style={styles.question}>Qual categoria?</Text>
       <MultiChoice
         options={categories.map((c) => ({
           value: c.category,
@@ -47,5 +48,5 @@ export default function WeightStep1() {
 }
 
 const styles = StyleSheet.create({
-  question: { fontSize: 22, fontWeight: '800', color: '#2c2c2c', marginBottom: 20, textAlign: 'center' },
+  question: { fontSize: 22, fontFamily: Fonts.semibold, color: NSA.inkPrimary, marginBottom: 20, textAlign: 'center' },
 });

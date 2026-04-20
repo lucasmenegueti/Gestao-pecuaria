@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import { router } from 'expo-router';
-import { useDatabase } from '@/lib/db/provider';
-import { Button, Card, MultiChoice, SliderInput, SummaryRow } from '@/components/ui';
-import { useAuthStore } from '@/stores/authStore';
-import { Colors } from '@/constants';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useDatabase } from '@/lib/db/provider';
+import { Button, Card, MultiChoice, SliderInput, SummaryRow, BrandHeader } from '@/components/ui';
+import { useAuthStore } from '@/stores/authStore';
+import { NSA, Fonts } from '@/theme/nsa';
 
 export default function EntradaEstoqueScreen() {
   const db = useDatabase();
@@ -69,99 +69,102 @@ export default function EntradaEstoqueScreen() {
 
   if (reviewing) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => setReviewing(false)}>
-            <Text style={styles.back}>← VOLTAR</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Confirmar Entrada</Text>
-        </View>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          <Card style={{ borderLeftWidth: 4, borderLeftColor: Colors.success }}>
-            <Text style={styles.reviewLabel}>ENTRADA NO ESTOQUE CENTRAL</Text>
-            <SummaryRow label="Produto" value={formulaName} />
-            <SummaryRow label="Quantidade" value={`${quantity} sacos`} valueColor={Colors.success} />
-            <Text style={styles.reviewNote}>
-              Essa entrada será contabilizada como {quantity} sacos adicionados ao estoque central
-              e registrada no ledger (relatório de movimentações).
-            </Text>
-          </Card>
+      <View style={styles.root}>
+        <BrandHeader title="Confirmar entrada" context="Estoque" onBack={() => setReviewing(false)} />
+        <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+            <Card borderColor={NSA.ok}>
+              <Text style={styles.reviewLabel}>ENTRADA NO ESTOQUE CENTRAL</Text>
+              <SummaryRow label="Produto" value={formulaName} />
+              <SummaryRow label="Quantidade" value={`${quantity} sacos`} valueColor={NSA.ok} />
+              <Text style={styles.reviewNote}>
+                Essa entrada será contabilizada como {quantity} sacos adicionados ao estoque central
+                e registrada no ledger (relatório de movimentações).
+              </Text>
+            </Card>
 
-          <Button
-            title={submitting ? 'REGISTRANDO...' : `CONFIRMAR ENTRADA · ${quantity} sacos`}
-            onPress={handleConfirm}
-            variant="success"
-            size="large"
-            disabled={submitting}
-            style={{ marginTop: 16 }}
-          />
-          <Button
-            title="VOLTAR E AJUSTAR"
-            variant="outline"
-            onPress={() => setReviewing(false)}
-            disabled={submitting}
-            style={{ marginTop: 12 }}
-          />
-        </ScrollView>
-      </SafeAreaView>
+            <Button
+              title={submitting ? 'Registrando…' : `Confirmar entrada · ${quantity} sacos`}
+              onPress={handleConfirm}
+              
+              disabled={submitting}
+              style={{ marginTop: 14 }}
+            />
+            <Button
+              title="Voltar e ajustar"
+              variant="outline"
+              onPress={() => setReviewing(false)}
+              disabled={submitting}
+              style={{ marginTop: 10 }}
+            />
+          </ScrollView>
+        </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.back}>← VOLTAR</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Entrada de Estoque</Text>
-      </View>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.label}>PRODUTO</Text>
-        <MultiChoice
-          options={formulas.map((f) => ({ value: String(f.id), label: f.name }))}
-          value={formulaId}
-          onChange={setFormulaId}
-        />
-        <Text style={[styles.label, { marginTop: 20 }]}>QUANTIDADE</Text>
-        <SliderInput value={quantity} onValueChange={setQuantity} min={1} max={500} step={1} unit="sacos" color={Colors.success} />
-      </ScrollView>
+    <View style={styles.root}>
+      <BrandHeader title="Entrada de estoque" context="Central" onBack={() => router.back()} />
+      <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          <Text style={styles.label}>PRODUTO</Text>
+          <MultiChoice
+            options={formulas.map((f) => ({ value: String(f.id), label: f.name }))}
+            value={formulaId}
+            onChange={setFormulaId}
+          />
+          <Text style={[styles.label, { marginTop: 22 }]}>QUANTIDADE</Text>
+          <SliderInput value={quantity} onValueChange={setQuantity} min={1} max={500} step={1} unit="sacos" />
+        </ScrollView>
 
-      <View style={styles.stickyFooter}>
-        <Button
-          title={!formulaId ? 'SELECIONE UM PRODUTO' : `REVISAR · ${quantity} sacos`}
-          variant="success"
-          onPress={goToReview}
-          size="large"
-          disabled={!formulaId || quantity <= 0}
-        />
-      </View>
-    </SafeAreaView>
+        <View style={styles.stickyFooter}>
+          <Button
+            title={!formulaId ? 'Selecione um produto' : `Revisar · ${quantity} sacos`}
+            onPress={goToReview}
+            disabled={!formulaId || quantity <= 0}
+          />
+        </View>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f4f1ec' },
-  header: { backgroundColor: '#2d8a4e', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
-  back: { color: 'rgba(255,255,255,0.9)', fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#ffffff' },
+  root: { flex: 1, backgroundColor: NSA.bg },
   scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 110 },
-  label: { fontSize: 18, fontWeight: '800', color: '#2c2c2c', marginBottom: 10 },
-  reviewLabel: { fontSize: 13, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.5, marginBottom: 8 },
-  reviewNote: { fontSize: 13, color: Colors.textMuted, marginTop: 12, fontStyle: 'italic', lineHeight: 18 },
+  scrollContent: { padding: 20, paddingBottom: 110 },
+  label: {
+    fontSize: 11,
+    fontFamily: Fonts.medium,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: NSA.inkMuted,
+    marginBottom: 10,
+  },
+  reviewLabel: {
+    fontSize: 10,
+    fontFamily: Fonts.medium,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: NSA.inkMuted,
+    marginBottom: 8,
+  },
+  reviewNote: {
+    fontSize: 12,
+    color: NSA.inkSecondary,
+    marginTop: 12,
+    fontFamily: Fonts.regular,
+    lineHeight: 17,
+  },
   stickyFooter: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#fff',
-    padding: 12,
+    backgroundColor: NSA.bgElevated,
+    padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#e0dcd5',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 8,
+    borderTopColor: NSA.border,
   },
 });

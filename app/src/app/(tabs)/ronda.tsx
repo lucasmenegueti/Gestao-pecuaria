@@ -1,12 +1,13 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput } from 'react-native';
-import { router } from 'expo-router';
-import { useFocusEffect } from 'expo-router';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Search } from 'lucide-react-native';
 import { useDatabase } from '@/lib/db/provider';
 import { useRondaStore } from '@/stores/rondaStore';
-import { Card, Badge } from '@/components/ui';
-import { Colors, calculateSupplementDays, dailyConsumptionKg } from '@/constants';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusPill, BrandHeader } from '@/components/ui';
+import { NSA, Fonts, Radius, tokensForStatus } from '@/theme/nsa';
+import { calculateSupplementDays, dailyConsumptionKg } from '@/constants';
 
 interface PaddockRow {
   id: number;
@@ -27,6 +28,8 @@ interface HerdLot {
   avg_weight_kg: number | null;
 }
 
+type Status = 'ok' | 'warn' | 'danger';
+
 export default function RondaScreen() {
   const db = useDatabase();
   const setCurrentPaddock = useRondaStore((s) => s.setCurrentPaddock);
@@ -34,14 +37,9 @@ export default function RondaScreen() {
   const [lotsByPaddock, setLotsByPaddock] = useState<Record<number, HerdLot[]>>({});
   const [search, setSearch] = useState('');
 
-  useFocusEffect(
-    useCallback(() => {
-      loadPaddocks();
-    }, [])
-  );
+  useFocusEffect(useCallback(() => { loadPaddocks(); }, []));
 
   async function loadPaddocks() {
-    // Só piquetes com gado alocado aparecem na ronda — piquete vazio não precisa de avaliação.
     const rows = await db.getAllAsync<PaddockRow>(`
       SELECT p.id, p.name, p.area_hectares,
         gt.name as grass_name,
@@ -68,16 +66,16 @@ export default function RondaScreen() {
     setLotsByPaddock(map);
   }
 
-  function getStatus(p: PaddockRow): { status: 'ok' | 'warning' | 'danger'; message: string } {
+  function getStatus(p: PaddockRow): { status: Status; message: string } {
     if (p.bombona_sacks !== null && p.bombona_sacks === 0) {
-      return { status: 'danger', message: 'Cocho VAZIO!' };
+      return { status: 'danger', message: 'Cocho vazio' };
     }
     if (p.bombona_sacks !== null && p.formula_kg && p.formula_g_per_kg_body_day) {
       const daily = dailyConsumptionKg(lotsByPaddock[p.id] ?? [], p.formula_g_per_kg_body_day);
       const days = calculateSupplementDays(p.bombona_sacks, p.formula_kg, daily);
-      if (days <= 1) return { status: 'danger', message: `Cocho: ${days} dia restante` };
-      if (days <= 3) return { status: 'warning', message: `Cocho: ${days} dias restantes` };
-      return { status: 'ok', message: `Cocho: ${days} dias restantes` };
+      if (days <= 1) return { status: 'danger', message: `Cocho · ${days} dia restante` };
+      if (days <= 3) return { status: 'warn', message: `Cocho · ${days} dias restantes` };
+      return { status: 'ok', message: `Cocho · ${days} dias restantes` };
     }
     return { status: 'ok', message: '' };
   }
@@ -92,81 +90,127 @@ export default function RondaScreen() {
     : paddocks;
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Ronda de Gado</Text>
-      </View>
-
-      <View style={styles.searchBar}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Buscar piquete..."
-          value={search}
-          onChangeText={setSearch}
-          placeholderTextColor={Colors.textMuted}
-        />
-      </View>
-
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        {filtered.map((p) => {
-          const { status, message } = getStatus(p);
-          return (
-            <Card
-              key={p.id}
-              onPress={() => handleSelect(p)}
-              borderColor={status === 'danger' ? Colors.danger : status === 'warning' ? Colors.warning : Colors.success}
-            >
-              <View style={styles.paddockHeader}>
-                <Text style={styles.paddockName}>{p.name.toUpperCase()}</Text>
-                <Badge
-                  label={status === 'ok' ? 'OK' : status === 'warning' ? 'ATENÇÃO' : 'ALERTA'}
-                  variant={status === 'ok' ? 'ok' : status === 'warning' ? 'warning' : 'danger'}
-                />
-              </View>
-              <Text style={styles.paddockInfo}>
-                {p.total_heads} cab • {p.area_hectares} ha • {p.grass_name}
-              </Text>
-              {message ? <Text style={styles.paddockStatus}>{message}</Text> : null}
-              {p.last_ronda && (
-                <Text style={styles.lastRonda}>Última ronda: {p.last_ronda}</Text>
-              )}
-            </Card>
-          );
-        })}
-      </ScrollView>
-    </SafeAreaView>
+    <View style={styles.root}>
+      <BrandHeader title="Ronda" context={`${paddocks.length} piquetes com gado`} />
+      <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
+        <View style={styles.searchBar}>
+          <Search size={16} color={NSA.inkMuted} strokeWidth={1.75} style={{ marginLeft: 2 }} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar piquete"
+            value={search}
+            onChangeText={setSearch}
+            placeholderTextColor={NSA.inkDisabled}
+          />
+        </View>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          {filtered.map((p) => {
+            const { status, message } = getStatus(p);
+            const t = tokensForStatus(status);
+            return (
+              <TouchableOpacity
+                key={p.id}
+                onPress={() => handleSelect(p)}
+                activeOpacity={0.85}
+                style={[styles.paddockCard, { borderLeftColor: t.edge }]}
+              >
+                <View style={styles.paddockHeader}>
+                  <Text style={styles.paddockName}>{p.name}</Text>
+                  <StatusPill kind={status}>{t.label}</StatusPill>
+                </View>
+                <Text style={styles.paddockInfo}>
+                  {p.area_hectares} ha · {p.grass_name} · <Text style={styles.paddockHeads}>{p.total_heads} cab</Text>
+                </Text>
+                <View style={styles.paddockFooter}>
+                  <Text style={styles.lastRonda}>
+                    {p.last_ronda ? `Última ronda ${formatDate(p.last_ronda)}` : 'Sem ronda registrada'}
+                  </Text>
+                  {message ? (
+                    <Text style={[styles.statusMsg, { color: status === 'ok' ? NSA.inkSecondary : t.fg }]}>
+                      {message}
+                    </Text>
+                  ) : null}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+          <View style={{ height: 20 }} />
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const parts = iso.split('-');
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}`;
+  return iso;
+}
+
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 16,
-  },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: Colors.white },
-  searchBar: { padding: 16, paddingBottom: 8 },
-  searchInput: {
-    height: 48,
-    backgroundColor: Colors.card,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 16,
+  root: { flex: 1, backgroundColor: NSA.bg },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 20,
+    marginTop: 14,
+    backgroundColor: NSA.bgElevated,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: NSA.borderStrong,
+    borderRadius: Radius.lg,
+    paddingHorizontal: 10,
+  },
+  searchInput: {
+    flex: 1,
+    height: 44,
+    fontSize: 14,
+    color: NSA.inkPrimary,
+    fontFamily: Fonts.regular,
   },
   scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingTop: 8 },
+  scrollContent: { padding: 20, paddingTop: 14 },
+  paddockCard: {
+    backgroundColor: NSA.bgElevated,
+    borderWidth: 1,
+    borderColor: NSA.border,
+    borderLeftWidth: 3,
+    borderRadius: Radius.xl,
+    padding: 14,
+    marginBottom: 10,
+  },
   paddockHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    justifyContent: 'space-between',
+    marginBottom: 2,
   },
-  paddockName: { fontSize: 18, fontWeight: '800', color: Colors.text },
-  paddockInfo: { fontSize: 14, color: Colors.textMuted, marginTop: 2 },
-  paddockStatus: { fontSize: 14, fontWeight: '600', color: Colors.warning, marginTop: 4 },
-  lastRonda: { fontSize: 13, color: Colors.textMuted, marginTop: 4 },
+  paddockName: {
+    fontSize: 15,
+    fontFamily: Fonts.semibold,
+    color: NSA.inkPrimary,
+    letterSpacing: -0.15,
+  },
+  paddockInfo: {
+    fontSize: 12,
+    color: NSA.inkSecondary,
+    marginBottom: 8,
+    fontFamily: Fonts.regular,
+  },
+  paddockHeads: { color: NSA.inkPrimary, fontFamily: Fonts.medium },
+  paddockFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  lastRonda: {
+    fontSize: 12,
+    color: NSA.inkMuted,
+    fontFamily: Fonts.regular,
+  },
+  statusMsg: {
+    fontSize: 12,
+    fontFamily: Fonts.medium,
+  },
 });

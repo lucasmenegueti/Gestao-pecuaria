@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, TextInput } from 'react-native';
 import { router } from 'expo-router';
-import { useDatabase } from '@/lib/db/provider';
-import { Card, Button, MultiChoice, SliderInput } from '@/components/ui';
-import { Colors, PAIR_CATEGORIES } from '@/constants';
+import { Search, X, AlertTriangle } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useDatabase } from '@/lib/db/provider';
+import { Card, Button, MultiChoice, SliderInput, BrandHeader } from '@/components/ui';
+import { PAIR_CATEGORIES } from '@/constants';
+import { NSA, Fonts, Radius } from '@/theme/nsa';
 
 interface PoolCat {
   category: string;
@@ -135,27 +137,16 @@ export default function AlocarScreen() {
 
   if (pool.length === 0) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Text style={styles.back}>← VOLTAR</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Alocar em Piquete</Text>
-        </View>
+      <View style={styles.root}>
+        <BrandHeader title="Alocar em piquete" context="Rebanho" onBack={() => router.back()} />
         <Text style={styles.empty}>Não há gado desalocado.</Text>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.back}>← VOLTAR</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Alocar em Piquete</Text>
-      </View>
-
+    <View style={styles.root}>
+      <BrandHeader title="Alocar em piquete" context="Rebanho" onBack={() => router.back()} />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <Text style={styles.label}>COMPOSIÇÃO DO LOTE (da pool)</Text>
         <Text style={styles.sublabel}>
@@ -163,28 +154,18 @@ export default function AlocarScreen() {
         </Text>
 
         <View style={styles.bulkRow}>
-          <TouchableOpacity
-            style={[styles.bulkBtn, styles.bulkBtnPrimary]}
-            onPress={fillAll}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.bulkBtnText, styles.bulkBtnTextPrimary]}>
-              ✓ SELECIONAR TUDO
-            </Text>
+          <TouchableOpacity style={[styles.bulkBtn, styles.bulkBtnPrimary]} onPress={fillAll} activeOpacity={0.85}>
+            <Text style={[styles.bulkBtnText, styles.bulkBtnTextPrimary]}>Selecionar tudo</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.bulkBtn, styles.bulkBtnMuted]}
-            onPress={clearAll}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.bulkBtnText, styles.bulkBtnTextMuted]}>ZERAR</Text>
+          <TouchableOpacity style={[styles.bulkBtn, styles.bulkBtnMuted]} onPress={clearAll} activeOpacity={0.85}>
+            <Text style={[styles.bulkBtnText, styles.bulkBtnTextMuted]}>Zerar</Text>
           </TouchableOpacity>
         </View>
 
         {pool.map((c) => (
           <Card key={c.category}>
             <Text style={styles.catTitle}>
-              {c.category} • disponível: {c.total}
+              {c.category} · disponível {c.total}
             </Text>
             <SliderInput
               value={amounts[c.category] ?? 0}
@@ -193,29 +174,32 @@ export default function AlocarScreen() {
               max={c.total}
               step={1}
               unit="cab"
-              color={Colors.primary}
             />
           </Card>
         ))}
 
-        <Card style={{ backgroundColor: Colors.primaryLight, marginTop: 8 }}>
+        <Card>
           <Text style={styles.summaryText}>
-            Total a alocar: <Text style={styles.summaryBold}>{selectedTotal} cab</Text>
+            Total a alocar · <Text style={styles.summaryBold}>{selectedTotal} cab</Text>
           </Text>
           {nonPairMix && (
-            <Text style={styles.warnText}>
-              ⚠ Mistura de categorias não-par. Piquete geralmente tem 1 categoria.
-            </Text>
+            <View style={styles.warnRow}>
+              <AlertTriangle size={14} color={NSA.warnFg} strokeWidth={1.75} />
+              <Text style={styles.warnText}>
+                Mistura de categorias não-par. Piquete geralmente tem 1 categoria.
+              </Text>
+            </View>
           )}
         </Card>
 
-        <Text style={[styles.label, { marginTop: 24 }]}>PIQUETE DESTINO</Text>
+        <Text style={[styles.label, { marginTop: 22 }]}>PIQUETE DESTINO</Text>
 
         <View style={styles.searchWrap}>
+          <Search size={16} color={NSA.inkMuted} strokeWidth={1.75} />
           <TextInput
             style={styles.searchInput}
-            placeholder="🔍 Buscar piquete..."
-            placeholderTextColor="#9a9a9a"
+            placeholder="Buscar piquete"
+            placeholderTextColor={NSA.inkDisabled}
             value={search}
             onChangeText={setSearch}
             autoCorrect={false}
@@ -224,7 +208,7 @@ export default function AlocarScreen() {
           />
           {search.length > 0 && (
             <TouchableOpacity onPress={() => setSearch('')} style={styles.searchClear} hitSlop={10}>
-              <Text style={styles.searchClearText}>✕</Text>
+              <X size={14} color={NSA.inkMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           )}
         </View>
@@ -240,7 +224,7 @@ export default function AlocarScreen() {
               options={filtered.map((p) => ({
                 value: String(p.id),
                 label: p.name,
-                description: `${p.area} ha • ${p.current_heads} cab${p.current_categories ? ` • ${p.current_categories}` : ''}`,
+                description: `${p.area} ha · ${p.current_heads} cab${p.current_categories ? ` · ${p.current_categories}` : ''}`,
               }))}
               value={destinoId}
               onChange={setDestinoId}
@@ -250,81 +234,78 @@ export default function AlocarScreen() {
 
       </ScrollView>
 
-      {/* Confirm fixo no rodapé — sempre visível, pra não precisar rolar até o fim */}
-      <View style={styles.stickyFooter}>
+      <SafeAreaView edges={['bottom']} style={styles.stickyFooter}>
         <Button
           title={
             selectedTotal === 0
-              ? 'SELECIONE QUANTIDADE'
+              ? 'Selecione quantidade'
               : !destinoId
-                ? 'ESCOLHA UM PIQUETE'
-                : `CONFIRMAR · ${selectedTotal} cab`
+                ? 'Escolha um piquete'
+                : `Confirmar · ${selectedTotal} cab`
           }
           onPress={handleConfirm}
-          size="large"
           disabled={selectedTotal === 0 || !destinoId}
         />
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
-  header: { backgroundColor: Colors.primary, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
-  back: { color: 'rgba(255,255,255,0.9)', fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: Colors.white },
+  root: { flex: 1, backgroundColor: NSA.bg },
   scroll: { flex: 1 },
-  // paddingBottom maior pra deixar espaço do sticky footer
-  scrollContent: { padding: 16, paddingBottom: 100 },
+  scrollContent: { padding: 20, paddingBottom: 110 },
   stickyFooter: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: Colors.white,
-    padding: 12,
+    backgroundColor: NSA.bgElevated,
+    paddingHorizontal: 16,
+    paddingTop: 14,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 8,
+    borderTopColor: NSA.border,
   },
-  label: { fontSize: 18, fontWeight: '800', color: Colors.text, marginBottom: 2 },
-  sublabel: { fontSize: 13, color: Colors.textMuted, marginBottom: 12 },
-  bulkRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  label: {
+    fontSize: 11,
+    fontFamily: Fonts.medium,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: NSA.inkMuted,
+    marginBottom: 2,
+  },
+  sublabel: { fontSize: 12, color: NSA.inkMuted, marginBottom: 12, fontFamily: Fonts.regular },
+  bulkRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
   bulkBtn: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingVertical: 10,
+    borderRadius: Radius.lg,
     alignItems: 'center',
-    borderWidth: 1.5,
-    backgroundColor: '#fff',
+    borderWidth: 1,
   },
-  bulkBtnPrimary: { borderColor: Colors.primary, backgroundColor: Colors.primaryLight },
-  bulkBtnMuted: { borderColor: Colors.border },
-  bulkBtnText: { fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
-  bulkBtnTextPrimary: { color: Colors.primary },
-  bulkBtnTextMuted: { color: Colors.textMuted },
-  catTitle: { fontSize: 16, fontWeight: '700', color: Colors.text },
-  summaryText: { fontSize: 16, color: Colors.text, textAlign: 'center' },
-  summaryBold: { fontWeight: '800' },
-  warnText: { fontSize: 13, color: Colors.warning, marginTop: 8, textAlign: 'center', fontWeight: '600' },
-  empty: { fontSize: 16, color: Colors.textMuted, textAlign: 'center', marginTop: 60 },
+  bulkBtnPrimary: { borderColor: NSA.green800, backgroundColor: NSA.green50 },
+  bulkBtnMuted: { borderColor: NSA.borderStrong, backgroundColor: NSA.bgElevated },
+  bulkBtnText: { fontSize: 13, fontFamily: Fonts.semibold },
+  bulkBtnTextPrimary: { color: NSA.green800 },
+  bulkBtnTextMuted: { color: NSA.inkSecondary },
+  catTitle: { fontSize: 13, fontFamily: Fonts.medium, color: NSA.inkPrimary },
+  summaryText: { fontSize: 14, color: NSA.inkPrimary, textAlign: 'center', fontFamily: Fonts.regular },
+  summaryBold: { fontFamily: Fonts.semibold },
+  warnRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, justifyContent: 'center' },
+  warnText: { fontSize: 12, color: NSA.warnFg, fontFamily: Fonts.medium },
+  empty: { fontSize: 14, color: NSA.inkMuted, textAlign: 'center', marginTop: 60, fontFamily: Fonts.regular },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    gap: 8,
+    backgroundColor: NSA.bgElevated,
     borderWidth: 1,
-    borderColor: '#e0dcd5',
-    borderRadius: 10,
-    paddingHorizontal: 12,
+    borderColor: NSA.borderStrong,
+    borderRadius: Radius.lg,
+    paddingHorizontal: 10,
     marginBottom: 12,
   },
-  searchInput: { flex: 1, paddingVertical: 12, fontSize: 16, color: '#2c2c2c' },
+  searchInput: { flex: 1, paddingVertical: 10, fontSize: 14, color: NSA.inkPrimary, fontFamily: Fonts.regular },
   searchClear: { padding: 4 },
-  searchClearText: { fontSize: 18, color: '#7a7a7a', fontWeight: '700' },
-  noMatch: { fontSize: 14, color: '#7a7a7a', textAlign: 'center', fontStyle: 'italic', marginTop: 8 },
+  noMatch: { fontSize: 13, color: NSA.inkMuted, textAlign: 'center', marginTop: 8, fontFamily: Fonts.regular },
 });

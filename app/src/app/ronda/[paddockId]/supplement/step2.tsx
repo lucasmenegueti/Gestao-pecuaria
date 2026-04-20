@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { WizardFlow, BinaryChoice } from '@/components/ui';
 import { Colors } from '@/constants';
+import { NSA, Fonts } from '@/theme/nsa';
 
 export default function SupplementStep2() {
   const { paddockId } = useLocalSearchParams();
@@ -11,7 +12,7 @@ export default function SupplementStep2() {
 
   return (
     <WizardFlow
-      title="SUPLEMENTAÇÃO"
+      title="Suplementação"
       subtitle="Abastecimento do cocho"
       step={2}
       totalSteps={6}
@@ -36,5 +37,5 @@ export default function SupplementStep2() {
 }
 
 const styles = StyleSheet.create({
-  question: { fontSize: 22, fontWeight: '800', color: '#2c2c2c', marginBottom: 20, textAlign: 'center' },
+  question: { fontSize: 22, fontFamily: Fonts.semibold, color: NSA.inkPrimary, marginBottom: 20, textAlign: 'center' },
 });

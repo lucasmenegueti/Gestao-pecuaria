@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, Alert } from 'react-native';
 import { router } from 'expo-router';
-import { useDatabase } from '@/lib/db/provider';
-import { Button, MultiChoice, SliderInput } from '@/components/ui';
-import { Colors, CATTLE_CATEGORIES } from '@/constants';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useDatabase } from '@/lib/db/provider';
+import { Button, MultiChoice, SliderInput, BrandHeader } from '@/components/ui';
+import { CATTLE_CATEGORIES } from '@/constants';
+import { NSA, Fonts, Radius } from '@/theme/nsa';
 
 const EVENT_TYPES = [
-  { value: 'NASCIMENTO', label: 'Nascimento', color: Colors.success },
-  { value: 'MORTE', label: 'Morte', color: Colors.danger },
-  { value: 'VENDA', label: 'Venda', color: Colors.warning },
-  { value: 'COMPRA', label: 'Compra', color: Colors.suplementacao },
+  { value: 'NASCIMENTO', label: 'Nascimento', color: NSA.ok },
+  { value: 'MORTE', label: 'Morte', color: NSA.danger },
+  { value: 'VENDA', label: 'Venda', color: NSA.warn },
+  { value: 'COMPRA', label: 'Compra', color: NSA.info },
 ];
 
 export default function EventoScreen() {
@@ -102,62 +103,73 @@ export default function EventoScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.back}>← VOLTAR</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Registrar Evento</Text>
-      </View>
+    <View style={styles.root}>
+      <BrandHeader title="Registrar evento" context="Rebanho" onBack={() => router.back()} />
+      <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          <Text style={styles.label}>TIPO DE EVENTO</Text>
+          <MultiChoice options={EVENT_TYPES} value={eventType} onChange={(v) => { setEventType(v); setCategory(null); }} />
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.label}>TIPO DE EVENTO</Text>
-        <MultiChoice options={EVENT_TYPES} value={eventType} onChange={(v) => { setEventType(v); setCategory(null); }} />
+          <Text style={[styles.label, { marginTop: 22 }]}>PIQUETE</Text>
+          <MultiChoice
+            options={paddocks.map((p) => ({ value: String(p.id), label: p.name }))}
+            value={paddockId}
+            onChange={setPaddockId}
+          />
 
-        <Text style={[styles.label, { marginTop: 20 }]}>PIQUETE</Text>
-        <MultiChoice
-          options={paddocks.map((p) => ({ value: String(p.id), label: p.name }))}
-          value={paddockId}
-          onChange={setPaddockId}
-        />
+          <Text style={[styles.label, { marginTop: 22 }]}>CATEGORIA</Text>
+          {eventType === 'NASCIMENTO' && hasVaca && (
+            <Text style={styles.hint}>Piquete tem vacas — sugestão: bezerro/bezerra mamando.</Text>
+          )}
+          {eventType === 'MORTE' && paddockCategories.length === 0 && paddockId && (
+            <Text style={styles.hint}>Piquete sem gado.</Text>
+          )}
+          <MultiChoice options={categoryOptions} value={category} onChange={setCategory} />
 
-        <Text style={[styles.label, { marginTop: 20 }]}>CATEGORIA</Text>
-        {eventType === 'NASCIMENTO' && hasVaca && (
-          <Text style={styles.hint}>Piquete tem VACAs — sugestão: bezerro/bezerra mamando.</Text>
-        )}
-        {eventType === 'MORTE' && paddockCategories.length === 0 && paddockId && (
-          <Text style={styles.hint}>Piquete sem gado.</Text>
-        )}
-        <MultiChoice options={categoryOptions} value={category} onChange={setCategory} />
+          <Text style={[styles.label, { marginTop: 22 }]}>QUANTIDADE</Text>
+          <SliderInput value={count} onValueChange={setCount} min={1} max={100} step={1} unit="cab" />
 
-        <Text style={[styles.label, { marginTop: 20 }]}>QUANTIDADE</Text>
-        <SliderInput value={count} onValueChange={setCount} min={1} max={100} step={1} unit="cab" color={Colors.primary} />
+          <Text style={[styles.label, { marginTop: 22 }]}>OBSERVAÇÕES</Text>
+          <TextInput
+            style={styles.textarea}
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="Anotações sobre o evento…"
+            placeholderTextColor={NSA.inkDisabled}
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+          />
 
-        <Text style={[styles.label, { marginTop: 20 }]}>OBSERVAÇÕES</Text>
-        <TextInput
-          style={styles.textarea}
-          value={notes}
-          onChangeText={setNotes}
-          placeholder="Anotações sobre o evento..."
-          multiline
-          numberOfLines={3}
-          textAlignVertical="top"
-        />
-
-        <Button title="REGISTRAR EVENTO" onPress={handleSave} size="large" style={{ marginTop: 24 }} />
-      </ScrollView>
-    </SafeAreaView>
+          <Button title="Registrar evento" onPress={handleSave} style={{ marginTop: 20 }} />
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f4f1ec' },
-  header: { backgroundColor: '#1a6b54', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
-  back: { color: 'rgba(255,255,255,0.9)', fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#ffffff' },
+  root: { flex: 1, backgroundColor: NSA.bg },
   scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 40 },
-  label: { fontSize: 18, fontWeight: '800', color: '#2c2c2c', marginBottom: 10 },
-  hint: { fontSize: 13, color: Colors.textMuted, marginBottom: 8, fontStyle: 'italic' },
-  textarea: { minHeight: 80, backgroundColor: '#ffffff', borderRadius: 12, borderWidth: 2, borderColor: '#e0dcd5', padding: 16, fontSize: 16 },
+  scrollContent: { padding: 20, paddingBottom: 40 },
+  label: {
+    fontSize: 11,
+    fontFamily: Fonts.medium,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: NSA.inkMuted,
+    marginBottom: 10,
+  },
+  hint: { fontSize: 12, color: NSA.inkMuted, marginBottom: 8, fontFamily: Fonts.regular },
+  textarea: {
+    minHeight: 80,
+    backgroundColor: NSA.bgElevated,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: NSA.borderStrong,
+    padding: 12,
+    fontSize: 14,
+    fontFamily: Fonts.regular,
+    color: NSA.inkPrimary,
+  },
 });

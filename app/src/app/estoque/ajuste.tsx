@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, TextInput } from 'react-native';
 import { router } from 'expo-router';
-import { useDatabase } from '@/lib/db/provider';
-import { Button, MultiChoice, SliderInput } from '@/components/ui';
-import { useAuthStore } from '@/stores/authStore';
-import { Colors } from '@/constants';
+import { AlertTriangle } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useDatabase } from '@/lib/db/provider';
+import { Button, MultiChoice, SliderInput, BrandHeader } from '@/components/ui';
+import { useAuthStore } from '@/stores/authStore';
+import { NSA, Fonts, Radius } from '@/theme/nsa';
 
 export default function AjusteEstoqueScreen() {
   const db = useDatabase();
@@ -65,91 +66,97 @@ export default function AjusteEstoqueScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.back}>← VOLTAR</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Ajuste Manual (Perda)</Text>
-      </View>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.warnBox}>
-          <Text style={styles.warnTitle}>⚠️ Atenção</Text>
-          <Text style={styles.warnText}>
-            Esse ajuste é registrado como <Text style={{ fontWeight: '800' }}>PERDA</Text> no
-            relatório de inventário. Use só para diferença de inventário, desvio ou dano. Saídas
-            normais de estoque acontecem via reabastecimento.
-          </Text>
-        </View>
+    <View style={styles.root}>
+      <BrandHeader title="Ajuste manual" context="Estoque · Perda" onBack={() => router.back()} />
+      <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          <View style={styles.warnBox}>
+            <View style={styles.warnHeader}>
+              <AlertTriangle size={14} color={NSA.dangerFg} strokeWidth={1.75} />
+              <Text style={styles.warnTitle}>ATENÇÃO</Text>
+            </View>
+            <Text style={styles.warnText}>
+              Esse ajuste é registrado como <Text style={{ fontFamily: Fonts.semibold }}>perda</Text> no
+              relatório de inventário. Use só para diferença de inventário, desvio ou dano. Saídas
+              normais de estoque acontecem via reabastecimento.
+            </Text>
+          </View>
 
-        <Text style={styles.label}>PRODUTO</Text>
-        <MultiChoice
-          options={items.map((i) => ({ value: String(i.id), label: `${i.name} (${i.qty} sacos)` }))}
-          value={selectedId}
-          onChange={setSelectedId}
-        />
+          <Text style={styles.label}>PRODUTO</Text>
+          <MultiChoice
+            options={items.map((i) => ({ value: String(i.id), label: `${i.name} (${i.qty} sacos)` }))}
+            value={selectedId}
+            onChange={setSelectedId}
+          />
 
-        <Text style={[styles.label, { marginTop: 20 }]}>QUANTIDADE A REMOVER</Text>
-        <SliderInput
-          value={quantity}
-          onValueChange={setQuantity}
-          min={1}
-          max={Math.max(maxQty, 1)}
-          step={1}
-          unit="sacos"
-          color={Colors.danger}
-        />
+          <Text style={[styles.label, { marginTop: 22 }]}>QUANTIDADE A REMOVER</Text>
+          <SliderInput
+            value={quantity}
+            onValueChange={setQuantity}
+            min={1}
+            max={Math.max(maxQty, 1)}
+            step={1}
+            unit="sacos"
+            color={NSA.danger}
+          />
 
-        <Text style={[styles.label, { marginTop: 20 }]}>MOTIVO</Text>
-        <TextInput
-          style={styles.input}
-          value={reason}
-          onChangeText={setReason}
-          placeholder="Ex.: recontagem diff 3 sacos, rasgo, etc."
-          multiline
-          placeholderTextColor={Colors.textMuted}
-        />
+          <Text style={[styles.label, { marginTop: 22 }]}>MOTIVO</Text>
+          <TextInput
+            style={styles.input}
+            value={reason}
+            onChangeText={setReason}
+            placeholder="Ex.: recontagem diff 3 sacos, rasgo, etc."
+            multiline
+            placeholderTextColor={NSA.inkDisabled}
+          />
 
-        <Button
-          title={saving ? 'REGISTRANDO...' : 'REGISTRAR PERDA'}
-          variant="danger"
-          onPress={handleSave}
-          size="large"
-          disabled={saving}
-          style={{ marginTop: 24 }}
-        />
-      </ScrollView>
-    </SafeAreaView>
+          <Button
+            title={saving ? 'Registrando…' : 'Registrar perda'}
+            variant="danger"
+            onPress={handleSave}
+            disabled={saving}
+            style={{ marginTop: 20 }}
+          />
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f4f1ec' },
-  header: { backgroundColor: '#c0392b', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
-  back: { color: 'rgba(255,255,255,0.9)', fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#ffffff' },
+  root: { flex: 1, backgroundColor: NSA.bg },
   scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 40 },
+  scrollContent: { padding: 20, paddingBottom: 40 },
   warnBox: {
-    backgroundColor: '#fdecea',
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.danger,
+    backgroundColor: NSA.dangerBg,
+    borderLeftWidth: 3,
+    borderLeftColor: NSA.danger,
     padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
+    borderRadius: Radius.lg,
+    marginBottom: 18,
   },
-  warnTitle: { fontSize: 14, fontWeight: '800', color: Colors.danger, marginBottom: 4 },
-  warnText: { fontSize: 13, color: '#2c2c2c', lineHeight: 18 },
-  label: { fontSize: 16, fontWeight: '800', color: '#2c2c2c', marginBottom: 8 },
+  warnHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  warnTitle: { fontSize: 11, fontFamily: Fonts.medium, letterSpacing: 1.2, color: NSA.dangerFg },
+  warnText: { fontSize: 12, color: NSA.inkPrimary, lineHeight: 17, fontFamily: Fonts.regular },
+  label: {
+    fontSize: 11,
+    fontFamily: Fonts.medium,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: NSA.inkMuted,
+    marginBottom: 10,
+  },
   input: {
-    minHeight: 56,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 14,
+    minHeight: 80,
+    borderWidth: 1,
+    borderColor: NSA.borderStrong,
+    borderRadius: Radius.lg,
+    paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 15,
-    backgroundColor: '#fff',
+    fontSize: 14,
+    fontFamily: Fonts.regular,
+    color: NSA.inkPrimary,
+    backgroundColor: NSA.bgElevated,
     textAlignVertical: 'top',
   },
 });

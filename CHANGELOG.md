@@ -6,6 +6,48 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.5.6 — "Reabastecimento persistente + voltar confiável + rebanho sem zeros" (2026-04-19)
+
+Três fixes focados em confiabilidade de fluxo e contabilidade:
+
+- **Reabastecimento: rota persistente e retomável** (`src/lib/reabastecimento/active-route.ts` novo + `reabastecimento/carregar.tsx` + `reabastecimento/rota.tsx` + `(tabs)/estoque.tsx` + `(tabs)/index.tsx`): o carregamento do trator agora roda em `db.withTransactionAsync` — se qualquer passo falhar, rollback completo e nenhum saco some da central sem ter uma rota que o represente. `carregar.tsx` entra checando `getActiveRoute()`: se já tem rota `in_progress`, redireciona direto pra `rota?routeId=X` (proíbe 2ª rota simultânea). **Banner "Rota em andamento"** no topo do Painel e do Estoque mostra quantos sacos estão no trator e leva de volta à rota com 1 toque. Aba Central ganha card **"NO TRATOR (rotas em andamento)"** com o agregado por fórmula, fechando a conta `central + trator + bombona`. Botão **Cancelar** no header da rota faz devolução integral ao central em uma transação + evento `CANCELAMENTO_ROTA` + status `cancelled` — solução pra "iniciei errado, quero desfazer".
+- **Voltar sempre funciona em 1 press** (`src/hooks/use-safe-back.ts` novo + `components/ui/BrandHeader.tsx` + `components/ui/WizardFlow.tsx`): hook único envolve o onBack do header/wizard aplicando `Keyboard.dismiss()` + debounce de 400ms (`ref`, que estado async não segura) + `requestAnimationFrame` pra não deixar o dismiss engolir o `router.back()`. Integra Android hardware back via `BackHandler` com a mesma lógica. Elimina "apertei 3x, voltou uma só" quando teclado estava aberto ou animação de transição comia a press. Novo prop `fallback` pra telas entradas via `router.replace` (reabastecimento/rota e /resumo) — usado quando `canGoBack === false`.
+- **Rebanho sem categorias zeradas** (`src/app/(tabs)/rebanho.tsx`): as 3 queries (totais, pool, por-piquete) agora filtram `h.deleted_at IS NULL`, usam `SUM(h.head_count)` com `GROUP BY` + `HAVING SUM > 0`. Rows soft-deleted (mantidas com head_count=0 pra preservar `supabase_id` — ver comentário em `admin/desalocar.tsx`) não escapam mais pra UI. Piquetes sem gado não aparecem em "POR PIQUETE". Defesa em JS com `.filter(h => h.total > 0)` impede qualquer zero residual.
+
+**Fallback:** `git checkout v0.5.5` — volta ao comportamento anterior (voltar engole press, reabastecimento invisível fora da URL, rebanho podendo exibir "0 cab" em categoria).
+
+---
+
+## v0.5.5 — "Configurações + Relatório diário + Mover UX" (2026-04-18)
+
+Três frentes: configurações ajustáveis (cerca, alertas), nova tab de relatório e polimentos no fluxo de mover lote.
+
+- **Mover lote · UX** (`src/app/admin/mover-rebanho.tsx`): botão **Mover** agora é sticky no footer (sempre visível durante a rolagem) e o campo "PARA (destino)" ganhou busca por nome de piquete — igual alocar.tsx.
+- **Configurações** (`src/app/admin/index.tsx` novo): a engrenagem do Painel agora abre um índice com todas as opções: Formulações, Tipos de capim, **Cerca**, **Alertas**, Logs. Antes ia direto pra Formulações.
+- **Cerca configurável** (`src/app/admin/cerca.tsx` novo + `src/lib/settings.ts` novo): 3 sliders pros thresholds de voltagem (FORTE / ADEQUADO / FRACO). Valores são persistidos em `app_settings` e guarda ordem `fraco < adequado < forte`. Prévia ao vivo mostra como cada voltagem seria classificada. `fence/summary.tsx` e `alerts.ts` passaram a ler esses thresholds em vez dos hardcoded.
+- **Alertas configuráveis** (`src/app/admin/alertas.tsx` novo): cada alerta do Painel tem toggle individual + limiares. Cobre **Cocho** (dias warn/danger), **Estoque central** (dias warn/danger), **Sanidade** (% warn/danger), **Água** (chips de qualidades → warn/danger), **Cerca** (chips de classificações → warn/danger) e **Gado desalocado** (on/off). Desligar um alerta faz ele sumir do Painel e não entrar no feed.
+- **Relatório diário** (`src/app/(tabs)/relatorio.tsx` novo — 6ª tab): navegação por dia (← hoje →) + 3 seções. **Ronda**: todas as rondas do dia com quais avaliações foram preenchidas e por quem. **Rebanho**: todos os `herd_events` do dia (ALOCACAO, TRANSFERENCIA, NASCIMENTO, MORTE, VENDA, COMPRA, EVOLUCAO) com categoria/quantidade/origem→destino/peso/notas/hora. **Estoque**: `inventory_events` com fórmula, sinal do delta, motivo e autor.
+- **Schema v18**: `app_settings` (key-value) com defaults seedados via `INSERT OR IGNORE`. Os valores migram automaticamente na primeira subida; usuários com DB anterior continuam com os thresholds default (equivalentes aos hardcoded antigos).
+
+**Fallback:** `git checkout v0.5.4` — volta ao estado sem relatório diário, com alertas/voltagens hardcoded e sem sticky footer em mover lote.
+
+---
+
+## v0.5.4 — "Rebanho: colapsáveis + Compra + Evoluir + alertas reorganizados" (2026-04-18)
+
+Ajustes no fluxo da tela de rebanho (cards colapsáveis, novas ações, evolução etária), reorganização dos alertas do painel:
+
+- **Cards de piquete colapsáveis** (`src/app/(tabs)/rebanho.tsx`): `POR PIQUETE` mostra só nome, área e composição por categoria. Toque no card revela as ações disponíveis — **Mover lote**, **Evoluir**, **Desalocar** e **Mortes** sempre; **Nascimentos** só se o piquete tiver VACA/NOVILHA. Um piquete expandido por vez (chevron indica estado). Botões globais "Mover rebanho" e "Evento" saíram do fluxo — cada ação agora é contextual ao piquete.
+- **Comprar gado** (novo — `src/app/admin/compra.tsx`): botão logo abaixo da tabela de totais por categoria. Categoria + quantidade + peso médio (balança ou estimado, com default por categoria). Compra entra no pool de desalocados (`herd.paddock_id IS NULL`) + evento `COMPRA` em `herd_events` com `weight_kg`.
+- **Categorias de rebanho expandidas** (`src/constants/index.ts`): adicionadas **BEZERRO** (180 kg), **BEZERRA** (170 kg) e **BOI** (550 kg) — intermediárias que faltavam no fluxo etário. `CATTLE_CATEGORIES` reordenado por evolução (mamando → desmamado → jovem → adulto). Novo mapa `CATEGORY_EVOLUTIONS` define o destino natural de cada estágio.
+- **Evoluir rebanho** (novo — `src/app/admin/evoluir.tsx`): botão no card expandido do piquete. Mostra um card por lote com o próximo estágio sugerido (ex: `GARROTE → BOI`) e slider de quantidade. Quando o lote tem dois destinos possíveis (ex: NOVILHA → VACA SOLTEIRA ou VACA PRENHA pós-DG), exibe MultiChoice. Seção discreta "Ajuste manual de categoria" com aviso permite mover qualquer categoria → qualquer categoria pra corrigir erros. Eventos gravam `event_type='EVOLUCAO'` com notes `ORIGEM → DESTINO`.
+- **Mover lote sem MultiChoice de categoria** (`src/app/admin/mover-rebanho.tsx`): categoria agora é deduzida do piquete de origem. **1 categoria** → só slider de quantidade + destino. **Múltiplas categorias** → default move o lote inteiro preservando composição; botão "Desagregar por categoria" abre sliders individuais. Origem aceita `?paddockId=` e trava o campo.
+- **Alertas de cocho agora na seção RONDA do Painel** (`src/app/(tabs)/index.tsx`): "Cocho previsto vazio" / "Cocho · N dia(s)" deixaram de aparecer em ESTOQUE e passaram pra seção RONDA — afinal, é em ronda (reabastecimento ou suplementação) que o problema se resolve. ESTOQUE no Painel segue exibindo só alertas de estoque **central**, que dependem de ação administrativa.
+
+**Fallback:** `git checkout v0.5.3` — volta ao rebanho com botões sempre visíveis, sem compra, sem evolução, sem categorias intermediárias, sem pré-seleção em mover rebanho e com alertas de cocho em ESTOQUE do painel.
+
+---
+
 ## v0.5.3 — "Mapa via expo-asset + sync UX + min stock" (2026-04-18)
 
 Segundo round de fixes após teste do APK preview no Tab A9:

@@ -6,7 +6,7 @@ import { setLogDb, logInfo } from '@/lib/log';
 // Deixar seed local criaria duplicatas / conflitos ao sincronizar.
 
 const DB_NAME = 'gestao_pecuaria.db';
-const SCHEMA_VERSION = 16;
+const SCHEMA_VERSION = 19;
 
 const DatabaseContext = createContext<SQLite.SQLiteDatabase | null>(null);
 
@@ -163,6 +163,25 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
             DROP TABLE IF EXISTS resupply_loads;
             DROP TABLE IF EXISTS resupply_deliveries;
           `);
+        }
+        if (currentVersion < 17) {
+          // v17: herd_events ganha coluna weight_kg pra eventos de venda (peso
+          // de balança ou estimado). ALTER ADD COLUMN é aditivo — preserva dados
+          // existentes. Tolerante: tabela pode não existir se usuário tiver
+          // vindo de um estado anterior que a dropou.
+          try {
+            await database.execAsync('ALTER TABLE herd_events ADD COLUMN weight_kg REAL');
+          } catch {
+            // coluna já existe ou tabela não existe ainda — CREATE_TABLES_SQL cuida.
+          }
+        }
+        if (currentVersion < 18) {
+          // v18: app_settings table pra configurações de cerca + alertas.
+          // CREATE_TABLES_SQL cria e insere defaults via INSERT OR IGNORE — nada a dropar.
+        }
+        if (currentVersion < 19) {
+          // v19: biological_water_evals pra registrar aplicação de biológico na água.
+          // CREATE_TABLES_SQL cria — nada a dropar.
         }
         if (currentVersion < 16) {
           // v16: sync_state ganha last_sync_at (timestamp de última sincronização

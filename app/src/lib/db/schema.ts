@@ -211,6 +211,18 @@ CREATE TABLE IF NOT EXISTS washing_evals (
   FOREIGN KEY (ronda_id) REFERENCES rondas(id)
 );
 
+-- Biológico aplicado na água: applied=0 = "não apliquei hoje" (salva registro mesmo assim);
+-- quando applied=1, quantity_g guarda quantos gramas foram colocados (1–1000g).
+CREATE TABLE IF NOT EXISTS biological_water_evals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ronda_id INTEGER NOT NULL,
+  applied INTEGER NOT NULL,
+  quantity_g REAL,
+  photo_uri TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),${SYNC},
+  FOREIGN KEY (ronda_id) REFERENCES rondas(id)
+);
+
 -- Índices pro alerts.ts (dashboard focus roda rondasToday + latestEvalPerPaddock):
 --  - rondas(date): filtro "feitas hoje"
 --  - *_evals(ronda_id): UNION ALL de 8 tabelas + JOIN rondas em latestEvalPerPaddock
@@ -223,6 +235,7 @@ CREATE INDEX IF NOT EXISTS idx_health_evals_ronda ON health_evals(ronda_id);
 CREATE INDEX IF NOT EXISTS idx_fence_evals_ronda ON fence_evals(ronda_id);
 CREATE INDEX IF NOT EXISTS idx_visual_weight_evals_ronda ON visual_weight_evals(ronda_id);
 CREATE INDEX IF NOT EXISTS idx_washing_evals_ronda ON washing_evals(ronda_id);
+CREATE INDEX IF NOT EXISTS idx_biological_water_evals_ronda ON biological_water_evals(ronda_id);
 
 CREATE TABLE IF NOT EXISTS inventory (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -276,6 +289,7 @@ CREATE TABLE IF NOT EXISTS herd_events (
   head_count INTEGER NOT NULL,
   target_paddock_id INTEGER,
   notes TEXT,
+  weight_kg REAL,
   date TEXT NOT NULL DEFAULT (date('now','localtime')),
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),${SYNC},
   FOREIGN KEY (paddock_id) REFERENCES paddocks(id)
@@ -296,6 +310,45 @@ CREATE TABLE IF NOT EXISTS inventory_events (
 
 CREATE INDEX IF NOT EXISTS idx_inventory_events_formula ON inventory_events(formula_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_inventory_events_paddock ON inventory_events(paddock_id, created_at);
+
+-- app_settings: chave-valor pra configurações (voltagens de cerca, limiares de alertas).
+-- Todos os values são TEXT; caller faz JSON.parse ou Number() conforme o tipo.
+-- Defaults populados via INSERT OR IGNORE — só entram na primeira criação da tabela.
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+INSERT OR IGNORE INTO app_settings (key, value) VALUES
+  -- Cerca: voltagens que definem cada classificação (thresholds inclusivos)
+  ('fence.voltage_forte', '4000'),
+  ('fence.voltage_adequado', '2000'),
+  ('fence.voltage_fraco', '1'),
+  -- Alertas: cada bloco tem enabled + limiares específicos.
+  -- Disabled: seção some do Painel; não gera evento no feed.
+  ('alert.bombona.enabled', '1'),
+  ('alert.bombona.warn_days', '3'),
+  ('alert.bombona.danger_days', '0'),
+  ('alert.central.enabled', '1'),
+  ('alert.central.warn_days', '30'),
+  ('alert.central.danger_days', '7'),
+  ('alert.sanidade.enabled', '1'),
+  ('alert.sanidade.warn_pct', '0'),
+  ('alert.sanidade.danger_pct', '20'),
+  ('alert.agua.enabled', '1'),
+  -- JSON arrays de qualidades da WATER_QUALITY_OPTIONS que geram cada severidade
+  ('alert.agua.warn_qualities', '["MEDIANA"]'),
+  ('alert.agua.danger_qualities', '["RUIM"]'),
+  ('alert.cerca.enabled', '1'),
+  ('alert.cerca.warn_classifications', '["FRACO"]'),
+  ('alert.cerca.danger_classifications', '["SEM CHOQUE"]'),
+  ('alert.desalocados.enabled', '1'),
+  -- Biológico: aplicado no dia da semana configurado (0=dom, 4=qui default).
+  -- Se, a partir do último dia agendado, algum piquete com gado não recebeu
+  -- biológico (applied=1), gera warn. Alerta só sai quando é aplicado.
+  ('alert.biologico.enabled', '1'),
+  ('alert.biologico.weekday', '4');
 
 -- activity_log: registro de cada ação do app + resposta do servidor.
 -- Usado p/ debug e rastreamento. Rolling window (últimas 1000 entries).
@@ -351,6 +404,7 @@ export const SYNCED_TABLES = [
   { name: 'fence_evals', appendOnly: true, fkCols: [{ col: 'ronda_id', table: 'rondas' }] },
   { name: 'visual_weight_evals', appendOnly: true, fkCols: [{ col: 'ronda_id', table: 'rondas' }] },
   { name: 'washing_evals', appendOnly: true, fkCols: [{ col: 'ronda_id', table: 'rondas' }] },
+  { name: 'biological_water_evals', appendOnly: true, fkCols: [{ col: 'ronda_id', table: 'rondas' }] },
   { name: 'resupply_routes', appendOnly: false, fkCols: [] },
   { name: 'resupply_loads', appendOnly: false, fkCols: [
     { col: 'route_id', table: 'resupply_routes' },

@@ -136,6 +136,24 @@ Section order in `menu.tsx`: Suplementação → Bombona → Forragem → Aguada
 - **Lavagem** is "did you just wash?" — if no, returns to menu without saving; if yes, 2 screens (photo optional + confirm)
 - **Bombona** separate flow: has_stock? → formula → sacks → summary
 
+## Design system — SOURCE OF TRUTH
+
+**Todo elemento visual novo ou modificação existente DEVE seguir o NSA Design System em `nsa-design-system/project/`.** Antes de alterar qualquer tela, consultar:
+
+- `nsa-design-system/project/colors_and_type.css` — tokens de cor/tipografia
+- `nsa-design-system/project/pecuaria_redesign/atoms.jsx` — componentes (BrandHeader, Button, StatusPill, KPI, ChoiceCard, etc.)
+- `nsa-design-system/project/pecuaria_redesign/screens_*.jsx` — telas de referência
+
+Regras invioláveis:
+- Tokens: `NSA.green800` (#172514) + `NSA.cream` (#FFFFE3) na brand, semantic via `NSA.ok/warn/danger/info`, paleta completa em `app/src/theme/nsa.ts`.
+- Fonte: **Inter** (400/500/600/700) pro corpo, **Lora 600/700** pra números hero (KPIs) e títulos de BrandHeader. `Fonts.semibold` etc. em `theme/nsa.ts`. Nunca `fontWeight: '700'` direto.
+- Icons: **lucide-react-native** (stroke 1.75). Proibido emoji em UI navegável.
+- Primitivas: `BrandHeader`, `Button`, `Card`, `StatusPill`, `KPI`, `ProgressBar`, `MultiChoice`, `BinaryChoice`, `SliderInput`, `SummaryRow`, `WizardFlow`, `PhotoButton` em `app/src/components/ui/`. Não criar variantes locais — estender o primitivo se faltar.
+- Helpers: `tokensForStatus(kind)` retorna `{edge, bg, fg, label}` pra qualquer estado semântico. Evite ternários `kind === 'danger' ? X : Y`.
+- Copy: **Sentence case** ("Confirmar", não "CONFIRMAR"), separador `·` em vez de `•`, sem emoji em valor/label, motivos de morte/vendas em `herd_events.notes`/`weight_kg`.
+
+Fallback rápido: `git reset --hard pre-redesign-v0.5.3`.
+
 ## UX Principles (hard rules — breaking these regresses the field experience)
 
 - Min 56px touch target, 18px+ font, 1 decision per screen

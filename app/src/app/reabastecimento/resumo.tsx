@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useDatabase } from '@/lib/db/provider';
-import { Card, Button, SummaryRow } from '@/components/ui';
-import { useAuthStore } from '@/stores/authStore';
-import { Colors } from '@/constants';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AlertTriangle } from 'lucide-react-native';
+import { useDatabase } from '@/lib/db/provider';
+import { Card, Button, SummaryRow, KPI, BrandHeader } from '@/components/ui';
+import { useAuthStore } from '@/stores/authStore';
+import { NSA, Fonts, Radius } from '@/theme/nsa';
 
 interface LoadSummary {
   formula_id: number;
@@ -115,130 +116,150 @@ export default function ResumoScreen() {
   const totalReturned = loads.reduce((s, l) => s + l.returned, 0);
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.back}>← VOLTAR</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>FASE 3: VOLTA À SEDE</Text>
-      </View>
-
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <Card style={{ backgroundColor: Colors.primary }}>
-          <Text style={styles.headline}>
-            {deliveredCount} {deliveredCount === 1 ? 'bombona' : 'bombonas'} abastecida{deliveredCount === 1 ? '' : 's'}
-          </Text>
-          <Text style={styles.headlineSub}>
-            {totalDistributed} de {totalLoaded} sacos distribuídos
-          </Text>
-        </Card>
-
-        <Text style={styles.sectionTitle}>ENTREGAS POR PIQUETE</Text>
-        <Card>
-          {byPaddock.length === 0 ? (
-            <Text style={styles.emptyRow}>Nenhuma entrega registrada nesta rota.</Text>
-          ) : (
-            (() => {
-              const grouped = new Map<string, Array<{ formula: string; total: number }>>();
-              byPaddock.forEach((d) => {
-                const arr = grouped.get(d.paddock_name) || [];
-                arr.push({ formula: d.formula_name, total: d.total });
-                grouped.set(d.paddock_name, arr);
-              });
-              return Array.from(grouped.entries()).map(([paddock, items]) => (
-                <View key={paddock} style={styles.paddockBlock}>
-                  <Text style={styles.paddockName}>{paddock.toUpperCase()}</Text>
-                  {items.map((it) => (
-                    <View key={it.formula} style={styles.paddockRow}>
-                      <Text style={styles.paddockFormula}>{it.formula}</Text>
-                      <Text style={styles.paddockQty}>+{it.total} sacos</Text>
-                    </View>
-                  ))}
-                </View>
-              ));
-            })()
-          )}
-        </Card>
-
-        <Text style={styles.sectionTitle}>DISTRIBUIÇÃO POR FÓRMULA</Text>
-        {loads.map((l) => (
-          <Card key={l.formula_id}>
-            <Text style={styles.loadName}>{l.formula_name.toUpperCase()}</Text>
-            <SummaryRow label="Levou do central" value={`${l.loaded} sacos`} />
-            <SummaryRow label="Entregou" value={`${l.distributed} sacos`} valueColor={Colors.success} />
-            <SummaryRow
-              label="Volta pra sede"
-              value={`${l.returned} sacos`}
-              valueColor={l.returned > 0 ? Colors.warning : Colors.textMuted}
+    <View style={styles.root}>
+      <BrandHeader
+        title="Volta à sede"
+        context="Fase 3 · Reabastecimento"
+        fallback={`/reabastecimento/rota?routeId=${routeId}`}
+      />
+      <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <KPI
+              label="Abastecidas"
+              value={deliveredCount}
+              unit={deliveredCount === 1 ? 'bombona' : 'bombonas'}
+              style={{ flex: 1 }}
             />
+            <KPI
+              label="Distribuídos"
+              value={totalDistributed}
+              unit={`/ ${totalLoaded}`}
+              style={{ flex: 1 }}
+            />
+          </View>
+
+          <Text style={styles.sectionTitle}>ENTREGAS POR PIQUETE</Text>
+          <Card>
+            {byPaddock.length === 0 ? (
+              <Text style={styles.emptyRow}>Nenhuma entrega registrada nesta rota.</Text>
+            ) : (
+              (() => {
+                const grouped = new Map<string, Array<{ formula: string; total: number }>>();
+                byPaddock.forEach((d) => {
+                  const arr = grouped.get(d.paddock_name) || [];
+                  arr.push({ formula: d.formula_name, total: d.total });
+                  grouped.set(d.paddock_name, arr);
+                });
+                return Array.from(grouped.entries()).map(([paddock, items]) => (
+                  <View key={paddock} style={styles.paddockBlock}>
+                    <Text style={styles.paddockName}>{paddock}</Text>
+                    {items.map((it) => (
+                      <View key={it.formula} style={styles.paddockRow}>
+                        <Text style={styles.paddockFormula}>{it.formula}</Text>
+                        <Text style={styles.paddockQty}>+{it.total} sacos</Text>
+                      </View>
+                    ))}
+                  </View>
+                ));
+              })()
+            )}
           </Card>
-        ))}
 
-        <Card style={styles.returnBox}>
-          <Text style={styles.returnLabel}>⚠️ CONFIRMAR DEVOLUÇÃO À SEDE</Text>
-          <Text style={styles.returnAmount}>{totalReturned} sacos</Text>
-          <Text style={styles.returnHint}>
-            Vão voltar ao estoque central. Verifique o trator antes de confirmar.
-          </Text>
-          {loads.filter((l) => l.returned > 0).map((l) => (
-            <View key={l.formula_id} style={styles.returnRow}>
-              <Text style={styles.returnRowName}>{l.formula_name}</Text>
-              <Text style={styles.returnRowQty}>{l.returned} sacos</Text>
-            </View>
+          <Text style={styles.sectionTitle}>DISTRIBUIÇÃO POR FÓRMULA</Text>
+          {loads.map((l) => (
+            <Card key={l.formula_id}>
+              <Text style={styles.loadName}>{l.formula_name}</Text>
+              <SummaryRow label="Levou do central" value={`${l.loaded} sacos`} />
+              <SummaryRow label="Entregou" value={`${l.distributed} sacos`} valueColor={NSA.ok} />
+              <SummaryRow
+                label="Volta pra sede"
+                value={`${l.returned} sacos`}
+                valueColor={l.returned > 0 ? NSA.warnFg : NSA.inkMuted}
+              />
+            </Card>
           ))}
-          {totalReturned === 0 && (
-            <Text style={styles.returnEmpty}>Nada voltando — trator vazio.</Text>
-          )}
-        </Card>
 
-        <Button
-          title={finishing ? 'FINALIZANDO...' : 'CONFIRMAR E FINALIZAR'}
-          onPress={handleFinish}
-          disabled={finishing}
-          variant="success"
-          size="large"
-          style={{ marginTop: 16 }}
-        />
-      </ScrollView>
-    </SafeAreaView>
+          <Card style={styles.returnBox} borderColor={NSA.warn}>
+            <View style={styles.returnLabelRow}>
+              <AlertTriangle size={14} color={NSA.warnFg} strokeWidth={1.75} />
+              <Text style={styles.returnLabel}>CONFIRMAR DEVOLUÇÃO À SEDE</Text>
+            </View>
+            <Text style={styles.returnAmount}>{totalReturned} sacos</Text>
+            <Text style={styles.returnHint}>
+              Vão voltar ao estoque central. Verifique o trator antes de confirmar.
+            </Text>
+            {loads.filter((l) => l.returned > 0).map((l) => (
+              <View key={l.formula_id} style={styles.returnRow}>
+                <Text style={styles.returnRowName}>{l.formula_name}</Text>
+                <Text style={styles.returnRowQty}>{l.returned} sacos</Text>
+              </View>
+            ))}
+            {totalReturned === 0 && (
+              <Text style={styles.returnEmpty}>Nada voltando — trator vazio.</Text>
+            )}
+          </Card>
+
+          <Button
+            title={finishing ? 'Finalizando…' : 'Confirmar e finalizar'}
+            onPress={handleFinish}
+            disabled={finishing}
+            
+            style={{ marginTop: 14 }}
+          />
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f4f1ec' },
-  header: { backgroundColor: '#e67e22', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
-  back: { color: 'rgba(255,255,255,0.9)', fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#ffffff' },
+  root: { flex: 1, backgroundColor: NSA.bg },
   scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 40 },
-  headline: { fontSize: 20, fontWeight: '800', color: '#ffffff', textAlign: 'center' },
-  headlineSub: { fontSize: 14, color: 'rgba(255,255,255,0.85)', textAlign: 'center', marginTop: 4 },
-  sectionTitle: { fontSize: 13, fontWeight: '800', color: '#7a7a7a', letterSpacing: 0.5, marginTop: 16, marginBottom: 8 },
-  loadName: { fontSize: 16, fontWeight: '800', color: '#2c2c2c', marginBottom: 8 },
-  returnBox: {
+  scrollContent: { padding: 20, paddingBottom: 40 },
+  sectionTitle: {
+    fontSize: 11,
+    fontFamily: Fonts.medium,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: NSA.inkMuted,
     marginTop: 20,
-    borderWidth: 2,
-    borderColor: '#e67e22',
-    backgroundColor: '#fff8f0',
+    marginBottom: 10,
   },
-  returnLabel: { fontSize: 14, fontWeight: '800', color: '#e67e22', textAlign: 'center' },
-  returnAmount: { fontSize: 36, fontWeight: '800', color: '#e67e22', textAlign: 'center', marginTop: 4 },
-  returnHint: { fontSize: 13, color: '#7a7a7a', textAlign: 'center', marginTop: 4, lineHeight: 18 },
+  loadName: { fontSize: 14, fontFamily: Fonts.semibold, color: NSA.inkPrimary, marginBottom: 8, letterSpacing: -0.15 },
+  returnBox: { marginTop: 16, backgroundColor: NSA.warnBg },
+  returnLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center' },
+  returnLabel: {
+    fontSize: 11,
+    fontFamily: Fonts.medium,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: NSA.warnFg,
+  },
+  returnAmount: {
+    fontSize: 32,
+    fontFamily: Fonts.loraSemibold,
+    color: NSA.warnFg,
+    textAlign: 'center',
+    marginTop: 6,
+    letterSpacing: -0.5,
+  },
+  returnHint: { fontSize: 12, color: NSA.inkSecondary, textAlign: 'center', marginTop: 4, lineHeight: 17, fontFamily: Fonts.regular },
   returnRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: 6,
     borderTopWidth: 1,
-    borderTopColor: '#e0dcd5',
+    borderTopColor: NSA.border,
     marginTop: 8,
   },
-  returnRowName: { fontSize: 14, color: '#2c2c2c', fontWeight: '600' },
-  returnRowQty: { fontSize: 14, color: '#2c2c2c', fontWeight: '800' },
-  returnEmpty: { fontSize: 13, color: '#7a7a7a', textAlign: 'center', marginTop: 8, fontStyle: 'italic' },
-  emptyRow: { fontSize: 14, color: '#7a7a7a', fontStyle: 'italic', textAlign: 'center', paddingVertical: 12 },
-  paddockBlock: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#e0dcd5' },
-  paddockName: { fontSize: 14, fontWeight: '800', color: '#2c2c2c', marginBottom: 4 },
+  returnRowName: { fontSize: 13, color: NSA.inkSecondary, fontFamily: Fonts.medium },
+  returnRowQty: { fontSize: 13, color: NSA.inkPrimary, fontFamily: Fonts.semibold },
+  returnEmpty: { fontSize: 12, color: NSA.inkMuted, textAlign: 'center', marginTop: 8, fontStyle: 'italic', fontFamily: Fonts.regular },
+  emptyRow: { fontSize: 13, color: NSA.inkMuted, textAlign: 'center', paddingVertical: 12, fontFamily: Fonts.regular },
+  paddockBlock: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: NSA.borderSubtle },
+  paddockName: { fontSize: 13, fontFamily: Fonts.semibold, color: NSA.inkPrimary, marginBottom: 4, letterSpacing: -0.15 },
   paddockRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2, paddingLeft: 8 },
-  paddockFormula: { fontSize: 13, color: '#2c2c2c' },
-  paddockQty: { fontSize: 13, fontWeight: '800', color: '#2d8a4e' },
+  paddockFormula: { fontSize: 12, color: NSA.inkSecondary, fontFamily: Fonts.regular },
+  paddockQty: { fontSize: 12, fontFamily: Fonts.semibold, color: NSA.ok },
 });

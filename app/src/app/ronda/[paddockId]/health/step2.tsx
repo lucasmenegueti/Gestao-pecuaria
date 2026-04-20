@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { WizardFlow, SliderInput } from '@/components/ui';
 import { Colors } from '@/constants';
+import { NSA, Fonts } from '@/theme/nsa';
 
 export default function HealthStep2() {
   const { paddockId } = useLocalSearchParams();
@@ -13,7 +14,7 @@ export default function HealthStep2() {
 
   return (
     <WizardFlow
-      title="SANIDADE"
+      title="Sanidade"
       subtitle="% afetados"
       step={2}
       totalSteps={4}
@@ -21,7 +22,7 @@ export default function HealthStep2() {
       onBack={() => router.back()}
       onNext={() => router.push(`/ronda/${paddockId}/health/step3`)}
     >
-      <Text style={styles.question}>QUAL % DOS ANIMAIS AFETADOS?</Text>
+      <Text style={styles.question}>Qual % dos animais afetados?</Text>
       <SliderInput
         value={health.affectedPct}
         onValueChange={(v) => updateHealth({ affectedPct: v })}
@@ -39,7 +40,7 @@ export default function HealthStep2() {
 }
 
 const styles = StyleSheet.create({
-  question: { fontSize: 22, fontWeight: '800', color: '#2c2c2c', marginBottom: 20, textAlign: 'center' },
+  question: { fontSize: 22, fontFamily: Fonts.semibold, color: NSA.inkPrimary, marginBottom: 20, textAlign: 'center' },
   infoCard: { backgroundColor: '#f3e5f5', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 16 },
-  infoText: { fontSize: 16, fontWeight: '600', color: Colors.sanidade },
+  infoText: { fontSize: 16, fontFamily: Fonts.medium, color: Colors.sanidade },
 });

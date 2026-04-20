@@ -3,8 +3,9 @@ import { View, StyleSheet, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { useDatabase } from '@/lib/db/provider';
-import { WizardFlow, SummaryRow, ResultCard, PhotoButton, Button } from '@/components/ui';
+import { WizardFlow, SummaryRow, ResultCard, PhotoButton, Button, Card } from '@/components/ui';
 import { Colors } from '@/constants';
+import { NSA } from '@/theme/nsa';
 
 export default function WeightSummary() {
   const { paddockId } = useLocalSearchParams();
@@ -30,7 +31,7 @@ export default function WeightSummary() {
         'UPDATE herd SET avg_weight_kg = ? WHERE paddock_id = ? AND category = ?',
         [visualWeight.estimatedWeight, Number(paddockId), visualWeight.category]
       );
-      router.push(`/ronda/${paddockId}/menu`);
+      router.replace(`/ronda/${paddockId}/menu`);
     } catch (err) {
       Alert.alert('Erro', 'Falha ao salvar');
     }
@@ -39,24 +40,24 @@ export default function WeightSummary() {
 
   return (
     <WizardFlow
-      title="PESO VISUAL"
+      title="Peso visual"
       subtitle={`${store.currentPaddockName} • ${visualWeight.category}`}
       step={3}
       totalSteps={3}
       accentColor={Colors.peso}
       onBack={() => router.back()}
     >
-      <View style={styles.summaryBox}>
+      <Card>
         <SummaryRow label="Categoria" value={visualWeight.category || '-'} />
         {visualWeight.previousWeight && <SummaryRow label="Peso anterior" value={`${visualWeight.previousWeight} kg`} />}
         <SummaryRow label="Peso novo" value={`${visualWeight.estimatedWeight} kg`} />
-      </View>
+      </Card>
 
       {visualWeight.previousWeight ? (
         <ResultCard
           value={`${gain > 0 ? '+' : ''}${gain} kg`}
           label={`${gain > 0 ? '+' : ''}${gainPct}% de ${gain >= 0 ? 'ganho' : 'perda'}`}
-          color={gain >= 0 ? Colors.success : Colors.danger}
+          color={gain >= 0 ? NSA.ok : NSA.danger}
         />
       ) : (
         <ResultCard
@@ -67,11 +68,10 @@ export default function WeightSummary() {
       )}
 
       <PhotoButton uri={photo} onPhoto={setPhoto} />
-      <Button title={saving ? 'SALVANDO...' : 'FINALIZAR ✅'} onPress={handleSave} disabled={saving} variant="success" size="large" style={{ marginTop: 24 }} />
+      <Button title={saving ? 'Salvando…' : 'Finalizar'} onPress={handleSave} disabled={saving}  />
     </WizardFlow>
   );
 }
 
 const styles = StyleSheet.create({
-  summaryBox: { backgroundColor: '#ffffff', borderRadius: 12, padding: 16, elevation: 2 },
 });

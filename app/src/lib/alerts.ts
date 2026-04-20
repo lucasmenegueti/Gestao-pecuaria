@@ -1,5 +1,6 @@
 import type * as SQLite from 'expo-sqlite';
 import { effectiveWeightKg } from '@/constants';
+import { loadSettings } from '@/lib/settings';
 
 // Alertas agregados pra o Painel. Cada função é autônoma e retorna lista pronta.
 // Todas as seções podem ficar vazias — UI mostra "Sem alertas" quando for o caso.
@@ -7,7 +8,7 @@ import { effectiveWeightKg } from '@/constants';
 export interface RondaIssue {
   paddockName: string;
   paddockId: number;
-  kind: 'agua' | 'sanidade' | 'cerca';
+  kind: 'agua' | 'sanidade' | 'cerca' | 'biologico';
   detail: string;
   severity: 'warning' | 'danger';
 }
@@ -43,14 +44,25 @@ export interface AlertsData {
   central: CentralLowEntry[];
 }
 
-const BOMBONA_WARN_DAYS = 3;
-const BOMBONA_DANGER_DAYS = 0;
-const CENTRAL_MONTH_DAYS = 30;
-
 function todayIsoDate(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+const WEEKDAY_LABELS_PT = [
+  'domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado',
+];
+
+// ISO da ocorrência mais recente do dia da semana informado (inclui hoje).
+// weekday: 0 = domingo, 1 = segunda, ..., 6 = sábado. Fora desse range devolve null.
+function mostRecentWeekdayIso(weekday: number): string | null {
+  if (weekday < 0 || weekday > 6) return null;
+  const today = new Date();
+  const daysBack = (today.getDay() - weekday + 7) % 7;
+  today.setDate(today.getDate() - daysBack);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
 }
 
 function daysBetween(fromIso: string | null | undefined, toIso: string): number {
@@ -80,6 +92,7 @@ async function latestEvalPerPaddock<T>(
 
 export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData> {
   const today = todayIsoDate();
+  const settings = await loadSettings(db);
 
   // Regra: uma ronda só conta como "feita hoje" quando tem >= 2 tipos diferentes
   // de avaliação registrados (suplementação, bombona, forragem, aguada, sanidade,
@@ -96,6 +109,7 @@ export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData>
             UNION ALL SELECT DISTINCT ronda_id, 'bombona' FROM bombona_evals
             UNION ALL SELECT DISTINCT ronda_id, 'forage' FROM forage_evals
             UNION ALL SELECT DISTINCT ronda_id, 'water' FROM water_evals
+            UNION ALL SELECT DISTINCT ronda_id, 'biological' FROM biological_water_evals
             UNION ALL SELECT DISTINCT ronda_id, 'health' FROM health_evals
             UNION ALL SELECT DISTINCT ronda_id, 'fence' FROM fence_evals
             UNION ALL SELECT DISTINCT ronda_id, 'visual_weight' FROM visual_weight_evals
@@ -146,69 +160,120 @@ export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData>
   const nameOf: Record<number, string> = {};
   paddockNames.forEach((p) => { nameOf[p.id] = p.name; });
 
-  lastWater.forEach((w) => {
-    // Lavagem posterior ao último water_eval ruim limpa o alerta.
-    const washingAt = lastWashByPaddock[w.paddock_id];
-    const washedAfter = washingAt && washingAt > w.created_at;
-    if (!w.available) {
-      // "sem água" não se resolve com lavagem — só com nova avaliação.
-      ronda.push({
-        paddockId: w.paddock_id, paddockName: nameOf[w.paddock_id] || `#${w.paddock_id}`,
-        kind: 'agua', detail: 'Sem água', severity: 'danger',
-      });
-    } else if (w.quality === 'MEDIANA' && !washedAfter) {
-      ronda.push({
-        paddockId: w.paddock_id, paddockName: nameOf[w.paddock_id] || `#${w.paddock_id}`,
-        kind: 'agua', detail: 'Água mediana', severity: 'warning',
-      });
-    } else if (w.quality === 'RUIM' && !washedAfter) {
-      ronda.push({
-        paddockId: w.paddock_id, paddockName: nameOf[w.paddock_id] || `#${w.paddock_id}`,
-        kind: 'agua', detail: 'Água ruim', severity: 'danger',
-      });
-    }
-  });
+  if (settings.agua.enabled) {
+    lastWater.forEach((w) => {
+      // Lavagem posterior ao último water_eval ruim limpa o alerta.
+      const washingAt = lastWashByPaddock[w.paddock_id];
+      const washedAfter = washingAt && washingAt > w.created_at;
+      if (!w.available) {
+        // "sem água" não se resolve com lavagem — só com nova avaliação.
+        ronda.push({
+          paddockId: w.paddock_id, paddockName: nameOf[w.paddock_id] || `#${w.paddock_id}`,
+          kind: 'agua', detail: 'Sem água', severity: 'danger',
+        });
+        return;
+      }
+      if (washedAfter || !w.quality) return;
+      if (settings.agua.dangerQualities.includes(w.quality)) {
+        ronda.push({
+          paddockId: w.paddock_id, paddockName: nameOf[w.paddock_id] || `#${w.paddock_id}`,
+          kind: 'agua', detail: `Água ${w.quality.toLowerCase()}`, severity: 'danger',
+        });
+      } else if (settings.agua.warnQualities.includes(w.quality)) {
+        ronda.push({
+          paddockId: w.paddock_id, paddockName: nameOf[w.paddock_id] || `#${w.paddock_id}`,
+          kind: 'agua', detail: `Água ${w.quality.toLowerCase()}`, severity: 'warning',
+        });
+      }
+    });
+  }
 
-  lastHealth.forEach((h) => {
-    const pct = h.affected_pct ?? 0;
-    if (!h.parasite_free || pct > 0) {
+  if (settings.sanidade.enabled) {
+    lastHealth.forEach((h) => {
+      const pct = h.affected_pct ?? 0;
+      if (h.parasite_free && pct <= settings.sanidade.warnPct) return;
+      const severity: 'danger' | 'warning' = pct >= settings.sanidade.dangerPct ? 'danger' : 'warning';
       ronda.push({
         paddockId: h.paddock_id, paddockName: nameOf[h.paddock_id] || `#${h.paddock_id}`,
         kind: 'sanidade',
         detail: pct > 0 ? `${pct.toFixed(0)}% do gado afetado` : 'Parasitas presentes',
-        severity: pct >= 20 ? 'danger' : 'warning',
+        severity,
       });
-    }
-  });
+    });
+  }
 
-  lastFence.forEach((f) => {
-    if (f.prevents_mixing === 0) {
-      ronda.push({
-        paddockId: f.paddock_id, paddockName: nameOf[f.paddock_id] || `#${f.paddock_id}`,
-        kind: 'cerca', detail: 'Cerca não evita mistura', severity: 'danger',
-      });
-    } else if (f.classification === 'FRACO' || f.classification === 'SEM CHOQUE') {
-      ronda.push({
-        paddockId: f.paddock_id, paddockName: nameOf[f.paddock_id] || `#${f.paddock_id}`,
-        kind: 'cerca', detail: `Cerca ${f.classification.toLowerCase()}`,
-        severity: f.classification === 'SEM CHOQUE' ? 'danger' : 'warning',
+  if (settings.cerca.enabled) {
+    lastFence.forEach((f) => {
+      if (f.prevents_mixing === 0) {
+        ronda.push({
+          paddockId: f.paddock_id, paddockName: nameOf[f.paddock_id] || `#${f.paddock_id}`,
+          kind: 'cerca', detail: 'Cerca não evita mistura', severity: 'danger',
+        });
+        return;
+      }
+      if (settings.cerca.dangerClassifications.includes(f.classification)) {
+        ronda.push({
+          paddockId: f.paddock_id, paddockName: nameOf[f.paddock_id] || `#${f.paddock_id}`,
+          kind: 'cerca', detail: `Cerca ${f.classification.toLowerCase()}`, severity: 'danger',
+        });
+      } else if (settings.cerca.warnClassifications.includes(f.classification)) {
+        ronda.push({
+          paddockId: f.paddock_id, paddockName: nameOf[f.paddock_id] || `#${f.paddock_id}`,
+          kind: 'cerca', detail: `Cerca ${f.classification.toLowerCase()}`, severity: 'warning',
+        });
+      }
+    });
+  }
+
+  // --- Ronda: biológico pendente desde o último dia agendado ---
+  // Só sai o alerta depois que applied=1 é registrado; não aplicar no dia ou
+  // responder "Não" continua deixando o piquete na lista até a próxima aplicação.
+  if (settings.biologico.enabled) {
+    const lastScheduled = mostRecentWeekdayIso(settings.biologico.weekday);
+    if (lastScheduled) {
+      const pending = await db.getAllAsync<{ paddock_id: number; paddock_name: string }>(`
+        SELECT p.id AS paddock_id, p.name AS paddock_name
+        FROM paddocks p
+        JOIN herd h ON h.paddock_id = p.id
+        WHERE p.active = 1 AND h.head_count > 0
+        GROUP BY p.id
+        HAVING NOT EXISTS (
+          SELECT 1 FROM biological_water_evals e
+          JOIN rondas r ON r.id = e.ronda_id
+          WHERE r.paddock_id = p.id
+            AND e.applied = 1
+            AND substr(e.created_at, 1, 10) >= ?
+        )
+        ORDER BY p.name
+      `, [lastScheduled]);
+      const label = WEEKDAY_LABELS_PT[settings.biologico.weekday];
+      pending.forEach((p) => {
+        ronda.push({
+          paddockId: p.paddock_id,
+          paddockName: p.paddock_name,
+          kind: 'biologico',
+          detail: `Pendente desde ${label}`,
+          severity: 'warning',
+        });
       });
     }
-  });
+  }
 
   // --- Rebanho: gado desalocado ---
 
-  const desalocatedRows = await db.getAllAsync<{ category: string; heads: number }>(
-    'SELECT category, SUM(head_count) as heads FROM herd WHERE paddock_id IS NULL GROUP BY category'
-  );
-  const desalocated: DesalocatedEntry[] = desalocatedRows.map((r) => ({
-    category: r.category, heads: r.heads,
-  }));
-  const desalocatedTotal = desalocated.reduce((s, d) => s + d.heads, 0);
+  let desalocated: DesalocatedEntry[] = [];
+  let desalocatedTotal = 0;
+  if (settings.desalocados.enabled) {
+    const desalocatedRows = await db.getAllAsync<{ category: string; heads: number }>(
+      'SELECT category, SUM(head_count) as heads FROM herd WHERE paddock_id IS NULL GROUP BY category'
+    );
+    desalocated = desalocatedRows.map((r) => ({ category: r.category, heads: r.heads }));
+    desalocatedTotal = desalocated.reduce((s, d) => s + d.heads, 0);
+  }
 
-  // --- Estoque: bombonas em risco (curva de consumo por peso vivo) ---
+  // --- Ronda: bombonas em risco (curva de consumo por peso vivo) ---
 
-  // Carrega todos os lotes de gado alocados: vamos calcular peso vivo total por piquete.
+  // Peso vivo total por piquete: alimenta tanto o risco de bombona quanto o central.
   const allLots = await db.getAllAsync<{
     paddock_id: number; category: string; head_count: number; avg_weight_kg: number | null;
   }>(`SELECT paddock_id, category, head_count, avg_weight_kg FROM herd WHERE paddock_id IS NOT NULL AND head_count > 0`);
@@ -219,82 +284,85 @@ export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData>
       l.head_count * effectiveWeightKg(l.category, l.avg_weight_kg);
   }
 
-  const bombonaRows = await db.getAllAsync<{
-    paddock_id: number; paddock_name: string; sacks: number; kg_per_sack: number;
-    g_per_kg_body_day: number; last_resupply_date: string | null; formula_id: number; formula_name: string;
-  }>(`
-    SELECT p.id AS paddock_id, p.name AS paddock_name,
-      i.quantity_sacks AS sacks,
-      f.id AS formula_id, f.kg_per_sack, f.target_g_per_kg_body_day AS g_per_kg_body_day, f.name AS formula_name,
-      i.last_resupply_date
-    FROM paddocks p
-    JOIN inventory i ON i.paddock_id = p.id AND i.location = 'bombona'
-    JOIN formulas f ON f.id = i.formula_id
-    WHERE p.active = 1
-  `);
-
   const bombonas: BombonaRisk[] = [];
-  for (const b of bombonaRows) {
-    const bodyKg = bodyKgByPaddock[b.paddock_id] || 0;
-    if (bodyKg <= 0) continue;
-    const dailyKg = (bodyKg * b.g_per_kg_body_day) / 1000;
-    if (dailyKg <= 0) continue;
-    const initialKg = b.sacks * b.kg_per_sack;
-    const daysSinceResupply = daysBetween(b.last_resupply_date, today);
-    const remainingKg = initialKg - dailyKg * daysSinceResupply;
-    const daysLeft = Math.floor(remainingKg / dailyKg);
-    if (daysLeft > BOMBONA_WARN_DAYS) continue;
-    bombonas.push({
-      paddockId: b.paddock_id,
-      paddockName: b.paddock_name,
-      formulaName: b.formula_name,
-      daysLeft,
-      severity: daysLeft <= BOMBONA_DANGER_DAYS ? 'danger' : 'warning',
-    });
+  if (settings.bombona.enabled) {
+    const bombonaRows = await db.getAllAsync<{
+      paddock_id: number; paddock_name: string; sacks: number; kg_per_sack: number;
+      g_per_kg_body_day: number; last_resupply_date: string | null; formula_id: number; formula_name: string;
+    }>(`
+      SELECT p.id AS paddock_id, p.name AS paddock_name,
+        i.quantity_sacks AS sacks,
+        f.id AS formula_id, f.kg_per_sack, f.target_g_per_kg_body_day AS g_per_kg_body_day, f.name AS formula_name,
+        i.last_resupply_date
+      FROM paddocks p
+      JOIN inventory i ON i.paddock_id = p.id AND i.location = 'bombona'
+      JOIN formulas f ON f.id = i.formula_id
+      WHERE p.active = 1
+    `);
+
+    for (const b of bombonaRows) {
+      const bodyKg = bodyKgByPaddock[b.paddock_id] || 0;
+      if (bodyKg <= 0) continue;
+      const dailyKg = (bodyKg * b.g_per_kg_body_day) / 1000;
+      if (dailyKg <= 0) continue;
+      const initialKg = b.sacks * b.kg_per_sack;
+      const daysSinceResupply = daysBetween(b.last_resupply_date, today);
+      const remainingKg = initialKg - dailyKg * daysSinceResupply;
+      const daysLeft = Math.floor(remainingKg / dailyKg);
+      if (daysLeft > settings.bombona.warnDays) continue;
+      bombonas.push({
+        paddockId: b.paddock_id,
+        paddockName: b.paddock_name,
+        formulaName: b.formula_name,
+        daysLeft,
+        severity: daysLeft <= settings.bombona.dangerDays ? 'danger' : 'warning',
+      });
+    }
+    bombonas.sort((a, b) => a.daysLeft - b.daysLeft);
   }
-  bombonas.sort((a, b) => a.daysLeft - b.daysLeft);
 
-  // --- Estoque central: < 30 dias de consumo (por peso vivo) ---
-
-  // Peso vivo total por fórmula (somando piquetes que usam aquela fórmula na bombona)
-  const formulaUsage = await db.getAllAsync<{
-    formula_id: number; paddock_id: number;
-  }>(`SELECT formula_id, paddock_id FROM inventory WHERE location = 'bombona'`);
-
-  const bodyKgByFormula: Record<number, number> = {};
-  for (const u of formulaUsage) {
-    bodyKgByFormula[u.formula_id] = (bodyKgByFormula[u.formula_id] || 0) + (bodyKgByPaddock[u.paddock_id] || 0);
-  }
-
-  const formulaRows = await db.getAllAsync<{
-    id: number; name: string; kg_per_sack: number; g_per_kg_body_day: number; central_sacks: number;
-  }>(`
-    SELECT f.id, f.name, f.kg_per_sack, f.target_g_per_kg_body_day AS g_per_kg_body_day,
-      COALESCE((SELECT SUM(ic.quantity_sacks) FROM inventory ic
-                WHERE ic.location = 'central' AND ic.formula_id = f.id), 0) AS central_sacks
-    FROM formulas f
-    WHERE f.active = 1
-  `);
+  // --- Estoque central: threshold configurável por fórmula ---
 
   const central: CentralLowEntry[] = [];
-  for (const f of formulaRows) {
-    const bodyKg = bodyKgByFormula[f.id] || 0;
-    if (bodyKg <= 0) continue;
-    const dailyKg = (bodyKg * f.g_per_kg_body_day) / 1000;
-    if (dailyKg <= 0) continue;
-    const dailySacks = dailyKg / f.kg_per_sack;
-    const needForMonth = dailySacks * CENTRAL_MONTH_DAYS;
-    if (f.central_sacks >= needForMonth) continue;
-    const daysLeft = Math.floor(f.central_sacks / dailySacks);
-    central.push({
-      formulaName: f.name,
-      have: Math.round(f.central_sacks * 10) / 10,
-      need: Math.round(needForMonth * 10) / 10,
-      daysLeft,
-      severity: daysLeft <= 7 ? 'danger' : 'warning',
-    });
+  if (settings.central.enabled) {
+    const formulaUsage = await db.getAllAsync<{
+      formula_id: number; paddock_id: number;
+    }>(`SELECT formula_id, paddock_id FROM inventory WHERE location = 'bombona'`);
+
+    const bodyKgByFormula: Record<number, number> = {};
+    for (const u of formulaUsage) {
+      bodyKgByFormula[u.formula_id] = (bodyKgByFormula[u.formula_id] || 0) + (bodyKgByPaddock[u.paddock_id] || 0);
+    }
+
+    const formulaRows = await db.getAllAsync<{
+      id: number; name: string; kg_per_sack: number; g_per_kg_body_day: number; central_sacks: number;
+    }>(`
+      SELECT f.id, f.name, f.kg_per_sack, f.target_g_per_kg_body_day AS g_per_kg_body_day,
+        COALESCE((SELECT SUM(ic.quantity_sacks) FROM inventory ic
+                  WHERE ic.location = 'central' AND ic.formula_id = f.id), 0) AS central_sacks
+      FROM formulas f
+      WHERE f.active = 1
+    `);
+
+    for (const f of formulaRows) {
+      const bodyKg = bodyKgByFormula[f.id] || 0;
+      if (bodyKg <= 0) continue;
+      const dailyKg = (bodyKg * f.g_per_kg_body_day) / 1000;
+      if (dailyKg <= 0) continue;
+      const dailySacks = dailyKg / f.kg_per_sack;
+      const needForWindow = dailySacks * settings.central.warnDays;
+      if (f.central_sacks >= needForWindow) continue;
+      const daysLeft = Math.floor(f.central_sacks / dailySacks);
+      central.push({
+        formulaName: f.name,
+        have: Math.round(f.central_sacks * 10) / 10,
+        need: Math.round(needForWindow * 10) / 10,
+        daysLeft,
+        severity: daysLeft <= settings.central.dangerDays ? 'danger' : 'warning',
+      });
+    }
+    central.sort((a, b) => a.daysLeft - b.daysLeft);
   }
-  central.sort((a, b) => a.daysLeft - b.daysLeft);
 
   return {
     rondasToday: rondasTodayRow?.count ?? 0,

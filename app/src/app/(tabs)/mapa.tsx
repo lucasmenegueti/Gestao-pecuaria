@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { useFocusEffect, router } from 'expo-router';
 import { useDatabase } from '@/lib/db/provider';
 import { useRondaStore } from '@/stores/rondaStore';
-import { Colors } from '@/constants';
+import { BrandHeader, StatusPill } from '@/components/ui';
+import { NSA, Fonts, Radius } from '@/theme/nsa';
 import { FarmMap, PaddockGeo, WaterTank } from '@/components/map';
 import type { MapMode } from '@/components/map/types';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -76,26 +77,22 @@ export default function MapaScreen() {
     router.push(`/ronda/${p.id}/menu`);
   }
 
-  // Contagens no header pra dar contexto
   const withCattle = paddocks.filter((p) => p.total_heads > 0).length;
   const rondasToday = paddocks.filter((p) => p.total_heads > 0 && p.has_ronda_today).length;
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Mapa da Fazenda</Text>
-        <Text style={styles.headerSub}>
-          {paddocks.length} piquetes • {tanks.length} caixas d'água
-        </Text>
-      </View>
-
+    <View style={styles.root}>
+      <BrandHeader
+        title="Mapa"
+        context={`${paddocks.length} piquetes · ${tanks.length} caixas d'água`}
+      />
       <View style={styles.modeBar}>
         <TouchableOpacity
           style={[styles.modeBtn, mode === 'gado' && styles.modeBtnActive]}
           onPress={() => setMode('gado')}
         >
           <Text style={[styles.modeBtnText, mode === 'gado' && styles.modeBtnTextActive]}>
-            GADO
+            Gado
           </Text>
           <Text style={[styles.modeBtnSub, mode === 'gado' && styles.modeBtnSubActive]}>
             {withCattle} com gado
@@ -106,10 +103,10 @@ export default function MapaScreen() {
           onPress={() => setMode('ronda')}
         >
           <Text style={[styles.modeBtnText, mode === 'ronda' && styles.modeBtnTextActive]}>
-            RONDA
+            Ronda
           </Text>
           <Text style={[styles.modeBtnSub, mode === 'ronda' && styles.modeBtnSubActive]}>
-            {rondasToday}/{withCattle} hoje
+            {rondasToday} / {withCattle} hoje
           </Text>
         </TouchableOpacity>
       </View>
@@ -127,21 +124,20 @@ export default function MapaScreen() {
       {selected && (
         <View style={styles.selectedBar}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.selectedName}>{selected.name}</Text>
-            <Text style={styles.selectedInfo}>
-              {selected.area_hectares.toFixed(1)} ha • {selected.total_heads} cab
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <Text style={styles.selectedName}>{selected.name}</Text>
               {mode === 'ronda' && selected.total_heads > 0 && (
-                <Text style={selected.has_ronda_today ? styles.rondaOk : styles.rondaPending}>
-                  {selected.has_ronda_today ? ' • RONDA OK' : ' • RONDA PENDENTE'}
-                </Text>
+                <StatusPill kind={selected.has_ronda_today ? 'ok' : 'danger'} size="sm">
+                  {selected.has_ronda_today ? 'Ronda OK' : 'Pendente'}
+                </StatusPill>
               )}
+            </View>
+            <Text style={styles.selectedInfo}>
+              {selected.area_hectares.toFixed(1)} ha · {selected.total_heads} cab
             </Text>
           </View>
-          <TouchableOpacity
-            style={styles.selectedBtn}
-            onPress={() => openPaddock(selected)}
-          >
-            <Text style={styles.selectedBtnText}>ABRIR</Text>
+          <TouchableOpacity style={styles.selectedBtn} onPress={() => openPaddock(selected)}>
+            <Text style={styles.selectedBtnText}>Abrir</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -167,87 +163,84 @@ export default function MapaScreen() {
           );
         })}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
-  },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: Colors.white },
-  headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
+  root: { flex: 1, backgroundColor: NSA.bg },
   modeBar: {
     flexDirection: 'row',
-    backgroundColor: Colors.white,
+    backgroundColor: NSA.bgElevated,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: NSA.border,
   },
   modeBtn: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
     alignItems: 'center',
-    borderBottomWidth: 3,
+    borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
   modeBtnActive: {
-    borderBottomColor: Colors.primary,
-    backgroundColor: Colors.primaryLight,
+    borderBottomColor: NSA.green800,
+    backgroundColor: NSA.green50,
   },
   modeBtnText: {
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-    color: Colors.textMuted,
+    fontSize: 13,
+    fontFamily: Fonts.medium,
+    color: NSA.inkMuted,
   },
-  modeBtnTextActive: { color: Colors.primary },
-  modeBtnSub: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
-  modeBtnSubActive: { color: Colors.primary, fontWeight: '600' },
-  mapWrap: { flex: 0.6, minHeight: 280 },
+  modeBtnTextActive: { color: NSA.green800, fontFamily: Fonts.semibold },
+  modeBtnSub: { fontSize: 10, color: NSA.inkMuted, marginTop: 2, fontFamily: Fonts.regular },
+  modeBtnSubActive: { color: NSA.green800, fontFamily: Fonts.medium },
+  mapWrap: { flex: 0.62, minHeight: 280 },
   selectedBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: NSA.green50,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: NSA.border,
+    gap: 10,
   },
-  selectedName: { fontSize: 16, fontWeight: '800', color: Colors.text },
-  selectedInfo: { fontSize: 13, color: Colors.textMuted, marginTop: 2 },
-  rondaOk: { color: Colors.success, fontWeight: '700' },
-  rondaPending: { color: Colors.danger, fontWeight: '700' },
+  selectedName: { fontSize: 14, fontFamily: Fonts.semibold, color: NSA.inkPrimary, letterSpacing: -0.15 },
+  selectedInfo: { fontSize: 12, color: NSA.inkMuted, marginTop: 2, fontFamily: Fonts.regular },
   selectedBtn: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 10,
+    backgroundColor: NSA.green800,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: Radius.lg,
   },
-  selectedBtnText: { color: Colors.white, fontWeight: '800', fontSize: 14 },
-  list: { flex: 0.4 },
-  listContent: { paddingHorizontal: 16, paddingBottom: 24, paddingTop: 8 },
-  listTitle: { fontSize: 13, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.5, marginBottom: 8 },
+  selectedBtnText: { color: NSA.cream, fontFamily: Fonts.semibold, fontSize: 13 },
+  list: { flex: 0.38 },
+  listContent: { paddingHorizontal: 16, paddingBottom: 24, paddingTop: 10 },
+  listTitle: {
+    fontSize: 11,
+    fontFamily: Fonts.medium,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: NSA.inkMuted,
+    marginBottom: 8,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 10,
+    borderRadius: Radius.xl,
     marginBottom: 6,
-    backgroundColor: Colors.white,
+    backgroundColor: NSA.bgElevated,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: NSA.border,
   },
   rowSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primaryLight,
+    borderColor: NSA.green800,
+    backgroundColor: NSA.green50,
   },
-  rowName: { fontSize: 15, fontWeight: '700', color: Colors.text },
-  rowNameSelected: { color: Colors.primary },
-  rowInfo: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
-  rowArrow: { fontSize: 20, color: Colors.primary, fontWeight: '800' },
+  rowName: { fontSize: 13, fontFamily: Fonts.semibold, color: NSA.inkPrimary, letterSpacing: -0.15 },
+  rowNameSelected: { color: NSA.green800 },
+  rowInfo: { fontSize: 11, color: NSA.inkMuted, marginTop: 2, fontFamily: Fonts.regular },
+  rowArrow: { fontSize: 18, color: NSA.green800, fontFamily: Fonts.semibold },
 });

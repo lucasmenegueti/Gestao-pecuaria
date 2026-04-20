@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { WizardFlow, MultiChoice } from '@/components/ui';
 import { Colors } from '@/constants';
+import { NSA, Fonts } from '@/theme/nsa';
 
 export default function ForageStep1() {
   const { paddockId } = useLocalSearchParams();
@@ -13,7 +14,7 @@ export default function ForageStep1() {
 
   return (
     <WizardFlow
-      title="FORRAGEM"
+      title="Forragem"
       subtitle="Tipo de medição"
       step={1}
       totalSteps={6}
@@ -37,5 +38,5 @@ export default function ForageStep1() {
 }
 
 const styles = StyleSheet.create({
-  question: { fontSize: 22, fontWeight: '800', color: '#2c2c2c', marginBottom: 20, textAlign: 'center' },
+  question: { fontSize: 22, fontFamily: Fonts.semibold, color: NSA.inkPrimary, marginBottom: 20, textAlign: 'center' },
 });

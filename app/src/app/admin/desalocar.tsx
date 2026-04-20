@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useDatabase } from '@/lib/db/provider';
-import { Card, Button, MultiChoice, SliderInput } from '@/components/ui';
-import { Colors } from '@/constants';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useDatabase } from '@/lib/db/provider';
+import { Card, Button, MultiChoice, SliderInput, SummaryRow, BrandHeader } from '@/components/ui';
+import { NSA, Fonts, Radius } from '@/theme/nsa';
 
 interface PaddockOption {
   id: number;
@@ -154,198 +154,163 @@ export default function DesalocarScreen() {
 
   if (reviewing) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => setReviewing(false)}>
-            <Text style={styles.back}>← VOLTAR</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Confirmar Desalocação</Text>
-        </View>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          <Card style={{ borderLeftWidth: 4, borderLeftColor: Colors.warning }}>
-            <Text style={styles.reviewLabel}>PIQUETE</Text>
-            <Text style={styles.reviewValue}>{paddockName}</Text>
-
-            <Text style={[styles.reviewLabel, { marginTop: 16 }]}>VAI DESALOCAR</Text>
-            {selectedEntries.map(([cat, qty]) => (
-              <View key={cat} style={styles.reviewRow}>
-                <Text style={styles.reviewCat}>{cat}</Text>
-                <Text style={styles.reviewQty}>{qty} cab</Text>
-              </View>
-            ))}
-            <View style={[styles.reviewRow, styles.reviewTotal]}>
-              <Text style={styles.reviewTotalLabel}>TOTAL</Text>
-              <Text style={styles.reviewTotalQty}>{selectedTotal} cab</Text>
-            </View>
-
-            <Text style={styles.reviewNote}>
-              Essas cabeças sairão do piquete e ficarão na pool de DESALOCADOS, prontas para
-              formar novos lotes.
-            </Text>
-          </Card>
-
-          <Button
-            title={submitting ? 'PROCESSANDO...' : 'CONFIRMAR'}
-            onPress={handleConfirm}
-            size="large"
-            disabled={submitting}
-            style={{ marginTop: 16 }}
-          />
-          <Button
-            title="VOLTAR E AJUSTAR"
-            variant="outline"
-            onPress={() => setReviewing(false)}
-            disabled={submitting}
-            style={{ marginTop: 12 }}
-          />
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
-
-  return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.back}>← VOLTAR</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Desalocar Lote</Text>
-      </View>
-
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        {/* Se veio com paddockId pré-selecionado (link do Rebanho), esconde o seletor. */}
-        {!params.paddockId && (
-          <>
-            <Text style={styles.label}>PIQUETE DE ORIGEM</Text>
-            <MultiChoice
-              options={paddocks.map((p) => ({ value: String(p.id), label: p.name }))}
-              value={paddockId}
-              onChange={setPaddockId}
-            />
-          </>
-        )}
-        {params.paddockId && paddockName && (
-          <View style={styles.piqueteHeader}>
-            <Text style={styles.piqueteLabel}>PIQUETE</Text>
-            <Text style={styles.piqueteValue}>{paddockName}</Text>
-          </View>
-        )}
-
-        {paddockId && categories.length > 0 && (
-          <>
-            <Text style={styles.label}>QUANTIDADE POR CATEGORIA</Text>
-            <Text style={styles.sublabel}>
-              {categories.reduce((s, c) => s + c.head_count, 0)} cab disponíveis no piquete
-            </Text>
-
-            <View style={styles.bulkRow}>
-              <TouchableOpacity
-                style={[styles.bulkBtn, styles.bulkBtnPrimary]}
-                onPress={fillAll}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.bulkBtnText, styles.bulkBtnTextPrimary]}>
-                  ✓ DESALOCAR TUDO
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.bulkBtn, styles.bulkBtnMuted]}
-                onPress={clearAll}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.bulkBtnText, styles.bulkBtnTextMuted]}>ZERAR</Text>
-              </TouchableOpacity>
-            </View>
-
-            {categories.map((c) => (
-              <Card key={c.category}>
-                <Text style={styles.catTitle}>
-                  {c.category} • disponível: {c.head_count}
-                </Text>
-                <SliderInput
-                  value={amounts[c.category] ?? 0}
-                  onValueChange={(v) => setAmount(c.category, v)}
-                  min={0}
-                  max={c.head_count}
-                  step={1}
-                  unit="cab"
-                  color={Colors.warning}
-                />
-              </Card>
-            ))}
-
-            <Card style={{ backgroundColor: Colors.primaryLight, marginTop: 8 }}>
-              <Text style={styles.summaryText}>
-                Total a desalocar: <Text style={styles.summaryBold}>{selectedTotal} cab</Text>
+      <View style={styles.root}>
+        <BrandHeader title="Confirmar desalocação" context="Rebanho" onBack={() => setReviewing(false)} />
+        <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+            <Card borderColor={NSA.warn}>
+              <SummaryRow label="Piquete" value={paddockName} />
+              {selectedEntries.map(([cat, qty]) => (
+                <SummaryRow key={cat} label={cat} value={`${qty} cab`} />
+              ))}
+              <SummaryRow label="Total" value={`${selectedTotal} cab`} valueColor={NSA.warnFg} />
+              <Text style={styles.reviewNote}>
+                Essas cabeças sairão do piquete e ficarão na pool de desalocados, prontas para
+                formar novos lotes.
               </Text>
             </Card>
 
             <Button
-              title="REVISAR E CONFIRMAR"
-              onPress={goToReview}
-              size="large"
-              disabled={selectedTotal === 0}
-              style={{ marginTop: 16 }}
+              title={submitting ? 'Processando…' : 'Confirmar'}
+              onPress={handleConfirm}
+              disabled={submitting}
+              style={{ marginTop: 14 }}
             />
-          </>
-        )}
+            <Button
+              title="Voltar e ajustar"
+              variant="outline"
+              onPress={() => setReviewing(false)}
+              disabled={submitting}
+              style={{ marginTop: 10 }}
+            />
+          </ScrollView>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
-        {paddockId && categories.length === 0 && (
-          <Text style={styles.empty}>Este piquete não tem gado.</Text>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+  return (
+    <View style={styles.root}>
+      <BrandHeader title="Desalocar lote" context="Rebanho" onBack={() => router.back()} />
+      <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          {!params.paddockId && (
+            <>
+              <Text style={styles.label}>PIQUETE DE ORIGEM</Text>
+              <MultiChoice
+                options={paddocks.map((p) => ({ value: String(p.id), label: p.name }))}
+                value={paddockId}
+                onChange={setPaddockId}
+              />
+            </>
+          )}
+          {params.paddockId && paddockName && (
+            <View style={styles.piqueteHeader}>
+              <Text style={styles.piqueteLabel}>PIQUETE</Text>
+              <Text style={styles.piqueteValue}>{paddockName}</Text>
+            </View>
+          )}
+
+          {paddockId && categories.length > 0 && (
+            <>
+              <Text style={[styles.label, { marginTop: 20 }]}>QUANTIDADE POR CATEGORIA</Text>
+              <Text style={styles.sublabel}>
+                {categories.reduce((s, c) => s + c.head_count, 0)} cab disponíveis no piquete
+              </Text>
+
+              <View style={styles.bulkRow}>
+                <TouchableOpacity style={[styles.bulkBtn, styles.bulkBtnPrimary]} onPress={fillAll} activeOpacity={0.85}>
+                  <Text style={[styles.bulkBtnText, styles.bulkBtnTextPrimary]}>Desalocar tudo</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.bulkBtn, styles.bulkBtnMuted]} onPress={clearAll} activeOpacity={0.85}>
+                  <Text style={[styles.bulkBtnText, styles.bulkBtnTextMuted]}>Zerar</Text>
+                </TouchableOpacity>
+              </View>
+
+              {categories.map((c) => (
+                <Card key={c.category}>
+                  <Text style={styles.catTitle}>
+                    {c.category} · disponível {c.head_count}
+                  </Text>
+                  <SliderInput
+                    value={amounts[c.category] ?? 0}
+                    onValueChange={(v) => setAmount(c.category, v)}
+                    min={0}
+                    max={c.head_count}
+                    step={1}
+                    unit="cab"
+                  />
+                </Card>
+              ))}
+
+              <Card>
+                <Text style={styles.summaryText}>
+                  Total a desalocar · <Text style={styles.summaryBold}>{selectedTotal} cab</Text>
+                </Text>
+              </Card>
+
+              <Button
+                title="Revisar e confirmar"
+                onPress={goToReview}
+                disabled={selectedTotal === 0}
+                style={{ marginTop: 14 }}
+              />
+            </>
+          )}
+
+          {paddockId && categories.length === 0 && (
+            <Text style={styles.empty}>Este piquete não tem gado.</Text>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
-  header: { backgroundColor: Colors.primary, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
-  back: { color: 'rgba(255,255,255,0.9)', fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: Colors.white },
+  root: { flex: 1, backgroundColor: NSA.bg },
   scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 40 },
-  label: { fontSize: 18, fontWeight: '800', color: Colors.text, marginTop: 24, marginBottom: 2 },
-  sublabel: { fontSize: 13, color: Colors.textMuted, marginBottom: 12 },
-  bulkRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  scrollContent: { padding: 20, paddingBottom: 32 },
+  label: {
+    fontSize: 11,
+    fontFamily: Fonts.medium,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: NSA.inkMuted,
+    marginBottom: 2,
+  },
+  sublabel: { fontSize: 12, color: NSA.inkMuted, marginBottom: 12, fontFamily: Fonts.regular },
+  bulkRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
   bulkBtn: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    borderWidth: 1.5,
-    backgroundColor: '#fff',
-  },
-  bulkBtnPrimary: { borderColor: Colors.warning, backgroundColor: '#fef5ea' },
-  bulkBtnMuted: { borderColor: Colors.border },
-  bulkBtnText: { fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
-  bulkBtnTextPrimary: { color: Colors.warning },
-  bulkBtnTextMuted: { color: Colors.textMuted },
-  catTitle: { fontSize: 16, fontWeight: '700', color: Colors.text },
-  summaryText: { fontSize: 16, color: Colors.text, textAlign: 'center' },
-  summaryBold: { fontWeight: '800' },
-  empty: { fontSize: 16, color: Colors.textMuted, textAlign: 'center', marginTop: 24 },
-  reviewLabel: { fontSize: 13, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.5 },
-  reviewValue: { fontSize: 22, fontWeight: '800', color: Colors.text, marginTop: 4 },
-  reviewRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderRadius: Radius.lg,
+    alignItems: 'center',
+    borderWidth: 1,
   },
-  reviewCat: { fontSize: 16, color: Colors.text, fontWeight: '600' },
-  reviewQty: { fontSize: 16, fontWeight: '700', color: Colors.text },
-  reviewTotal: { borderBottomWidth: 0, borderTopWidth: 2, borderTopColor: Colors.warning, marginTop: 4 },
-  reviewTotalLabel: { fontSize: 16, fontWeight: '800', color: Colors.warning },
-  reviewTotalQty: { fontSize: 16, fontWeight: '800', color: Colors.warning },
-  reviewNote: { fontSize: 13, color: Colors.textMuted, marginTop: 16, fontStyle: 'italic', lineHeight: 18 },
+  bulkBtnPrimary: { borderColor: NSA.warn, backgroundColor: NSA.warnBg },
+  bulkBtnMuted: { borderColor: NSA.borderStrong, backgroundColor: NSA.bgElevated },
+  bulkBtnText: { fontSize: 13, fontFamily: Fonts.semibold },
+  bulkBtnTextPrimary: { color: NSA.warnFg },
+  bulkBtnTextMuted: { color: NSA.inkSecondary },
+  catTitle: { fontSize: 13, fontFamily: Fonts.medium, color: NSA.inkPrimary },
+  summaryText: { fontSize: 14, color: NSA.inkPrimary, textAlign: 'center', fontFamily: Fonts.regular },
+  summaryBold: { fontFamily: Fonts.semibold },
+  empty: { fontSize: 13, color: NSA.inkMuted, textAlign: 'center', marginTop: 24, fontFamily: Fonts.regular },
+  reviewNote: { fontSize: 12, color: NSA.inkSecondary, marginTop: 12, lineHeight: 17, fontFamily: Fonts.regular },
   piqueteHeader: {
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: NSA.green50,
     padding: 12,
-    borderRadius: 10,
-    marginBottom: 16,
+    borderRadius: Radius.lg,
+    marginBottom: 8,
+    marginTop: 4,
   },
-  piqueteLabel: { fontSize: 12, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.5 },
-  piqueteValue: { fontSize: 20, fontWeight: '800', color: Colors.text, marginTop: 2 },
+  piqueteLabel: {
+    fontSize: 10,
+    fontFamily: Fonts.medium,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: NSA.inkMuted,
+  },
+  piqueteValue: { fontSize: 16, fontFamily: Fonts.semibold, color: NSA.inkPrimary, marginTop: 2, letterSpacing: -0.15 },
 });

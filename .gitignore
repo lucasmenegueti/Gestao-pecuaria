@@ -11,3 +11,24 @@ Thumbs.db
 # Editor
 .vscode/
 .idea/
+
+# Secrets (supabase URL/keys por ambiente)
+.env
+app/.env
+.env.local
+app/.env.local
+
+# Expo
+app/.expo/
+app/dist/
+app/web-build/
+
+# Logs
+*.log
+typecheck.log
+
+# Extração temporária de KML
+kml/v5_extracted/
+
+# Memória do Claude (por usuário, não do projeto)
+memory/

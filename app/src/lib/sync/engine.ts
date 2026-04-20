@@ -26,8 +26,11 @@ interface TableConfig {
 }
 
 // Colunas que nunca viajam pro servidor (local-only ou renomeadas).
+// `weight_kg` em herd_events é local até o schema do Supabase ganhar a coluna —
+// sem isso, o INSERT remoto quebra com "column does not exist".
 const LOCAL_ONLY_COLS = new Set([
   'id', 'supabase_id', 'local_updated_at', 'pending_sync', 'sync_rev',
+  'weight_kg',
 ]);
 
 // Colunas que o servidor tem mas o SQLite local não — precisamos ignorá-las

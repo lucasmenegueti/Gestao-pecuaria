@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { WizardFlow, PhotoButton } from '@/components/ui';
 import { Colors } from '@/constants';
+import { NSA, Fonts } from '@/theme/nsa';
 
 export default function HealthStep3() {
   const { paddockId } = useLocalSearchParams();
@@ -11,7 +12,7 @@ export default function HealthStep3() {
 
   return (
     <WizardFlow
-      title="SANIDADE"
+      title="Sanidade"
       subtitle="Observações"
       step={3}
       totalSteps={4}
@@ -36,16 +37,16 @@ export default function HealthStep3() {
 }
 
 const styles = StyleSheet.create({
-  question: { fontSize: 22, fontWeight: '800', color: '#2c2c2c', marginBottom: 4, textAlign: 'center' },
-  sub: { fontSize: 16, color: '#7a7a7a', textAlign: 'center', marginBottom: 20 },
+  question: { fontSize: 22, fontFamily: Fonts.semibold, color: NSA.inkPrimary, marginBottom: 4, textAlign: 'center' },
+  sub: { fontSize: 16, color: NSA.inkMuted, textAlign: 'center', marginBottom: 20 },
   textarea: {
     minHeight: 120,
-    backgroundColor: '#ffffff',
+    backgroundColor: NSA.bgElevated,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#e0dcd5',
+    borderColor: NSA.border,
     padding: 16,
     fontSize: 16,
-    color: '#2c2c2c',
+    color: NSA.inkPrimary,
   },
 });

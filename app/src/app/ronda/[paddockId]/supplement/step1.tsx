@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { WizardFlow, MultiChoice } from '@/components/ui';
 import { Colors, TROUGH_SCORE_OPTIONS } from '@/constants';
+import { NSA, Fonts } from '@/theme/nsa';
 
 export default function SupplementStep1() {
   const { paddockId } = useLocalSearchParams();
@@ -13,7 +14,7 @@ export default function SupplementStep1() {
 
   return (
     <WizardFlow
-      title="SUPLEMENTAÇÃO"
+      title="Suplementação"
       subtitle="Como está o cocho?"
       step={1}
       totalSteps={6}
@@ -22,7 +23,7 @@ export default function SupplementStep1() {
       onNext={() => router.push(`/ronda/${paddockId}/supplement/step2`)}
       nextDisabled={!supplement.troughScore}
     >
-      <Text style={styles.question}>COMO ESTÁ O COCHO?</Text>
+      <Text style={styles.question}>Como está o cocho?</Text>
       <MultiChoice
         options={TROUGH_SCORE_OPTIONS.map((o) => ({
           value: o.value,
@@ -38,5 +39,5 @@ export default function SupplementStep1() {
 }
 
 const styles = StyleSheet.create({
-  question: { fontSize: 22, fontWeight: '800', color: '#2c2c2c', marginBottom: 20, textAlign: 'center' },
+  question: { fontSize: 22, fontFamily: Fonts.semibold, color: NSA.inkPrimary, marginBottom: 20, textAlign: 'center' },
 });

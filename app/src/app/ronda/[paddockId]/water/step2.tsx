@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { WizardFlow, MultiChoice } from '@/components/ui';
 import { Colors, WATER_QUALITY_OPTIONS } from '@/constants';
+import { NSA, Fonts } from '@/theme/nsa';
 
 export default function WaterStep2() {
   const { paddockId } = useLocalSearchParams();
@@ -11,7 +12,7 @@ export default function WaterStep2() {
 
   return (
     <WizardFlow
-      title="AGUADA"
+      title="Aguada"
       subtitle="Qualidade da água"
       step={2}
       totalSteps={3}
@@ -20,7 +21,7 @@ export default function WaterStep2() {
       onNext={() => router.push(`/ronda/${paddockId}/water/summary`)}
       nextDisabled={!water.quality}
     >
-      <Text style={styles.question}>QUAL A QUALIDADE DA ÁGUA?</Text>
+      <Text style={styles.question}>Qual a qualidade da água?</Text>
       <MultiChoice
         options={WATER_QUALITY_OPTIONS.map((o) => ({
           value: o.value,
@@ -36,5 +37,5 @@ export default function WaterStep2() {
 }
 
 const styles = StyleSheet.create({
-  question: { fontSize: 22, fontWeight: '800', color: '#2c2c2c', marginBottom: 20, textAlign: 'center' },
+  question: { fontSize: 22, fontFamily: Fonts.semibold, color: NSA.inkPrimary, marginBottom: 20, textAlign: 'center' },
 });

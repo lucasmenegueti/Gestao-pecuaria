@@ -8,4 +8,7 @@ export { Badge } from './Badge';
 export { ResultCard } from './ResultCard';
 export { SummaryRow } from './SummaryRow';
 export { PhotoButton } from './PhotoButton';
-export { BottomNav } from './BottomNav';
+export { StatusPill } from './StatusPill';
+export type { StatusKind } from './StatusPill';
+export { KPI, ProgressBar } from './KPI';
+export { BrandHeader } from './BrandHeader';

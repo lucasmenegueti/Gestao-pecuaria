@@ -3,8 +3,9 @@ import { Text, View, StyleSheet, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { useDatabase } from '@/lib/db/provider';
-import { WizardFlow, SummaryRow, ResultCard, PhotoButton, Button } from '@/components/ui';
+import { WizardFlow, SummaryRow, ResultCard, PhotoButton, Button, Card } from '@/components/ui';
 import { Colors, calculateForageAverage } from '@/constants';
+import { NSA } from '@/theme/nsa';
 
 export default function ForageSummary() {
   const { paddockId } = useLocalSearchParams();
@@ -25,7 +26,7 @@ export default function ForageSummary() {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [store.currentRondaId, forage.measurementType, forage.measure1, forage.measure2, forage.measure3, avg, forage.quality, photo]
       );
-      router.push(`/ronda/${paddockId}/menu`);
+      router.replace(`/ronda/${paddockId}/menu`);
     } catch (err) {
       Alert.alert('Erro', 'Falha ao salvar');
     }
@@ -34,52 +35,39 @@ export default function ForageSummary() {
 
   return (
     <WizardFlow
-      title="FORRAGEM"
+      title="Forragem"
       subtitle={`${store.currentPaddockName} • ${forage.measurementType} • ${store.currentGrassTypeName}`}
       step={6}
       totalSteps={6}
       accentColor={Colors.forragem}
       onBack={() => router.back()}
     >
-      <View style={styles.summaryBox}>
+      <Card>
         <SummaryRow label="1ª medida" value={`${forage.measure1} cm`} />
         <SummaryRow label="2ª medida" value={`${forage.measure2} cm`} />
         <SummaryRow label="3ª medida" value={`${forage.measure3} cm`} />
-      </View>
+      </Card>
 
       <ResultCard
         value={`${avg} cm`}
         label="MÉDIA"
-        color={avg >= 40 ? Colors.success : avg >= 20 ? Colors.warning : Colors.danger}
+        color={avg >= 40 ? NSA.ok : avg >= 20 ? NSA.warn : NSA.danger}
       />
 
-      <View style={styles.summaryBox}>
-        <SummaryRow label="Qualidade" value={forage.quality || '-'} valueColor={forage.quality === 'BOM' ? Colors.success : forage.quality === 'REGULAR' ? Colors.warning : Colors.danger} />
-      </View>
+      <Card>
+        <SummaryRow label="Qualidade" value={forage.quality || '-'} valueColor={forage.quality === 'BOM' ? NSA.ok : forage.quality === 'REGULAR' ? NSA.warn : NSA.danger} />
+      </Card>
 
       <PhotoButton uri={photo} onPhoto={setPhoto} />
 
       <Button
-        title={saving ? 'SALVANDO...' : 'FINALIZAR ✅'}
+        title={saving ? 'Salvando…' : 'Finalizar'}
         onPress={handleSave}
         disabled={saving}
-        variant="success"
-        size="large"
-        style={{ marginTop: 24 }}
+        
       />
     </WizardFlow>
   );
 }
 
-const styles = StyleSheet.create({
-  summaryBox: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-});
+const styles = StyleSheet.create({});

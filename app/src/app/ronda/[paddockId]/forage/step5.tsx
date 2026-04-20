@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { WizardFlow, MultiChoice } from '@/components/ui';
 import { Colors } from '@/constants';
+import { NSA, Fonts } from '@/theme/nsa';
 
 export default function ForageStep5() {
   const { paddockId } = useLocalSearchParams();
@@ -11,7 +12,7 @@ export default function ForageStep5() {
 
   return (
     <WizardFlow
-      title="FORRAGEM"
+      title="Forragem"
       subtitle="Qualidade do capim"
       step={5}
       totalSteps={6}
@@ -20,7 +21,7 @@ export default function ForageStep5() {
       onNext={() => router.push(`/ronda/${paddockId}/forage/summary`)}
       nextDisabled={!forage.quality}
     >
-      <Text style={styles.question}>QUAL A QUALIDADE DESSE CAPIM?</Text>
+      <Text style={styles.question}>Qual a qualidade desse capim?</Text>
       <MultiChoice
         options={[
           { value: 'BOM', label: 'BOM', color: Colors.success, icon: '🟢' },
@@ -35,5 +36,5 @@ export default function ForageStep5() {
 }
 
 const styles = StyleSheet.create({
-  question: { fontSize: 22, fontWeight: '800', color: '#2c2c2c', marginBottom: 20, textAlign: 'center' },
+  question: { fontSize: 22, fontFamily: Fonts.semibold, color: NSA.inkPrimary, marginBottom: 20, textAlign: 'center' },
 });

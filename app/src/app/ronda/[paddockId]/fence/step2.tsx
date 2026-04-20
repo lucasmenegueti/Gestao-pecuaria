@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { WizardFlow, SliderInput } from '@/components/ui';
 import { Colors } from '@/constants';
+import { NSA, Fonts } from '@/theme/nsa';
 
 export default function FenceStep2() {
   const { paddockId } = useLocalSearchParams();
@@ -11,7 +12,7 @@ export default function FenceStep2() {
 
   return (
     <WizardFlow
-      title="CERCA"
+      title="Cerca"
       subtitle="Voltagem"
       step={2}
       totalSteps={3}
@@ -19,7 +20,7 @@ export default function FenceStep2() {
       onBack={() => router.back()}
       onNext={() => router.push(`/ronda/${paddockId}/fence/summary`)}
     >
-      <Text style={styles.question}>QUANTOS VOLTS NA CERCA?</Text>
+      <Text style={styles.question}>Quantos volts na cerca?</Text>
       {fence.isElectric ? (
         <SliderInput
           value={fence.voltage}
@@ -48,9 +49,9 @@ export default function FenceStep2() {
 }
 
 const styles = StyleSheet.create({
-  question: { fontSize: 22, fontWeight: '800', color: '#2c2c2c', marginBottom: 20, textAlign: 'center' },
+  question: { fontSize: 22, fontFamily: Fonts.semibold, color: NSA.inkPrimary, marginBottom: 20, textAlign: 'center' },
   checkbox: { marginTop: 20, padding: 12, alignItems: 'center' },
-  checkboxText: { fontSize: 16, fontWeight: '600', color: '#7a7a7a' },
+  checkboxText: { fontSize: 16, fontFamily: Fonts.medium, color: NSA.inkMuted },
   nonElectric: { padding: 40, alignItems: 'center' },
-  nonElectricText: { fontSize: 20, fontWeight: '700', color: '#7a7a7a' },
+  nonElectricText: { fontSize: 20, fontFamily: Fonts.semibold, color: NSA.inkMuted },
 });
