@@ -29,7 +29,7 @@ export default function WashingStep1() {
       }}
       nextDisabled={washing.wasWashed === null}
     >
-      <Text style={styles.question}>VOCÊ LAVOU O BEBEDOURO?</Text>
+      <Text style={styles.question}>Você lavou o bebedouro?</Text>
       <BinaryChoice value={washing.wasWashed} onChange={(v) => updateWashing({ wasWashed: v })} />
     </WizardFlow>
   );

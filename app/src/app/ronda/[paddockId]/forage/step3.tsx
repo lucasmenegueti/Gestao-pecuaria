@@ -21,7 +21,7 @@ export default function ForageStep3() {
       onNext={() => router.push(`/ronda/${paddockId}/forage/step4`)}
     >
       <Badge label="Medida 2 de 3" variant="info" />
-      <Text style={styles.question}>2ª MEDIDA</Text>
+      <Text style={styles.question}>2ª medida</Text>
       <SliderInput
         value={forage.measure2}
         onValueChange={(v) => updateForage({ measure2: v })}

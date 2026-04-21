@@ -42,7 +42,7 @@ export default function WeightStep2() {
       onBack={() => router.back()}
       onNext={() => router.push(`/ronda/${paddockId}/weight/summary`)}
     >
-      <Text style={styles.question}>PESO MÉDIO ESTIMADO?</Text>
+      <Text style={styles.question}>Peso médio estimado?</Text>
       {visualWeight.previousWeight && (
         <View style={styles.prevCard}>
           <Text style={styles.prevText}>Peso anterior: {visualWeight.previousWeight} kg ({visualWeight.previousDate})</Text>

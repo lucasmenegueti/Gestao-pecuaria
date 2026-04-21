@@ -23,7 +23,7 @@ export default function WaterStep1() {
       onNext={() => router.push(`/ronda/${paddockId}/water/step2`)}
       nextDisabled={water.available === null}
     >
-      <Text style={styles.question}>A ÁGUA ESTÁ DISPONÍVEL NO PASTO?</Text>
+      <Text style={styles.question}>A água está disponível no pasto?</Text>
       <BinaryChoice value={water.available} onChange={(v) => updateWater({ available: v })} />
     </WizardFlow>
   );
