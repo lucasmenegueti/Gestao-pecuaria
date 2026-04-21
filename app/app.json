@@ -78,9 +78,7 @@
       }
     },
     "owner": "lucasmenegueti",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.1",
     "updates": {
       "url": "https://u.expo.dev/3c400bc0-8c7f-4c6d-8ba1-263175954b83"
     }
