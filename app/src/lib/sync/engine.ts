@@ -377,6 +377,29 @@ async function tryHealOrphan(
   return false;
 }
 
+// Circuit breaker: rows que falham várias vezes no push (ex: RLS policy bloqueando
+// o user_id) entram em "deferred" e não são retentadas até o próximo boot.
+// Sem isso, daemon retenta cada 15s → queima bateria/logs/banda.
+const MAX_PUSH_FAILURES = 3;
+const failCounts = new Map<string, number>(); // key: "table:localId"
+function pushKey(table: string, localId: number) { return `${table}:${localId}`; }
+function markPushFail(table: string, localId: number): number {
+  const k = pushKey(table, localId);
+  const n = (failCounts.get(k) ?? 0) + 1;
+  failCounts.set(k, n);
+  return n;
+}
+function clearPushFail(table: string, localId: number) {
+  failCounts.delete(pushKey(table, localId));
+}
+function shouldDefer(table: string, localId: number): boolean {
+  return (failCounts.get(pushKey(table, localId)) ?? 0) >= MAX_PUSH_FAILURES;
+}
+/** Reseta o circuit breaker — chamado em boot e quando user força sync. */
+export function resetPushCircuitBreaker() {
+  failCounts.clear();
+}
+
 async function pushOne(
   db: SQLite.SQLiteDatabase,
   table: TableConfig,
@@ -387,6 +410,12 @@ async function pushOne(
     `SELECT * FROM ${table.name} WHERE pending_sync = 1`
   );
   for (const row of pending) {
+    // Circuit breaker: row já falhou N vezes — deferido até próximo boot
+    // (resetPushCircuitBreaker() chamado em startSyncDaemon/forceSync).
+    if (shouldDefer(table.name, row.id)) {
+      stats.failed++;
+      continue;
+    }
     // Resolver FKs: IDs locais → UUIDs remotos
     const fkMap: Record<string, string | null> = {};
     let fkMissing = false;
@@ -415,9 +444,16 @@ async function pushOne(
           .maybeSingle();
         if (error) {
           stats.failed++;
-          logWarn('sync', 'push_update_failed', { table: table.name, localId: row.id, error: error.message });
+          const n = markPushFail(table.name, row.id);
+          const isRls = /row-level security|policy/i.test(error.message);
+          if (isRls) {
+            logError('sync', 'push_update_rls', { table: table.name, localId: row.id, error: error.message, attempts: n });
+          } else {
+            logWarn('sync', 'push_update_failed', { table: table.name, localId: row.id, error: error.message, attempts: n });
+          }
           continue;
         }
+        clearPushFail(table.name, row.id);
         await db.runAsync(
           `UPDATE ${table.name} SET pending_sync = 0, local_updated_at = ?, sync_rev = sync_rev + 1 WHERE id = ?`,
           [data?.updated_at ?? new Date().toISOString(), row.id]
@@ -441,9 +477,16 @@ async function pushOne(
             }
           }
           stats.failed++;
-          logWarn('sync', 'push_insert_failed', { table: table.name, localId: row.id, error: error.message });
+          const n = markPushFail(table.name, row.id);
+          const isRls = /row-level security|policy/i.test(error.message);
+          if (isRls) {
+            logError('sync', 'push_insert_rls', { table: table.name, localId: row.id, error: error.message, attempts: n });
+          } else {
+            logWarn('sync', 'push_insert_failed', { table: table.name, localId: row.id, error: error.message, attempts: n });
+          }
           continue;
         }
+        clearPushFail(table.name, row.id);
         await db.runAsync(
           `UPDATE ${table.name} SET supabase_id = ?, pending_sync = 0, local_updated_at = ?, sync_rev = sync_rev + 1 WHERE id = ?`,
           [data.id, data.updated_at ?? new Date().toISOString(), row.id]
@@ -453,7 +496,8 @@ async function pushOne(
       }
     } catch (e) {
       stats.failed++;
-      console.warn(`[sync] exception ${table.name} #${row.id}:`, (e as Error).message);
+      markPushFail(table.name, row.id);
+      if (__DEV__) console.warn(`[sync] exception ${table.name} #${row.id}:`, (e as Error).message);
     }
   }
   return stats;
