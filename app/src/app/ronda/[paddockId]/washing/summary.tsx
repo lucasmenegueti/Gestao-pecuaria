@@ -22,7 +22,7 @@ export default function WashingSummary() {
         'INSERT INTO washing_evals (ronda_id, was_washed, photo_uri) VALUES (?, ?, ?)',
         [store.currentRondaId, washing.wasWashed ? 1 : 0, washing.photoUri]
       );
-      router.dismissAll();
+      router.replace('/(tabs)/ronda');
     } catch (err) {
       Alert.alert('Erro', 'Falha ao salvar');
     }

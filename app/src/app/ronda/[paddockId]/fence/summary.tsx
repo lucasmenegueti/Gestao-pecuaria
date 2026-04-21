@@ -43,7 +43,7 @@ export default function FenceSummary() {
         'INSERT INTO fence_evals (ronda_id, voltage, is_electric, prevents_mixing, classification, photo_uri) VALUES (?, ?, ?, ?, ?, ?)',
         [store.currentRondaId, fence.voltage, fence.isElectric ? 1 : 0, fence.preventsMixing ? 1 : 0, classification, photo]
       );
-      router.dismissAll();
+      router.replace('/(tabs)/ronda');
     } catch (err) {
       Alert.alert('Erro', 'Falha ao salvar');
     }

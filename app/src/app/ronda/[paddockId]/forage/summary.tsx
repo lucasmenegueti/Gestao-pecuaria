@@ -26,7 +26,7 @@ export default function ForageSummary() {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [store.currentRondaId, forage.measurementType, forage.measure1, forage.measure2, forage.measure3, avg, forage.quality, photo]
       );
-      router.dismissAll();
+      router.replace('/(tabs)/ronda');
     } catch (err) {
       Alert.alert('Erro', 'Falha ao salvar');
     }

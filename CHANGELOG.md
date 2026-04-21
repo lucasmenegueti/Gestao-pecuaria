@@ -6,6 +6,18 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.5.8 — "Finalizar ronda volta pra lista de piquetes" (2026-04-21)
+
+Ajuste direto de UX após teste no Tab A9:
+
+- **Finalizar ronda → lista de piquetes** (10 summaries + `washing/step1.tsx`): na v0.5.7 troquei `router.replace('/ronda/X/menu')` por `router.dismissAll()` — mas isso ainda deixava o usuário na tela de eval do piquete (suplementação/bombona/forragem/etc). O peão relatou que quer voltar direto pra lista de piquetes (ronda tab) pra pegar próximo piquete. Trocado para `router.replace('/(tabs)/ronda')`, que pula o menu intermediário e cai direto na lista.
+
+**Nota sobre DB/sync**: o screenshot `erros/Screenshot_20260420_223316` mostra logs de `push_insert_failed` em `herd` e `herd_events` com erro `new row violates row-level security policy`. RLS do Supabase precisa de policy de INSERT pro usuário autenticado — fica pra v0.5.9 junto com o fallback pra quando o pull inicial falhar (hoje DB fica vazia se sync não completar).
+
+**Fallback:** `git checkout v0.5.7`.
+
+---
+
 ## v0.5.7 — "Polimento UI + ajuste ±  + NOVILHA PRENHA + logo novo" (2026-04-20)
 
 Rodada de fixes pós-teste no Tab A9:

@@ -24,7 +24,7 @@ export default function WashingStep1() {
         if (washing.wasWashed) {
           router.push(`/ronda/${paddockId}/washing/step2`);
         } else {
-          router.dismissAll();
+          router.replace('/(tabs)/ronda');
         }
       }}
       nextDisabled={washing.wasWashed === null}

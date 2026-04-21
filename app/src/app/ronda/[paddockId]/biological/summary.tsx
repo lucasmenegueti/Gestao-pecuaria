@@ -34,7 +34,7 @@ export default function BiologicalSummary() {
           biologicalWater.photoUri,
         ]
       );
-      router.dismissAll();
+      router.replace('/(tabs)/ronda');
     } catch (err) {
       Alert.alert('Erro', 'Falha ao salvar');
     }

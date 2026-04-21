@@ -22,7 +22,7 @@ export default function HealthSummary() {
         'INSERT INTO health_evals (ronda_id, parasite_free, affected_pct, observations, photo_uri) VALUES (?, ?, ?, ?, ?)',
         [store.currentRondaId, health.parasiteFree ? 1 : 0, health.affectedPct, health.observations, health.photoUri]
       );
-      router.dismissAll();
+      router.replace('/(tabs)/ronda');
     } catch (err) {
       Alert.alert('Erro', 'Falha ao salvar');
     }
