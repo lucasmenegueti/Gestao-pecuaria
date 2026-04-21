@@ -14,12 +14,9 @@ const KEY_ = get('EXPO_PUBLIC_SUPABASE_ANON_KEY');
 // --- copia exata das funções do authStore (cópias sem TS) ---
 function isNetworkError(err) {
   const msg = String(err?.message ?? err ?? '');
-  return /network|fetch|offline|failed to fetch|sem conex|conex/i.test(msg);
-}
-function isTimeoutError(err) {
-  const msg = String(err?.message ?? err ?? '');
   const name = String(err?.name ?? '');
-  return /abort|timeout|signal|retryable/i.test(msg) || /Retryable|Abort/i.test(name);
+  return /network|fetch|offline|timeout|failed to fetch|aborted|abort|sem conex/i.test(msg)
+    || /Retryable|Abort/i.test(name);
 }
 
 // --- copia do offlineSafeFetch ---
@@ -78,9 +75,6 @@ async function emulateLogin({ timeoutMs, netInfoOnline, forceOfflineFetch, user 
     fakeState.offlineMode = false;
     return { ok: true, state: fakeState };
   } catch (err) {
-    if (isTimeoutError(err)) {
-      return { ok: false, reason: 'timeout', thrown: 'Conexão instável. Tenta de novo.' };
-    }
     if (isNetworkError(err)) {
       const ok2 = await tryOfflineLogin();
       if (ok2) return { ok: true, state: fakeState, path: 'cache-hit' };
@@ -109,17 +103,23 @@ for (const c of cases) {
   try {
     const r = await emulateLogin(c.opts);
     console.log('  result:', JSON.stringify(r));
-    if (c.name.startsWith('B') && r.state?.offlineMode === true) {
-      console.log('  ❌ REGRESSÃO: timeout caiu em offlineMode (bug original)');
-    }
-    if (c.name.startsWith('B') && r.reason === 'timeout') {
-      console.log('  ✅ Fix OK: timeout virou erro explicito, não offlineMode');
-    }
-    if (c.name.startsWith('C') && r.state?.offlineMode === true) {
-      console.log('  ✅ Fix OK: offline real cai em offlineMode (comportamento desejado)');
-    }
+    // Expectativas novas:
+    // A: auth_error (senha errada) — NÃO pode cair em offlineMode
+    // B1: timeout COM cache — CAI em offlineMode (usa cache, user entra)
+    // B2: timeout SEM cache — mostra Alert "Conexão instável"
+    // C: offline real — cai em offlineMode
+    // D: NetInfo dessincronizado com cache — cai em offlineMode
     if (c.name.startsWith('A') && r.reason === 'auth_error') {
-      console.log('  ✅ Fix OK: auth error NÃO cai em offlineMode');
+      console.log('  ✅ auth error não virou offlineMode');
+    }
+    if (c.name.startsWith('B1') && r.state?.offlineMode === true) {
+      console.log('  ✅ timeout COM cache entra em offlineMode (user passa, daemon sincroniza depois)');
+    }
+    if (c.name.startsWith('B2') && r.reason?.startsWith('network')) {
+      console.log('  ✅ timeout SEM cache mostra erro (primeiro login precisa de rede)');
+    }
+    if ((c.name.startsWith('C') || c.name.startsWith('D')) && r.state?.offlineMode === true) {
+      console.log('  ✅ offlineMode correto');
     }
   } catch (e) {
     console.log('  threw:', e?.message);

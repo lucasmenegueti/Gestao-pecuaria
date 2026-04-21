@@ -26,7 +26,12 @@ async function emailForUsername(username: string): Promise<string> {
 
 function isNetworkError(err: unknown): boolean {
   const msg = String((err as { message?: unknown })?.message ?? err ?? '');
-  return /network|fetch|offline|timeout|failed to fetch/i.test(msg);
+  const name = String((err as { name?: unknown })?.name ?? '');
+  // "aborted" = AbortController do timeout disparou. AuthRetryableFetchError =
+  // supabase-js viu 503 do nosso offlineResponse. Trata tudo como network pra
+  // fazer fallback offline quando o cache bate (peão tem credencial válida).
+  return /network|fetch|offline|timeout|failed to fetch|aborted|abort|sem conex/i.test(msg)
+    || /Retryable|Abort/i.test(name);
 }
 
 export interface User {

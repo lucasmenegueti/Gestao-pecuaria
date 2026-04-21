@@ -50,14 +50,16 @@ export default function LoginScreen() {
       }
       router.replace('/(tabs)');
     } catch (err: any) {
-      const msg = err?.message?.includes('Invalid login')
+      const raw = String(err?.message ?? '');
+      const isAbort = /abort|timeout|AbortError/i.test(raw);
+      const msg = raw.includes('Invalid login')
         ? 'Usuário ou senha inválidos'
-        : err?.message?.includes('não encontrado')
-          ? err.message
-          : err?.message?.includes('Network')
-            ? 'Sem conexão. Tenta de novo conectado à internet.'
-            : err?.message || 'Falha ao fazer login';
-      Alert.alert('Erro', msg);
+        : raw.includes('não encontrado')
+          ? raw
+          : (raw.includes('Network') || isAbort)
+            ? 'Conexão instável. Verifique o Wi-Fi e tente de novo. Se o problema persistir, você pode entrar sem internet usando a senha do último login.'
+            : raw || 'Falha ao fazer login';
+      Alert.alert(isAbort ? 'Conexão instável' : 'Erro', msg);
     }
     setLoading(false);
     setSyncMsg(null);

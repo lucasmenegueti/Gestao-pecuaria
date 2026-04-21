@@ -57,10 +57,10 @@ const offlineSafeFetch: typeof fetch = async (input, init) => {
         : (input as Request).url;
   const short = offlineShortCircuit(url);
   if (short) return short;
-  // Timeout — Wi-Fi conectado mas sem internet trava fetch ~30s (TCP connect).
-  // Com 20+ tabelas no sync vira "sync eterno" visível pro usuário.
+  // Timeout — 15s. Wi-Fi de sítio + Android: primeira chamada (DNS+TLS+auth)
+  // pode levar 5-12s. 10s era curto demais, abortava chamadas válidas.
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10_000);
+  const timer = setTimeout(() => controller.abort(), 15_000);
   try {
     return await fetch(input, { ...init, signal: controller.signal });
   } catch (e) {
