@@ -76,13 +76,13 @@ export default function DesalocarScreen() {
 
   async function handleConfirm() {
     const entries = Object.entries(amounts).filter(([, v]) => v > 0);
-    console.log('[desalocar] handleConfirm start', { paddockId, entries });
+    if (__DEV__) console.log('[desalocar] handleConfirm start', { paddockId, entries });
     if (!paddockId || entries.length === 0) {
-      console.warn('[desalocar] abort: no paddock or entries');
+      if (__DEV__) console.warn('[desalocar] abort: no paddock or entries');
       return;
     }
     if (submittingRef.current) {
-      console.warn('[desalocar] handleConfirm já em andamento — ignorando double-tap');
+      if (__DEV__) console.warn('[desalocar] handleConfirm já em andamento — ignorando double-tap');
       return;
     }
     submittingRef.current = true;

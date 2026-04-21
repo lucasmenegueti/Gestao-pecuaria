@@ -73,7 +73,7 @@ async function fetchProfile(userId: string): Promise<{ username: string; name: s
     .eq('id', userId)
     .maybeSingle();
   if (error) {
-    console.warn('[authStore] falha ao buscar profile:', error.message);
+    if (__DEV__) console.warn('[authStore] falha ao buscar profile:', error.message);
     return null;
   }
   return data;
@@ -180,7 +180,7 @@ export const useAuthStore = create<AuthState>()(
             });
           }
         } catch (err) {
-          console.warn('[authStore] restore falhou:', err);
+          if (__DEV__) console.warn('[authStore] restore falhou:', err);
         } finally {
           set({ initializing: false });
         }

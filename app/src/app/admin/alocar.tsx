@@ -87,7 +87,7 @@ export default function AlocarScreen() {
       if (!ok) return;
     }
     if (submittingRef.current) {
-      console.warn('[alocar] handleConfirm já em andamento — ignorando double-tap');
+      if (__DEV__) console.warn('[alocar] handleConfirm já em andamento — ignorando double-tap');
       return;
     }
     submittingRef.current = true;

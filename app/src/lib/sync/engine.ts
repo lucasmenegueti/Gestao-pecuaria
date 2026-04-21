@@ -168,7 +168,7 @@ async function localInsertFromRemote(
     idMap.prime(table, remoteRow.id, localId);
     return localId;
   } catch (e) {
-    console.warn(`[sync] insert ${table} falhou:`, (e as Error).message);
+    if (__DEV__) console.warn(`[sync] insert ${table} falhou:`, (e as Error).message);
     return null;
   }
 }
@@ -261,7 +261,7 @@ export async function pullDelta(db: SQLite.SQLiteDatabase): Promise<Record<strin
         }
       } catch (e) {
         hadError = true;
-        console.warn(`[sync] pull ${t.name} exception:`, (e as Error).message);
+        if (__DEV__) console.warn(`[sync] pull ${t.name} exception:`, (e as Error).message);
         counts[t.name] = -1;
       }
     }
@@ -429,7 +429,7 @@ async function pushOne(
     }
     if (fkMissing) {
       // Referência ainda não sincronizada — tenta no próximo ciclo.
-      console.warn(`[sync] ${table.name} #${row.id}: FK ainda não sincronizada, adiando`);
+      if (__DEV__) console.warn(`[sync] ${table.name} #${row.id}: FK ainda não sincronizada, adiando`);
       continue;
     }
     const payload = toRemotePayload(row, fkMap);
