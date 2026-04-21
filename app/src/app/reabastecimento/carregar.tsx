@@ -52,7 +52,7 @@ export default function CarregarScreen() {
   async function handleStart() {
     if (selectedItems.length === 0 || submitting) return;
     if (!user?.id) {
-      console.warn('[carregar] sem user autenticado, abortando');
+      if (__DEV__) console.warn('[carregar] sem user autenticado, abortando');
       return;
     }
     setSubmitting(true);
@@ -85,9 +85,13 @@ export default function CarregarScreen() {
       });
       if (routeId !== null) {
         router.replace(`/reabastecimento/rota?routeId=${routeId}`);
+      } else {
+        // Não deveria acontecer (se transação OK, routeId foi setado), mas
+        // evita botão travado em "Iniciando…" eternamente.
+        setSubmitting(false);
       }
     } catch (err) {
-      console.error('[carregar] falha ao criar rota', err);
+      if (__DEV__) console.error('[carregar] falha ao criar rota', err);
       Alert.alert('Erro', 'Falha ao iniciar rota. Nenhum saco foi retirado do estoque.');
       setSubmitting(false);
     }
