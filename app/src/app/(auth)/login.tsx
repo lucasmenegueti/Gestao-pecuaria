@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/authStore';
 import { useDatabase } from '@/lib/db/provider';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
-import { syncAll } from '@/lib/sync/engine';
+import { forceSync } from '@/lib/sync/daemon';
 import { Button } from '@/components/ui';
 import { NSA, Fonts } from '@/theme/nsa';
 
@@ -42,54 +42,36 @@ export default function LoginScreen() {
       await login(username, password, remember);
       const inOfflineMode = useAuthStore.getState().offlineMode;
       if (!inOfflineMode) {
-        setSyncMsg('Sincronizando com a fazenda…');
-        // Hard cap: se sync não termina em 20s, libera login. App pode entrar
-        // com DB parcial e o daemon termina em background. Sem isso, rede lenta
-        // / servidor devagar travava o peão na tela de login indefinidamente.
-        const SYNC_TIMEOUT_MS = 20_000;
-        const syncWithTimeout = () =>
-          Promise.race([
-            syncAll(db),
-            new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error('timeout: sync demorou mais que 20s')), SYNC_TIMEOUT_MS),
-            ),
-          ]);
-        try {
-          await syncWithTimeout();
-        } catch (syncErr: any) {
-          if (__DEV__) console.warn('[login] sync falhou:', syncErr?.message);
-          const msg = String(syncErr?.message ?? 'Erro desconhecido');
-          const isTimeout = msg.includes('timeout');
-          const isNet = msg.includes('network') || msg.includes('fetch');
-          // Em timeout/rede: avisa e deixa entrar direto. Daemon continua tentando.
-          if (isTimeout || isNet) {
+        // Offline-first: só ESPERA sync se a DB estiver vazia (primeiro login
+        // depois de install). Com dados locais, login é instantâneo e o daemon
+        // sincroniza em background — pushPending com N rows pendentes e RLS
+        // negando pode levar dezenas de segundos; não é aceitável bloquear o
+        // peão por isso.
+        const paddockRow = await db
+          .getFirstAsync<{ n: number }>('SELECT COUNT(*) as n FROM paddocks')
+          .catch(() => ({ n: 0 }));
+        const dbEmpty = (paddockRow?.n ?? 0) === 0;
+        if (dbEmpty) {
+          setSyncMsg('Sincronizando com a fazenda…');
+          // Timeout de 12s só no primeiro sync (DB vazia). Suficiente p/ pull
+          // de todas as tabelas; se não vier, entra com DB vazia e alerta.
+          const syncTimeout = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), 12_000),
+          );
+          try {
+            await Promise.race([forceSync(db), syncTimeout]);
+          } catch (syncErr: any) {
+            if (__DEV__) console.warn('[login] sync inicial falhou:', syncErr?.message);
             Alert.alert(
               'Sincronização incompleta',
-              `${isTimeout ? 'A sincronização demorou demais' : 'A conexão caiu'}. O app vai abrir mesmo assim — você pode sincronizar depois pelo botão no Painel.`,
+              'Os dados da fazenda ainda não carregaram. Você pode entrar e tentar sincronizar depois pelo botão no Painel.',
             );
-          } else {
-            // Erro não-rede (schema, auth, etc.): oferece retry manual.
-            const retry = await new Promise<boolean>((resolve) => {
-              Alert.alert(
-                'Sincronização incompleta',
-                `Os dados da fazenda não carregaram: ${msg}.\n\nO app pode ficar sem piquetes/rebanho até sincronizar. Tentar de novo?`,
-                [
-                  { text: 'Entrar mesmo assim', style: 'cancel', onPress: () => resolve(false) },
-                  { text: 'Tentar de novo', onPress: () => resolve(true) },
-                ],
-              );
-            });
-            if (retry) {
-              try {
-                await syncWithTimeout();
-              } catch {
-                Alert.alert(
-                  'Ainda sem conexão',
-                  'Você pode entrar no app e tentar sincronizar depois pelo botão no Painel.',
-                );
-              }
-            }
           }
+        } else {
+          // DB populada: dispara sync em background, login entra imediato.
+          forceSync(db).catch((e) => {
+            if (__DEV__) console.warn('[login] sync bg falhou:', e?.message);
+          });
         }
       }
       router.replace('/(tabs)');

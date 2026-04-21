@@ -169,18 +169,25 @@ export const useAuthStore = create<AuthState>()(
       },
 
       restore: async () => {
+        // Fast path: user já foi hidratado do AsyncStorage pelo middleware persist
+        // (onRehydrateStorage seta isAuthenticated). Não precisamos de network no
+        // boot — confiamos no cache local. Quando online, supabase-js refresh JWT
+        // automaticamente (controlado pelo daemon). fetchProfile aqui era network
+        // round-trip desnecessário que bloqueava o app em rede lenta.
         try {
           const { data } = await supabase.auth.getSession();
-          if (data.session?.user) {
+          if (data.session?.user && !get().user) {
+            // Sessão existe no AsyncStorage do supabase-js mas Zustand persist
+            // perdeu user (raro: cache corrompido ou primeira migração). Backfill
+            // mínimo a partir de email — nome completo chega no próximo login online.
             const u = data.session.user;
-            const profile = await fetchProfile(u.id);
             set({
               user: {
                 id: u.id,
                 email: u.email ?? '',
-                username: profile?.username ?? (u.email ?? '').split('@')[0],
-                name: profile?.name ?? u.email ?? 'Usuário',
-                role: profile?.role ?? 'peao',
+                username: (u.email ?? '').split('@')[0],
+                name: u.email ?? 'Usuário',
+                role: 'peao',
               },
               isAuthenticated: true,
             });
