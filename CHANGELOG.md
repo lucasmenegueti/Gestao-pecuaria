@@ -6,6 +6,33 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.6.0 — "Hardening pré-1.0: sync visível, transações, circuit breaker, UX consistente" (2026-04-21)
+
+Audit completo do código por 4 agentes em paralelo (sync/bugs/qualidade/UX). Consolidados 10 fixes P1+P2 + 2 P3. Release candidate pra 1.0.
+
+**P1 — Bloqueantes (perda de dado, app preso):**
+- **Sync visível** (v0.5.10): login.tsx mostra Alert com "Tentar de novo" se pullDelta falhar; (tabs)/index.tsx handleSync distingue sem conexão/modo offline/erro de rede com mensagens pro peão (antes `console.warn` só em __DEV__); supabase/client.ts timeout 10s → 30s pra rede de sítio.
+- **Transações atômicas** (v0.5.11): `db.withTransactionAsync` em alocar, desalocar, evoluir, evento. Antes, falha no meio do loop deixava estado parcial (piquete com 2 categorias alocadas e 3ª incompleta). Agora tudo-ou-nada via rollback automático.
+- **Double-tap guard em resumo** (v0.5.12): resumo.tsx `finishingRef` contra state async; bloco de devolução ao central + fechamento da rota em withTransactionAsync. Antes, 2 taps = inventário creditado 2x.
+- **Mount guard em carregar** (v0.5.13): `cancelled` flag no useEffect cleanup impede router.replace/setState pós-unmount quando user sai/volta rápido.
+- **Resumo loadSummary try/catch** (v0.5.12): Alert se query falhar — antes, tela com dados parciais sem feedback.
+
+**P2 — Qualidade (recuperável mas importante):**
+- **Circuit breaker + daemon watchdog** (v0.5.14): rows que falham 3x no push (ex: RLS policy) entram em deferred até próximo boot/forceSync — para de queimar bateria/logs. RLS fails logam como ERROR (visível em Logs do Painel). Daemon watchdog 60s libera state.running travado — antes, throw silencioso parava sync até app restart.
+- **Schema migration visível** (v0.5.15): antes de DROP TABLE em migration, conta rows pending_sync=1 e emite WARN. Trackeable se alguma migration zerar trabalho local não sincronizado.
+- **Sentence case em 13 wizards** (v0.5.16): "VOCÊ ABASTECEU O COCHO?" → "Você abasteceu o cocho?", etc. Cumpre regra do NSA design system. Valores no DB inalterados.
+- **Hex hardcoded → tokens** (v0.5.17): 5 calcCards trocaram `#fdebd0`/`#e3f2fd`/`#f3e5f5`/`#2980b9`/`#eaf5ec` por `NSA.warnBg/infoBg/okBg` + `DOMAIN.sanidade.tint/dot`. Compliance com design system.
+
+**P3 — Polimento (parcial):**
+- `<StickyFooter>` primitive criado mas não aplicado nas 12 telas (migração gradual pós-release pra não arriscar layout).
+- `console.log/warn/error` fora do logger envolvidos em `if (__DEV__)` — sem ruído em prod.
+
+**Fallback:** `git checkout v0.5.9`.
+
+**Hotfix restante pra v1.0.1+:** useFinalizeWizard hook, sticky footer migrado nas 12 telas, RLS policies no Supabase (fora do app), seed local como fallback pra quando pullDelta não completar.
+
+---
+
 ## v0.5.9 — "Slider do ajuste manual destravado" (2026-04-21)
 
 Hotfix dedicado do SliderInput:
