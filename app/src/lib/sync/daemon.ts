@@ -69,7 +69,14 @@ async function tryRun(reason: string) {
   // Só sincroniza se tem user autenticado E com JWT válido no Supabase
   const auth = useAuthStore.getState();
   if (!auth.isAuthenticated) return;
-  if (auth.offlineMode) return; // sem JWT, sync falharia — aguarda login online
+  // Re-auth proativo: se login caiu em offlineMode por timeout/abort mas NetInfo
+  // diz que tem rede, tenta sair do offlineMode. Antes só acontecia no callback
+  // onNetChange (offline→online) — se o user nunca "ficou offline" de verdade,
+  // ficava preso em offlineMode pra sempre sem sincronizar.
+  if (auth.offlineMode) {
+    await tryReAuthOffline();
+    if (useAuthStore.getState().offlineMode) return;
+  }
 
   // Só roda se há pendentes OU se faz tempo desde o último pull
   const status = await getSyncStatus(state.db).catch(() => null);
@@ -97,7 +104,15 @@ export function startSyncDaemon(db: SQLite.SQLiteDatabase) {
   state.db = db;
 
   // Liga refresh do JWT se já estamos online no boot.
-  if (netIsOnline()) supabase.auth.startAutoRefresh().catch(() => {});
+  if (netIsOnline()) {
+    supabase.auth.startAutoRefresh().catch(() => {});
+    // Se botamos em offlineMode na sessão anterior mas temos rede agora, tenta
+    // sair. Sem isso, user caído em offlineMode por abort continuaria offline
+    // até reconectar "de verdade" (offline→online).
+    setTimeout(() => {
+      if (useAuthStore.getState().offlineMode) tryReAuthOffline();
+    }, 2_000);
+  }
 
   state.netUnsub = onNetChange((online, wasOnline) => {
     // Liga/desliga o refresh automático do JWT baseado em conectividade —

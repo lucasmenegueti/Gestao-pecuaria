@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
 import NetInfo from '@react-native-community/netinfo';
 import { supabase } from '@/lib/supabase/client';
-import { logInfo, logError } from '@/lib/log';
+import { logInfo, logError, logWarn } from '@/lib/log';
 
 // Hash determinístico pra login offline. Não substitui criptografia séria;
 // só serve pra validar que o peão no campo digitou a senha correta quando
@@ -131,14 +131,31 @@ export const useAuthStore = create<AuthState>()(
           throw new Error('Sem conexão. Credenciais não conferem com o último acesso online neste aparelho.');
         }
 
-        // Tem rede: tenta Supabase
+        // Tem rede: tenta Supabase. Retry interno pra absorver cold-start do
+        // Android: DNS lookup + TLS handshake na 1ª call pode levar 8-15s e
+        // abortar no timeout do fetch. Tenta 2 vezes antes de cair em cache.
+        async function withRetry<T>(label: string, fn: () => Promise<T>): Promise<T> {
+          try {
+            return await fn();
+          } catch (e: any) {
+            if (isNetworkError(e)) {
+              logWarn('auth', 'retry_after_abort', { op: label, error: e?.message });
+              return await fn();
+            }
+            throw e;
+          }
+        }
         try {
-          const email = await emailForUsername(usernameClean);
-          const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+          const email = await withRetry('emailForUsername', () => emailForUsername(usernameClean));
+          const { data, error } = await withRetry('signInWithPassword', async () => {
+            const r = await supabase.auth.signInWithPassword({ email, password });
+            if (r.error && isNetworkError(r.error)) throw r.error;
+            return r;
+          });
           if (error) throw error;
           if (!data.user) throw new Error('Sem usuário na resposta.');
           logInfo('auth', 'login_ok', { username: usernameClean, userId: data.user.id });
-          const profile = await fetchProfile(data.user.id);
+          const profile = await withRetry('fetchProfile', () => fetchProfile(data.user.id));
           const user: User = {
             id: data.user.id,
             email: data.user.email ?? email,
