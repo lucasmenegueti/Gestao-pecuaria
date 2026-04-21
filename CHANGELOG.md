@@ -6,6 +6,16 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.5.9 — "Slider do ajuste manual destravado" (2026-04-21)
+
+Hotfix dedicado do SliderInput:
+
+- **SliderInput com max dinâmico** (`components/ui/SliderInput.tsx`): o `PanResponder` era criado 1x via `useRef` e capturava as props da 1ª render via closure. Em telas onde `min/max/step` mudam (ajuste manual de estoque troca o teto ao trocar produto/modo), arrastar o slider chamava `updateFromPageX` com bounds antigos — a barra parecia travada. Fix: handler via ref atualizada a cada render (`updateRef.current`), o PanResponder chama através do ref. Resultado: drag, `+`/`-` e teclado (clique no número) agora usam os mesmos bounds. Afeta `estoque/ajuste.tsx` (onde o bug apareceu) + todas as outras telas com slider (sem regressão — bounds estáticos continuam funcionando igual).
+
+**Fallback:** `git checkout v0.5.8`.
+
+---
+
 ## v0.5.8 — "Finalizar ronda volta pra lista de piquetes" (2026-04-21)
 
 Ajuste direto de UX após teste no Tab A9:

@@ -21,6 +21,22 @@ export function SliderInput({ value, onValueChange, min, max, step = 1, unit = '
 
   const fraction = max > min ? (value - min) / (max - min) : 0;
 
+  // PanResponder é criado 1x e captura closures da 1ª render. Pra suportar
+  // min/max/step que mudam (ex.: ajuste.tsx troca produto e o teto vira outro),
+  // redirecionamos a lógica via ref sempre atualizada — o handler chama
+  // updateRef.current, que aponta pra função com props atuais.
+  const updateRef = useRef<(pageX: number) => void>(() => {});
+  updateRef.current = (pageX: number) => {
+    const { pageX: trackX, width } = layoutRef.current;
+    if (width <= 0) return;
+    const localX = pageX - trackX;
+    const raw = Math.max(0, Math.min(1, localX / width));
+    const rawValue = min + raw * (max - min);
+    const stepped = Math.round(rawValue / step) * step;
+    const clamped = Math.max(min, Math.min(max, stepped));
+    onValueChange(Number(clamped.toFixed(step < 1 ? 1 : 0)));
+  };
+
   const panResponder = useRef(
     PanResponder.create({
       // Captura gesto desde o toque inicial, ignorando drift vertical para não deixar ScrollView roubar.
@@ -31,24 +47,13 @@ export function SliderInput({ value, onValueChange, min, max, step = 1, unit = '
       onPanResponderTerminationRequest: () => false,
       onShouldBlockNativeResponder: () => true,
       onPanResponderGrant: (evt) => {
-        updateFromPageX(evt.nativeEvent.pageX);
+        updateRef.current(evt.nativeEvent.pageX);
       },
       onPanResponderMove: (evt) => {
-        updateFromPageX(evt.nativeEvent.pageX);
+        updateRef.current(evt.nativeEvent.pageX);
       },
     })
   ).current;
-
-  function updateFromPageX(pageX: number) {
-    const { pageX: trackX, width } = layoutRef.current;
-    if (width <= 0) return;
-    const localX = pageX - trackX;
-    const raw = Math.max(0, Math.min(1, localX / width));
-    const rawValue = min + raw * (max - min);
-    const stepped = Math.round(rawValue / step) * step;
-    const clamped = Math.max(min, Math.min(max, stepped));
-    onValueChange(Number(clamped.toFixed(step < 1 ? 1 : 0)));
-  }
 
   function measureTrack() {
     trackRef.current?.measureInWindow((x, _y, w) => {
