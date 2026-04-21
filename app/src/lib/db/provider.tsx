@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import * as SQLite from 'expo-sqlite';
 import { CREATE_TABLES_SQL } from './schema';
-import { setLogDb, logInfo } from '@/lib/log';
+import { setLogDb, logInfo, logWarn } from '@/lib/log';
 // Seed local foi removido: dados vêm do Supabase via pullDelta no login.
 // Deixar seed local criaria duplicatas / conflitos ao sincronizar.
 
@@ -33,6 +33,31 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       const versionRow = await database.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
       const currentVersion = versionRow?.user_version ?? 0;
       if (currentVersion < SCHEMA_VERSION) {
+        // Antes de destruir qualquer tabela, conta quantas rows com pending_sync=1
+        // ficariam órfãs. Se houver, loga WARN com detalhes — peão pode perder
+        // trabalho local não sincronizado. No futuro, esse hook é onde faríamos
+        // backup→restore. Hoje só emite alerta pro log de atividade.
+        if (currentVersion > 0) {
+          try {
+            const tables = ['herd', 'herd_events', 'rondas', 'inventory', 'inventory_events',
+              'supplement_evals', 'bombona_evals', 'forage_evals', 'water_evals', 'health_evals',
+              'fence_evals', 'visual_weight_evals', 'washing_evals', 'biological_water_evals',
+              'resupply_routes', 'resupply_loads', 'resupply_deliveries'];
+            for (const t of tables) {
+              const r = await database.getFirstAsync<{ n: number }>(
+                `SELECT COUNT(*) as n FROM ${t} WHERE pending_sync = 1`
+              ).catch(() => null);
+              if (r && r.n > 0) {
+                logWarn('db', 'migration_pending_sync_lost', {
+                  table: t, count: r.n, from_version: currentVersion, to_version: SCHEMA_VERSION,
+                });
+              }
+            }
+          } catch {
+            // Tabela ainda não existe (primeira boot após fresh install) — ok.
+          }
+        }
+        logInfo('db', 'migration_start', { from: currentVersion, to: SCHEMA_VERSION });
         // Desliga FKs durante a migração — drops encadeados de paddocks/herd/etc
         // disparariam restrições porque inventory/resupply_deliveries referenciam paddocks.
         // Religa no final do bloco.
