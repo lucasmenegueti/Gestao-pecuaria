@@ -23,7 +23,7 @@ export default function FenceStep1() {
       onNext={() => router.push(`/ronda/${paddockId}/fence/step2`)}
       nextDisabled={fence.preventsMixing === null}
     >
-      <Text style={styles.question}>A cerca evita a mistura indevida de animais?</Text>
+      <Text style={styles.question}>A CERCA EVITA A MISTURA INDEVIDA DE ANIMAIS?</Text>
       <BinaryChoice value={fence.preventsMixing} onChange={(v) => updateFence({ preventsMixing: v })} />
     </WizardFlow>
   );

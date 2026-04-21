@@ -29,7 +29,7 @@ export default function BombonaStep1() {
       }}
       nextDisabled={bombona.hasStock === null}
     >
-      <Text style={styles.question}>Tem ração na bombona?</Text>
+      <Text style={styles.question}>TEM RAÇÃO NA BOMBONA?</Text>
       <Text style={styles.sub}>(reservatório do cocho)</Text>
       <BinaryChoice
         value={bombona.hasStock}

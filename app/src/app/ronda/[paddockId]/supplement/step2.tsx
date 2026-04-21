@@ -27,7 +27,7 @@ export default function SupplementStep2() {
       }}
       nextDisabled={supplement.restocked === null}
     >
-      <Text style={styles.question}>Você abasteceu o cocho?</Text>
+      <Text style={styles.question}>VOCÊ ABASTECEU O COCHO?</Text>
       <BinaryChoice
         value={supplement.restocked}
         onChange={(v) => updateSupplement({ restocked: v })}

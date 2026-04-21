@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
     borderColor: NSA.border,
     backgroundColor: NSA.bgElevated,
   },
-  modeBtnActiveAdd: { borderColor: NSA.ok, backgroundColor: NSA.okBg },
+  modeBtnActiveAdd: { borderColor: NSA.ok, backgroundColor: '#eaf5ec' },
   modeBtnActiveRemove: { borderColor: NSA.danger, backgroundColor: NSA.dangerBg },
   modeText: { fontSize: 13, fontFamily: Fonts.medium, color: NSA.inkMuted },
   warnBox: {

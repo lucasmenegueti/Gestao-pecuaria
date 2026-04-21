@@ -1,6 +1,6 @@
 import { AppState, AppStateStatus } from 'react-native';
 import type * as SQLite from 'expo-sqlite';
-import { syncAll, getSyncStatus, resetPushCircuitBreaker } from './engine';
+import { syncAll, getSyncStatus } from './engine';
 import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 import { isOnline as netIsOnline, onNetChange } from '@/lib/netStatus';
@@ -21,22 +21,15 @@ const DEBOUNCE_MS = 1_000; // reconectou → espera 1s pra deixar rede estabiliz
 type DaemonState = {
   db: SQLite.SQLiteDatabase | null;
   running: boolean;
-  /** Timestamp de quando running=true. Watchdog reseta se passar RUN_TIMEOUT_MS. */
-  runStartedAt: number;
   timer: ReturnType<typeof setInterval> | null;
   netUnsub: (() => void) | null;
   appStateSub: ReturnType<typeof AppState.addEventListener> | null;
   lastSyncAt: number;
 };
 
-/** Se um ciclo de sync passa disso, assume-se que travou (DB lock, rede morta) e libera
- *  a flag running pra próximo ciclo. Sem isso, um crash silencioso trava daemon até app restart. */
-const RUN_TIMEOUT_MS = 60_000;
-
 const state: DaemonState = {
   db: null,
   running: false,
-  runStartedAt: 0,
   timer: null,
   netUnsub: null,
   appStateSub: null,
@@ -68,19 +61,9 @@ async function tryReAuthOffline() {
 async function tryRun(reason: string) {
   if (!state.db) return;
   if (!netIsOnline()) return;
-  const now = Date.now();
-  // Watchdog: se running está preso há >60s, algo travou — força release
-  // pro próximo ciclo seguir. Sem isso, um throw não-capturado no finally
-  // bloqueava sync até app restart.
-  if (state.running) {
-    if (now - state.runStartedAt > RUN_TIMEOUT_MS) {
-      logWarn('sync', 'daemon_stuck_reset', { elapsed_ms: now - state.runStartedAt });
-      state.running = false;
-    } else {
-      return;
-    }
-  }
+  if (state.running) return;
   // Evita rodar muitas vezes em sequência (ex. reconectar + foreground juntos)
+  const now = Date.now();
   if (now - state.lastSyncAt < 2_000) return;
 
   // Só sincroniza se tem user autenticado E com JWT válido no Supabase
@@ -98,13 +81,12 @@ async function tryRun(reason: string) {
   if (!pendingNow && !staleByTime) return;
 
   state.running = true;
-  state.runStartedAt = now;
   state.lastSyncAt = now;
   try {
     const stats = await syncAll(state.db);
     if (__DEV__) console.log(`[sync daemon:${reason}]`, stats);
   } catch (err: any) {
-    if (__DEV__) console.warn(`[sync daemon:${reason}] falhou:`, err?.message);
+    console.warn(`[sync daemon:${reason}] falhou:`, err?.message);
   } finally {
     state.running = false;
   }
@@ -113,9 +95,6 @@ async function tryRun(reason: string) {
 export function startSyncDaemon(db: SQLite.SQLiteDatabase) {
   if (state.db) return; // já iniciado
   state.db = db;
-  // Boot: reseta circuit breaker de push (rows antes deferidas voltam a tentar
-  // numa sessão nova — ex.: admin arruma policy do Supabase, user relança app).
-  resetPushCircuitBreaker();
 
   // Liga refresh do JWT se já estamos online no boot.
   if (netIsOnline()) supabase.auth.startAutoRefresh().catch(() => {});
@@ -155,15 +134,11 @@ export function stopSyncDaemon() {
 
 export { netIsOnline as isOnline };
 
-/** Dispara sync manualmente (ex: botão no Painel). Ignora debounce/staleness check.
- *  Também reseta o circuit breaker de push — user clicando "Sincronizar" indica
- *  que quer tentar TUDO de novo, mesmo o que foi deferido por falha repetida. */
+/** Dispara sync manualmente (ex: botão no Painel). Ignora debounce/staleness check. */
 export async function forceSync(db: SQLite.SQLiteDatabase) {
   if (state.running) return;
   state.running = true;
-  state.runStartedAt = Date.now();
   state.lastSyncAt = Date.now();
-  resetPushCircuitBreaker();
   try {
     return await syncAll(db);
   } finally {

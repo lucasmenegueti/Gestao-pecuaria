@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/authStore';
 import { useDatabase } from '@/lib/db/provider';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
-import { forceSync } from '@/lib/sync/daemon';
+import { syncAll } from '@/lib/sync/engine';
 import { Button } from '@/components/ui';
 import { NSA, Fonts } from '@/theme/nsa';
 
@@ -42,36 +42,11 @@ export default function LoginScreen() {
       await login(username, password, remember);
       const inOfflineMode = useAuthStore.getState().offlineMode;
       if (!inOfflineMode) {
-        // Offline-first: só ESPERA sync se a DB estiver vazia (primeiro login
-        // depois de install). Com dados locais, login é instantâneo e o daemon
-        // sincroniza em background — pushPending com N rows pendentes e RLS
-        // negando pode levar dezenas de segundos; não é aceitável bloquear o
-        // peão por isso.
-        const paddockRow = await db
-          .getFirstAsync<{ n: number }>('SELECT COUNT(*) as n FROM paddocks')
-          .catch(() => ({ n: 0 }));
-        const dbEmpty = (paddockRow?.n ?? 0) === 0;
-        if (dbEmpty) {
-          setSyncMsg('Sincronizando com a fazenda…');
-          // Timeout de 12s só no primeiro sync (DB vazia). Suficiente p/ pull
-          // de todas as tabelas; se não vier, entra com DB vazia e alerta.
-          const syncTimeout = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('timeout')), 12_000),
-          );
-          try {
-            await Promise.race([forceSync(db), syncTimeout]);
-          } catch (syncErr: any) {
-            if (__DEV__) console.warn('[login] sync inicial falhou:', syncErr?.message);
-            Alert.alert(
-              'Sincronização incompleta',
-              'Os dados da fazenda ainda não carregaram. Você pode entrar e tentar sincronizar depois pelo botão no Painel.',
-            );
-          }
-        } else {
-          // DB populada: dispara sync em background, login entra imediato.
-          forceSync(db).catch((e) => {
-            if (__DEV__) console.warn('[login] sync bg falhou:', e?.message);
-          });
+        setSyncMsg('Sincronizando com a fazenda…');
+        try {
+          await syncAll(db);
+        } catch (syncErr: any) {
+          console.warn('[login] sync falhou:', syncErr?.message);
         }
       }
       router.replace('/(tabs)');

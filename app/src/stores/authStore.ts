@@ -26,19 +26,7 @@ async function emailForUsername(username: string): Promise<string> {
 
 function isNetworkError(err: unknown): boolean {
   const msg = String((err as { message?: unknown })?.message ?? err ?? '');
-  // "sem conexão" = body PT-BR do nosso offlineResponse quando NetInfo disse
-  // offline entre a verificação e a call. "conexão" cobre variações.
-  return /network|fetch|offline|failed to fetch|sem conex|conex/i.test(msg);
-}
-
-/** Timeout/abort ≠ offline real. Quando fetch aborta (10s timeout) mas NetInfo
- *  diz que tem rede, é "conexão instável" — não queremos cair em offlineMode
- *  silencioso. O user clica "tentar de novo". "aborted"/"timeout"/AuthRetryable
- *  são os padrões emitidos pelo supabase-js/nosso offlineSafeFetch. */
-function isTimeoutError(err: unknown): boolean {
-  const msg = String((err as { message?: unknown })?.message ?? err ?? '');
-  const name = String((err as { name?: unknown })?.name ?? '');
-  return /abort|timeout|signal|retryable/i.test(msg) || /Retryable|Abort/i.test(name);
+  return /network|fetch|offline|timeout|failed to fetch/i.test(msg);
 }
 
 export interface User {
@@ -85,7 +73,7 @@ async function fetchProfile(userId: string): Promise<{ username: string; name: s
     .eq('id', userId)
     .maybeSingle();
   if (error) {
-    if (__DEV__) console.warn('[authStore] falha ao buscar profile:', error.message);
+    console.warn('[authStore] falha ao buscar profile:', error.message);
     return null;
   }
   return data;
@@ -146,16 +134,12 @@ export const useAuthStore = create<AuthState>()(
           if (!data.user) throw new Error('Sem usuário na resposta.');
           logInfo('auth', 'login_ok', { username: usernameClean, userId: data.user.id });
           const profile = await fetchProfile(data.user.id);
-          // Fallback em cascata: profile fresco → cache do login anterior → usuário digitado.
-          // Evita "Boa tarde, lucas@menegueti.com.br" quando fetchProfile aborta no timeout.
-          const cachedUser = get().offlineCache?.user;
-          const cachedMatches = cachedUser && cachedUser.id === data.user.id;
           const user: User = {
             id: data.user.id,
             email: data.user.email ?? email,
-            username: profile?.username ?? (cachedMatches ? cachedUser.username : usernameClean),
-            name: profile?.name ?? (cachedMatches ? cachedUser.name : usernameClean),
-            role: profile?.role ?? (cachedMatches ? cachedUser.role : 'peao'),
+            username: profile?.username ?? usernameClean,
+            name: profile?.name ?? data.user.email ?? usernameClean,
+            role: profile?.role ?? 'peao',
           };
           const hash = await credentialHash(usernameClean, password);
           set({
@@ -167,14 +151,7 @@ export const useAuthStore = create<AuthState>()(
               : null,
           });
         } catch (err: any) {
-          // Timeout/abort: rede existe (NetInfo ok) mas chamada travou. NÃO cai
-          // em offlineMode silencioso — user precisa saber que foi instabilidade
-          // e não credencial errada. Mostra erro claro pra tentar de novo.
-          if (isTimeoutError(err)) {
-            logError('auth', 'login_timeout', { username: usernameClean, error: err?.message });
-            throw new Error('Conexão instável. Tenta de novo.');
-          }
-          // Erro de rede "hard" (NetInfo desatualizado, DNS morto): fallback cache.
+          // NetInfo disse online mas rede caiu no meio → tenta cache também
           if (isNetworkError(err)) {
             const ok = await tryOfflineLogin();
             if (ok) return;
@@ -186,31 +163,24 @@ export const useAuthStore = create<AuthState>()(
       },
 
       restore: async () => {
-        // Fast path: user já foi hidratado do AsyncStorage pelo middleware persist
-        // (onRehydrateStorage seta isAuthenticated). Não precisamos de network no
-        // boot — confiamos no cache local. Quando online, supabase-js refresh JWT
-        // automaticamente (controlado pelo daemon). fetchProfile aqui era network
-        // round-trip desnecessário que bloqueava o app em rede lenta.
         try {
           const { data } = await supabase.auth.getSession();
-          if (data.session?.user && !get().user) {
-            // Sessão existe no AsyncStorage do supabase-js mas Zustand persist
-            // perdeu user (raro: cache corrompido ou primeira migração). Backfill
-            // mínimo a partir de email — nome completo chega no próximo login online.
+          if (data.session?.user) {
             const u = data.session.user;
+            const profile = await fetchProfile(u.id);
             set({
               user: {
                 id: u.id,
                 email: u.email ?? '',
-                username: (u.email ?? '').split('@')[0],
-                name: u.email ?? 'Usuário',
-                role: 'peao',
+                username: profile?.username ?? (u.email ?? '').split('@')[0],
+                name: profile?.name ?? u.email ?? 'Usuário',
+                role: profile?.role ?? 'peao',
               },
               isAuthenticated: true,
             });
           }
         } catch (err) {
-          if (__DEV__) console.warn('[authStore] restore falhou:', err);
+          console.warn('[authStore] restore falhou:', err);
         } finally {
           set({ initializing: false });
         }

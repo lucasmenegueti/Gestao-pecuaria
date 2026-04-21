@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -30,15 +30,9 @@ export default function ResumoScreen() {
   const [deliveredCount, setDeliveredCount] = useState(0);
   const [byPaddock, setByPaddock] = useState<PaddockDelivery[]>([]);
   const [finishing, setFinishing] = useState(false);
-  // Guard contra double-tap no "Confirmar e finalizar": state é async, não segura
-  // taps rápidos. Sem isso, 2 cliques = 2x UPDATE no inventory = sacos duplicados.
-  const finishingRef = useRef(false);
 
   useEffect(() => {
-    loadSummary().catch((e) => {
-      if (__DEV__) console.warn('[resumo] loadSummary falhou:', e?.message);
-      Alert.alert('Erro', 'Falha ao carregar resumo da rota. Tente voltar e abrir de novo.');
-    });
+    loadSummary();
   }, []);
 
   async function loadSummary() {
@@ -83,41 +77,35 @@ export default function ResumoScreen() {
   }
 
   async function handleFinish() {
-    if (finishingRef.current || finishing) return;
-    finishingRef.current = true;
+    if (finishing) return;
     setFinishing(true);
     try {
-      // Transação: devolução ao central + eventos + fechamento da rota caem juntos.
-      // Se qualquer passo falhar, nada se commita e a rota continua 'in_progress'.
-      await db.withTransactionAsync(async () => {
-        for (const load of loads) {
-          if (load.returned > 0) {
-            await db.runAsync(
-              `UPDATE inventory SET quantity_sacks = quantity_sacks + ?
-               WHERE formula_id = ? AND location='central'`,
-              [load.returned, load.formula_id]
-            );
-            await db.runAsync(
-              `INSERT INTO inventory_events (event_type, formula_id, paddock_id, sacks_delta, reason, user_id)
-               VALUES ('RETORNO_CENTRAL_ROTA', ?, NULL, ?, ?, ?)`,
-              [load.formula_id, load.returned, `Retorno rota #${routeId}`, user?.id ?? null]
-            );
-          }
+      for (const load of loads) {
+        if (load.returned > 0) {
           await db.runAsync(
-            `UPDATE resupply_loads SET sacks_returned=?
-             WHERE route_id=? AND formula_id=?`,
-            [load.returned, Number(routeId), load.formula_id]
+            `UPDATE inventory SET quantity_sacks = quantity_sacks + ?
+             WHERE formula_id = ? AND location='central'`,
+            [load.returned, load.formula_id]
+          );
+          await db.runAsync(
+            `INSERT INTO inventory_events (event_type, formula_id, paddock_id, sacks_delta, reason, user_id)
+             VALUES ('RETORNO_CENTRAL_ROTA', ?, NULL, ?, ?, ?)`,
+            [load.formula_id, load.returned, `Retorno rota #${routeId}`, user?.id ?? null]
           );
         }
         await db.runAsync(
-          `UPDATE resupply_routes SET status='completed', end_time=datetime('now','localtime') WHERE id=?`,
-          [Number(routeId)]
+          `UPDATE resupply_loads SET sacks_returned=?
+           WHERE route_id=? AND formula_id=?`,
+          [load.returned, Number(routeId), load.formula_id]
         );
-      });
+      }
+      await db.runAsync(
+        `UPDATE resupply_routes SET status='completed', end_time=datetime('now','localtime') WHERE id=?`,
+        [Number(routeId)]
+      );
       router.replace('/(tabs)/estoque');
     } catch (err) {
-      if (__DEV__) console.error('[resumo] falha', err);
-      finishingRef.current = false;
+      console.error('[resumo] falha', err);
       setFinishing(false);
       Alert.alert('Erro', String((err as Error)?.message ?? 'Falha ao finalizar.'));
     }

@@ -12,4 +12,3 @@ export { StatusPill } from './StatusPill';
 export type { StatusKind } from './StatusPill';
 export { KPI, ProgressBar } from './KPI';
 export { BrandHeader } from './BrandHeader';
-export { StickyFooter } from './StickyFooter';

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import {
   Settings,
@@ -45,32 +45,14 @@ export default function DashboardScreen() {
 
   async function handleSync() {
     if (syncing) return;
-    if (!isOnline()) {
-      Alert.alert('Sem conexão', 'Conecte-se à internet para sincronizar com a fazenda.');
-      refresh();
-      return;
-    }
-    if (useAuthStore.getState().offlineMode) {
-      Alert.alert(
-        'Modo offline',
-        'Suas credenciais foram validadas sem internet. Faça logout e entre novamente com conexão pra sincronizar.',
-      );
-      refresh();
-      return;
-    }
+    if (!isOnline()) { refresh(); return; }
+    if (useAuthStore.getState().offlineMode) { refresh(); return; }
     setSyncing(true);
     try {
       const stats = await forceSync(db);
       if (__DEV__) console.log('[painel] sync', stats);
     } catch (e: any) {
-      const msg = String(e?.message ?? e ?? 'Erro desconhecido');
-      if (__DEV__) console.warn('[painel] sync falhou:', msg);
-      Alert.alert(
-        'Falha ao sincronizar',
-        msg.includes('network') || msg.includes('timeout') || msg.includes('fetch')
-          ? 'A conexão caiu no meio. Verifique internet e tente de novo.'
-          : msg,
-      );
+      if (__DEV__) console.warn('[painel] sync falhou:', e?.message);
     }
     setSyncing(false);
     refresh();

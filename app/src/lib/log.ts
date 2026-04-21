@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/authStore';
 // Também espelha no console.log pro Metro. Máximo 2000 entries (rolling).
 
 type Level = 'info' | 'warn' | 'error';
-type Category = 'auth' | 'sync' | 'mutation' | 'ui' | 'net' | 'db';
+type Category = 'auth' | 'sync' | 'mutation' | 'ui' | 'net';
 
 let _db: SQLite.SQLiteDatabase | null = null;
 const MAX_ENTRIES = 2000;

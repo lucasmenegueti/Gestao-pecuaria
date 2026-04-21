@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { WizardFlow, SliderInput } from '@/components/ui';
 import { Colors } from '@/constants';
-import { NSA, Fonts, Radius } from '@/theme/nsa';
+import { NSA, Fonts } from '@/theme/nsa';
 
 export default function SupplementStep4() {
   const { paddockId } = useLocalSearchParams();
@@ -44,8 +44,8 @@ export default function SupplementStep4() {
 const styles = StyleSheet.create({
   question: { fontSize: 22, fontFamily: Fonts.semibold, color: NSA.inkPrimary, marginBottom: 20, textAlign: 'center' },
   calcCard: {
-    backgroundColor: NSA.infoBg,
-    borderRadius: Radius.xl,
+    backgroundColor: '#e3f2fd',
+    borderRadius: 12,
     padding: 16,
     alignItems: 'center',
     marginTop: 16,

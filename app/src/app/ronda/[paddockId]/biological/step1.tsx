@@ -29,7 +29,7 @@ export default function BiologicalStep1() {
       }}
       nextDisabled={biologicalWater.applied === null}
     >
-      <Text style={styles.question}>Você colocou biológico na água?</Text>
+      <Text style={styles.question}>VOCÊ COLOCOU BIOLÓGICO NA ÁGUA?</Text>
       <BinaryChoice
         value={biologicalWater.applied}
         onChange={(v) => updateBiologicalWater({ applied: v })}
