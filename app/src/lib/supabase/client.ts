@@ -58,9 +58,10 @@ const offlineSafeFetch: typeof fetch = async (input, init) => {
   const short = offlineShortCircuit(url);
   if (short) return short;
   // Timeout — Wi-Fi conectado mas sem internet trava fetch ~30s (TCP connect).
-  // Com 20+ tabelas no sync vira "sync eterno" visível pro usuário.
+  // 30s é razoável pra 3G/rede de sítio carregando tabelas grandes (herd, rondas).
+  // 10s era apertado demais quando peão tá em área com sinal fraco.
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10_000);
+  const timer = setTimeout(() => controller.abort(), 30_000);
   try {
     return await fetch(input, { ...init, signal: controller.signal });
   } catch (e) {

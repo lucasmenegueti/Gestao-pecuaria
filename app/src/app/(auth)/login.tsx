@@ -46,7 +46,30 @@ export default function LoginScreen() {
         try {
           await syncAll(db);
         } catch (syncErr: any) {
-          console.warn('[login] sync falhou:', syncErr?.message);
+          if (__DEV__) console.warn('[login] sync falhou:', syncErr?.message);
+          // Sync falhou no primeiro login → DB provavelmente vazia. Avisa o peão
+          // com opção de re-tentar agora (antes de entrar na UI e ver lista vazia).
+          const msg = String(syncErr?.message ?? 'Erro desconhecido');
+          const retry = await new Promise<boolean>((resolve) => {
+            Alert.alert(
+              'Sincronização incompleta',
+              `Os dados da fazenda não carregaram: ${msg.includes('network') || msg.includes('timeout') ? 'conexão caiu' : msg}.\n\nO app pode ficar sem piquetes/rebanho até sincronizar. Tentar de novo?`,
+              [
+                { text: 'Entrar mesmo assim', style: 'cancel', onPress: () => resolve(false) },
+                { text: 'Tentar de novo', onPress: () => resolve(true) },
+              ],
+            );
+          });
+          if (retry) {
+            try {
+              await syncAll(db);
+            } catch (e2: any) {
+              Alert.alert(
+                'Ainda sem conexão',
+                'Você pode entrar no app e tentar sincronizar depois pelo botão no Painel.',
+              );
+            }
+          }
         }
       }
       router.replace('/(tabs)');
