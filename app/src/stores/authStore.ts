@@ -26,9 +26,19 @@ async function emailForUsername(username: string): Promise<string> {
 
 function isNetworkError(err: unknown): boolean {
   const msg = String((err as { message?: unknown })?.message ?? err ?? '');
-  // "aborted" / "signal" = fetch AbortController disparou (nosso timeout de 10s).
-  // Sem isso, login com rede lenta vazava o erro bruto pro Alert do peão.
-  return /network|fetch|offline|timeout|failed to fetch|abort|signal/i.test(msg);
+  // "sem conexão" = body PT-BR do nosso offlineResponse quando NetInfo disse
+  // offline entre a verificação e a call. "conexão" cobre variações.
+  return /network|fetch|offline|failed to fetch|sem conex|conex/i.test(msg);
+}
+
+/** Timeout/abort ≠ offline real. Quando fetch aborta (10s timeout) mas NetInfo
+ *  diz que tem rede, é "conexão instável" — não queremos cair em offlineMode
+ *  silencioso. O user clica "tentar de novo". "aborted"/"timeout"/AuthRetryable
+ *  são os padrões emitidos pelo supabase-js/nosso offlineSafeFetch. */
+function isTimeoutError(err: unknown): boolean {
+  const msg = String((err as { message?: unknown })?.message ?? err ?? '');
+  const name = String((err as { name?: unknown })?.name ?? '');
+  return /abort|timeout|signal|retryable/i.test(msg) || /Retryable|Abort/i.test(name);
 }
 
 export interface User {
@@ -157,7 +167,14 @@ export const useAuthStore = create<AuthState>()(
               : null,
           });
         } catch (err: any) {
-          // NetInfo disse online mas rede caiu no meio → tenta cache também
+          // Timeout/abort: rede existe (NetInfo ok) mas chamada travou. NÃO cai
+          // em offlineMode silencioso — user precisa saber que foi instabilidade
+          // e não credencial errada. Mostra erro claro pra tentar de novo.
+          if (isTimeoutError(err)) {
+            logError('auth', 'login_timeout', { username: usernameClean, error: err?.message });
+            throw new Error('Conexão instável. Tenta de novo.');
+          }
+          // Erro de rede "hard" (NetInfo desatualizado, DNS morto): fallback cache.
           if (isNetworkError(err)) {
             const ok = await tryOfflineLogin();
             if (ok) return;
