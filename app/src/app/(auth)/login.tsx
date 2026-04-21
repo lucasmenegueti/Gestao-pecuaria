@@ -43,31 +43,51 @@ export default function LoginScreen() {
       const inOfflineMode = useAuthStore.getState().offlineMode;
       if (!inOfflineMode) {
         setSyncMsg('Sincronizando com a fazenda…');
+        // Hard cap: se sync não termina em 20s, libera login. App pode entrar
+        // com DB parcial e o daemon termina em background. Sem isso, rede lenta
+        // / servidor devagar travava o peão na tela de login indefinidamente.
+        const SYNC_TIMEOUT_MS = 20_000;
+        const syncWithTimeout = () =>
+          Promise.race([
+            syncAll(db),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('timeout: sync demorou mais que 20s')), SYNC_TIMEOUT_MS),
+            ),
+          ]);
         try {
-          await syncAll(db);
+          await syncWithTimeout();
         } catch (syncErr: any) {
           if (__DEV__) console.warn('[login] sync falhou:', syncErr?.message);
-          // Sync falhou no primeiro login → DB provavelmente vazia. Avisa o peão
-          // com opção de re-tentar agora (antes de entrar na UI e ver lista vazia).
           const msg = String(syncErr?.message ?? 'Erro desconhecido');
-          const retry = await new Promise<boolean>((resolve) => {
+          const isTimeout = msg.includes('timeout');
+          const isNet = msg.includes('network') || msg.includes('fetch');
+          // Em timeout/rede: avisa e deixa entrar direto. Daemon continua tentando.
+          if (isTimeout || isNet) {
             Alert.alert(
               'Sincronização incompleta',
-              `Os dados da fazenda não carregaram: ${msg.includes('network') || msg.includes('timeout') ? 'conexão caiu' : msg}.\n\nO app pode ficar sem piquetes/rebanho até sincronizar. Tentar de novo?`,
-              [
-                { text: 'Entrar mesmo assim', style: 'cancel', onPress: () => resolve(false) },
-                { text: 'Tentar de novo', onPress: () => resolve(true) },
-              ],
+              `${isTimeout ? 'A sincronização demorou demais' : 'A conexão caiu'}. O app vai abrir mesmo assim — você pode sincronizar depois pelo botão no Painel.`,
             );
-          });
-          if (retry) {
-            try {
-              await syncAll(db);
-            } catch (e2: any) {
+          } else {
+            // Erro não-rede (schema, auth, etc.): oferece retry manual.
+            const retry = await new Promise<boolean>((resolve) => {
               Alert.alert(
-                'Ainda sem conexão',
-                'Você pode entrar no app e tentar sincronizar depois pelo botão no Painel.',
+                'Sincronização incompleta',
+                `Os dados da fazenda não carregaram: ${msg}.\n\nO app pode ficar sem piquetes/rebanho até sincronizar. Tentar de novo?`,
+                [
+                  { text: 'Entrar mesmo assim', style: 'cancel', onPress: () => resolve(false) },
+                  { text: 'Tentar de novo', onPress: () => resolve(true) },
+                ],
               );
+            });
+            if (retry) {
+              try {
+                await syncWithTimeout();
+              } catch {
+                Alert.alert(
+                  'Ainda sem conexão',
+                  'Você pode entrar no app e tentar sincronizar depois pelo botão no Painel.',
+                );
+              }
             }
           }
         }
