@@ -20,7 +20,7 @@ export default function WashingStep2() {
       onBack={() => router.back()}
       onNext={() => router.push(`/ronda/${paddockId}/washing/summary`)}
     >
-      <Text style={styles.question}>REGISTRAR COM FOTO?</Text>
+      <Text style={styles.question}>Registrar com foto?</Text>
       <Text style={styles.sub}>Opcional — tire uma foto do bebedouro lavado</Text>
       <PhotoButton uri={washing.photoUri} onPhoto={(uri) => updateWashing({ photoUri: uri })} />
     </WizardFlow>

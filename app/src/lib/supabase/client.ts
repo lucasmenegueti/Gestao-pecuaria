@@ -57,8 +57,11 @@ const offlineSafeFetch: typeof fetch = async (input, init) => {
         : (input as Request).url;
   const short = offlineShortCircuit(url);
   if (short) return short;
-  // Timeout — 15s. Wi-Fi de sítio + Android: primeira chamada (DNS+TLS+auth)
-  // pode levar 5-12s. 10s era curto demais, abortava chamadas válidas.
+  // Timeout — Wi-Fi conectado mas sem internet trava fetch ~30s (TCP connect).
+  // 15s dá margem pra Android via Wi-Fi de sítio (DNS+TLS+auth endpoint pode
+  // levar 3-8s na primeira chamada, varia com sinal). 10s era apertado demais
+  // e abortava chamadas válidas — caía em offlineMode silencioso. 30s era
+  // exagero e amplificava perceptivelmente falhas reais.
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15_000);
   try {

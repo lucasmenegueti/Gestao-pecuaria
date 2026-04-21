@@ -24,18 +24,30 @@ export default function CarregarScreen() {
 
   useEffect(() => {
     // Guard: se já tem rota ativa, redireciona imediatamente — evita criar
-    // uma 2ª rota que confundiria o inventário "em trânsito".
-    getActiveRoute(db).then((active) => {
-      if (active) {
-        router.replace(`/reabastecimento/rota?routeId=${active.id}`);
-        return;
+    // uma 2ª rota que confundiria o inventário "em trânsito". Flag `cancelled`
+    // evita navegação/setState com dado velho se usuário sair da tela antes do
+    // .then chain resolver (volta rápido, async race).
+    let cancelled = false;
+    (async () => {
+      try {
+        const active = await getActiveRoute(db);
+        if (cancelled) return;
+        if (active) {
+          router.replace(`/reabastecimento/rota?routeId=${active.id}`);
+          return;
+        }
+        const rows = await db.getAllAsync<{ formula_id: number; name: string; quantity_sacks: number }>(
+          "SELECT i.formula_id, f.name, i.quantity_sacks FROM inventory i JOIN formulas f ON f.id=i.formula_id WHERE i.location='central' AND i.quantity_sacks > 0"
+        );
+        if (cancelled) return;
+        setItems(rows.map((r) => ({ formula_id: r.formula_id, name: r.name, available: r.quantity_sacks, loading: 0, selected: false })));
+      } catch (e) {
+        if (cancelled) return;
+        if (__DEV__) console.warn('[carregar] boot falhou:', (e as Error)?.message);
+        Alert.alert('Erro', 'Falha ao carregar estoque. Volte e tente de novo.');
       }
-      db.getAllAsync<{ formula_id: number; name: string; quantity_sacks: number }>(
-        "SELECT i.formula_id, f.name, i.quantity_sacks FROM inventory i JOIN formulas f ON f.id=i.formula_id WHERE i.location='central' AND i.quantity_sacks > 0"
-      ).then((rows) =>
-        setItems(rows.map((r) => ({ formula_id: r.formula_id, name: r.name, available: r.quantity_sacks, loading: 0, selected: false })))
-      );
-    });
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   function toggleItem(idx: number) {
@@ -52,7 +64,7 @@ export default function CarregarScreen() {
   async function handleStart() {
     if (selectedItems.length === 0 || submitting) return;
     if (!user?.id) {
-      console.warn('[carregar] sem user autenticado, abortando');
+      if (__DEV__) console.warn('[carregar] sem user autenticado, abortando');
       return;
     }
     setSubmitting(true);
@@ -85,9 +97,13 @@ export default function CarregarScreen() {
       });
       if (routeId !== null) {
         router.replace(`/reabastecimento/rota?routeId=${routeId}`);
+      } else {
+        // Não deveria acontecer (se transação OK, routeId foi setado), mas
+        // evita botão travado em "Iniciando…" eternamente.
+        setSubmitting(false);
       }
     } catch (err) {
-      console.error('[carregar] falha ao criar rota', err);
+      if (__DEV__) console.error('[carregar] falha ao criar rota', err);
       Alert.alert('Erro', 'Falha ao iniciar rota. Nenhum saco foi retirado do estoque.');
       setSubmitting(false);
     }

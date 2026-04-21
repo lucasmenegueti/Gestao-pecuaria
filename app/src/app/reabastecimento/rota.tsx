@@ -205,7 +205,7 @@ export default function RotaScreen() {
       setDelivering(null);
       loadData();
     } catch (err) {
-      console.error('[rota] falha', err);
+      if (__DEV__) console.error('[rota] falha', err);
       Alert.alert('Erro', String((err as Error)?.message ?? 'Falha na entrega'));
     }
   }
@@ -236,7 +236,7 @@ export default function RotaScreen() {
                       await cancelActiveRoute(db, Number(routeId), user?.id ?? null);
                       router.replace('/(tabs)/estoque');
                     } catch (err) {
-                      console.error('[rota] cancelar falhou', err);
+                      if (__DEV__) console.error('[rota] cancelar falhou', err);
                       Alert.alert('Erro', 'Falha ao cancelar rota.');
                     }
                   },

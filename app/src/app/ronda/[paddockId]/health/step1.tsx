@@ -29,7 +29,7 @@ export default function HealthStep1() {
       }}
       nextDisabled={health.parasiteFree === null}
     >
-      <Text style={styles.question}>REBANHO LIVRE DE PARASITAS?</Text>
+      <Text style={styles.question}>Rebanho livre de parasitas?</Text>
       <Text style={styles.sub}>(mosca, berne e carrapato)</Text>
       <BinaryChoice value={health.parasiteFree} onChange={(v) => updateHealth({ parasiteFree: v })} />
     </WizardFlow>

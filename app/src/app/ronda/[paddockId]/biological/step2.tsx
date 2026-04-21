@@ -24,7 +24,7 @@ export default function BiologicalStep2() {
       onBack={() => router.back()}
       onNext={() => router.push(`/ronda/${paddockId}/biological/summary`)}
     >
-      <Text style={styles.question}>QUAL A QUANTIDADE UTILIZADA?</Text>
+      <Text style={styles.question}>Qual a quantidade utilizada?</Text>
       <SliderInput
         value={biologicalWater.quantityG}
         onValueChange={(v) => updateBiologicalWater({ quantityG: v })}

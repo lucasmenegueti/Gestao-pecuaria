@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { WizardFlow, SliderInput } from '@/components/ui';
 import { Colors } from '@/constants';
-import { NSA, Fonts } from '@/theme/nsa';
+import { NSA, Fonts, Radius, DOMAIN } from '@/theme/nsa';
 
 export default function HealthStep2() {
   const { paddockId } = useLocalSearchParams();
@@ -41,6 +41,6 @@ export default function HealthStep2() {
 
 const styles = StyleSheet.create({
   question: { fontSize: 22, fontFamily: Fonts.semibold, color: NSA.inkPrimary, marginBottom: 20, textAlign: 'center' },
-  infoCard: { backgroundColor: '#f3e5f5', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 16 },
-  infoText: { fontSize: 16, fontFamily: Fonts.medium, color: Colors.sanidade },
+  infoCard: { backgroundColor: DOMAIN.sanidade.tint, borderRadius: Radius.xl, padding: 16, alignItems: 'center', marginTop: 16 },
+  infoText: { fontSize: 16, fontFamily: Fonts.medium, color: DOMAIN.sanidade.dot },
 });

@@ -7,7 +7,7 @@ import Constants from 'expo-constants';
 import { useAuthStore } from '@/stores/authStore';
 import { useDatabase } from '@/lib/db/provider';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
-import { syncAll } from '@/lib/sync/engine';
+import { forceSync } from '@/lib/sync/daemon';
 import { Button } from '@/components/ui';
 import { NSA, Fonts } from '@/theme/nsa';
 
@@ -43,24 +43,48 @@ export default function LoginScreen() {
       await login(username, password, remember);
       const inOfflineMode = useAuthStore.getState().offlineMode;
       if (!inOfflineMode) {
-        // Fire-and-forget: NÃO aguarda syncAll. Com N rows pending_sync locais
-        // cada push leva ~200ms no tablet — 100 rows = 20-30s de login travado.
-        // Medido via scripts/test-push-batch.mjs: 99ms/row no Windows, 2-3x mais
-        // no Android/Wi-Fi rural. Daemon sincroniza em background.
-        syncAll(db).catch((e) => console.warn('[login] sync bg falhou:', e?.message));
+        // Offline-first: só ESPERA sync se a DB estiver vazia (primeiro login
+        // depois de install). Com dados locais, login é instantâneo e o daemon
+        // sincroniza em background — pushPending com N rows pendentes e RLS
+        // negando pode levar dezenas de segundos; não é aceitável bloquear o
+        // peão por isso.
+        const paddockRow = await db
+          .getFirstAsync<{ n: number }>('SELECT COUNT(*) as n FROM paddocks')
+          .catch(() => ({ n: 0 }));
+        const dbEmpty = (paddockRow?.n ?? 0) === 0;
+        if (dbEmpty) {
+          setSyncMsg('Sincronizando com a fazenda…');
+          // Timeout de 12s só no primeiro sync (DB vazia). Suficiente p/ pull
+          // de todas as tabelas; se não vier, entra com DB vazia e alerta.
+          const syncTimeout = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), 12_000),
+          );
+          try {
+            await Promise.race([forceSync(db), syncTimeout]);
+          } catch (syncErr: any) {
+            if (__DEV__) console.warn('[login] sync inicial falhou:', syncErr?.message);
+            Alert.alert(
+              'Sincronização incompleta',
+              'Os dados da fazenda ainda não carregaram. Você pode entrar e tentar sincronizar depois pelo botão no Painel.',
+            );
+          }
+        } else {
+          // DB populada: dispara sync em background, login entra imediato.
+          forceSync(db).catch((e) => {
+            if (__DEV__) console.warn('[login] sync bg falhou:', e?.message);
+          });
+        }
       }
       router.replace('/(tabs)');
     } catch (err: any) {
-      const raw = String(err?.message ?? '');
-      const isAbort = /abort|timeout|AbortError/i.test(raw);
-      const msg = raw.includes('Invalid login')
+      const msg = err?.message?.includes('Invalid login')
         ? 'Usuário ou senha inválidos'
-        : raw.includes('não encontrado')
-          ? raw
-          : (raw.includes('Network') || isAbort)
-            ? 'Conexão instável. Verifique o Wi-Fi e tente de novo. Se o problema persistir, você pode entrar sem internet usando a senha do último login.'
-            : raw || 'Falha ao fazer login';
-      Alert.alert(isAbort ? 'Conexão instável' : 'Erro', msg);
+        : err?.message?.includes('não encontrado')
+          ? err.message
+          : err?.message?.includes('Network')
+            ? 'Sem conexão. Tenta de novo conectado à internet.'
+            : err?.message || 'Falha ao fazer login';
+      Alert.alert('Erro', msg);
     }
     setLoading(false);
     setSyncMsg(null);
