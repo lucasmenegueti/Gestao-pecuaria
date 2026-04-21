@@ -88,50 +88,44 @@ export default function DesalocarScreen() {
     submittingRef.current = true;
     setSubmitting(true);
     try {
-      for (const [cat, qty] of entries) {
-        const row = await db.getFirstAsync<{ head_count: number }>(
-          'SELECT head_count FROM herd WHERE paddock_id = ? AND category = ?',
-          [Number(paddockId), cat]
-        );
-        const available = row?.head_count ?? 0;
-        if (qty > available) {
-          console.warn('[desalocar] insuficiente', { cat, qty, available });
-          Alert.alert(
-            'Quantidade insuficiente',
-            `${cat}: disponível ${available}, tentou desalocar ${qty}.`
+      // Tudo numa transação: se qualquer categoria falhar, reverte o que já rodou
+      // (não deixa piquete com 2 categorias desalocadas + 3ª que não completou).
+      await db.withTransactionAsync(async () => {
+        for (const [cat, qty] of entries) {
+          const row = await db.getFirstAsync<{ head_count: number }>(
+            'SELECT head_count FROM herd WHERE paddock_id = ? AND category = ?',
+            [Number(paddockId), cat]
           );
-          submittingRef.current = false;
-      setSubmitting(false);
-          return;
-        }
-      }
-
-      for (const [cat, qty] of entries) {
-        await db.runAsync(
-          'UPDATE herd SET head_count = MAX(0, head_count - ?) WHERE paddock_id = ? AND category = ?',
-          [qty, Number(paddockId), cat]
-        );
-        const existing = await db.getFirstAsync<{ id: number }>(
-          'SELECT id FROM herd WHERE paddock_id IS NULL AND category = ?',
-          [cat]
-        );
-        if (existing) {
-          await db.runAsync('UPDATE herd SET head_count = head_count + ? WHERE id = ?', [qty, existing.id]);
-        } else {
+          const available = row?.head_count ?? 0;
+          if (qty > available) {
+            throw new Error(`${cat}: disponível ${available}, tentou desalocar ${qty}.`);
+          }
           await db.runAsync(
-            'INSERT INTO herd (paddock_id, category, head_count) VALUES (NULL, ?, ?)',
-            [cat, qty]
+            'UPDATE herd SET head_count = MAX(0, head_count - ?) WHERE paddock_id = ? AND category = ?',
+            [qty, Number(paddockId), cat]
+          );
+          const existing = await db.getFirstAsync<{ id: number }>(
+            'SELECT id FROM herd WHERE paddock_id IS NULL AND category = ?',
+            [cat]
+          );
+          if (existing) {
+            await db.runAsync('UPDATE herd SET head_count = head_count + ? WHERE id = ?', [qty, existing.id]);
+          } else {
+            await db.runAsync(
+              'INSERT INTO herd (paddock_id, category, head_count) VALUES (NULL, ?, ?)',
+              [cat, qty]
+            );
+          }
+          await db.runAsync(
+            'INSERT INTO herd_events (paddock_id, event_type, category, head_count, date) VALUES (?, ?, ?, ?, date(\'now\',\'localtime\'))',
+            [Number(paddockId), 'DESALOCACAO', cat, qty]
           );
         }
-        await db.runAsync(
-          'INSERT INTO herd_events (paddock_id, event_type, category, head_count, date) VALUES (?, ?, ?, ?, date(\'now\',\'localtime\'))',
-          [Number(paddockId), 'DESALOCACAO', cat, qty]
-        );
-      }
+      });
       // NÃO deletar rows com head_count=0 — a coluna supabase_id precisa ser preservada
       // pra sync fazer UPDATE, não INSERT (que daria UNIQUE violation e duplicar via heal).
       // UI já filtra head_count > 0 nas telas de exibição.
-      console.log('[desalocar] success, navigating back');
+      if (__DEV__) console.log('[desalocar] success, navigating back');
       submittingRef.current = false;
       setSubmitting(false);
       setReviewing(false);
@@ -141,7 +135,7 @@ export default function DesalocarScreen() {
         router.replace('/(tabs)/rebanho');
       }
     } catch (err) {
-      console.error('[desalocar] falha', err);
+      if (__DEV__) console.error('[desalocar] falha', err);
       submittingRef.current = false;
       setSubmitting(false);
       Alert.alert('Erro', String((err as Error)?.message ?? 'Falha ao desalocar.'));

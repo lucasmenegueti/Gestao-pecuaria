@@ -92,35 +92,37 @@ export default function AlocarScreen() {
     }
     submittingRef.current = true;
     try {
-      for (const [cat, qty] of selected) {
-        // Decrementa pool
-        const poolRow = await db.getFirstAsync<{ id: number; head_count: number }>(
-          'SELECT id, head_count FROM herd WHERE paddock_id IS NULL AND category = ?',
-          [cat]
-        );
-        if (!poolRow || poolRow.head_count < qty) {
-          throw new Error(`Pool insuficiente para ${cat}`);
-        }
-        await db.runAsync('UPDATE herd SET head_count = MAX(0, head_count - ?) WHERE id = ?', [qty, poolRow.id]);
-        // Upsert no destino
-        const existing = await db.getFirstAsync<{ id: number }>(
-          'SELECT id FROM herd WHERE paddock_id = ? AND category = ?',
-          [Number(destinoId), cat]
-        );
-        if (existing) {
-          await db.runAsync('UPDATE herd SET head_count = head_count + ? WHERE id = ?', [qty, existing.id]);
-        } else {
+      await db.withTransactionAsync(async () => {
+        for (const [cat, qty] of selected) {
+          // Decrementa pool
+          const poolRow = await db.getFirstAsync<{ id: number; head_count: number }>(
+            'SELECT id, head_count FROM herd WHERE paddock_id IS NULL AND category = ?',
+            [cat]
+          );
+          if (!poolRow || poolRow.head_count < qty) {
+            throw new Error(`Pool insuficiente para ${cat}`);
+          }
+          await db.runAsync('UPDATE herd SET head_count = MAX(0, head_count - ?) WHERE id = ?', [qty, poolRow.id]);
+          // Upsert no destino
+          const existing = await db.getFirstAsync<{ id: number }>(
+            'SELECT id FROM herd WHERE paddock_id = ? AND category = ?',
+            [Number(destinoId), cat]
+          );
+          if (existing) {
+            await db.runAsync('UPDATE herd SET head_count = head_count + ? WHERE id = ?', [qty, existing.id]);
+          } else {
+            await db.runAsync(
+              'INSERT INTO herd (paddock_id, category, head_count) VALUES (?, ?, ?)',
+              [Number(destinoId), cat, qty]
+            );
+          }
+          // Evento
           await db.runAsync(
-            'INSERT INTO herd (paddock_id, category, head_count) VALUES (?, ?, ?)',
-            [Number(destinoId), cat, qty]
+            'INSERT INTO herd_events (paddock_id, event_type, category, head_count, target_paddock_id, date) VALUES (NULL, ?, ?, ?, ?, date(\'now\',\'localtime\'))',
+            ['ALOCACAO', cat, qty, Number(destinoId)]
           );
         }
-        // Evento
-        await db.runAsync(
-          'INSERT INTO herd_events (paddock_id, event_type, category, head_count, target_paddock_id, date) VALUES (NULL, ?, ?, ?, ?, date(\'now\',\'localtime\'))',
-          ['ALOCACAO', cat, qty, Number(destinoId)]
-        );
-      }
+      });
       // NÃO deletar rows com head_count=0 — preserva supabase_id pra sync UPDATE
       // em vez de INSERT (que daria UNIQUE violation e duplicar via heal).
       if (router.canGoBack()) {
@@ -129,7 +131,7 @@ export default function AlocarScreen() {
         router.replace('/(tabs)/rebanho');
       }
     } catch (err: any) {
-      console.error('[alocar] falha', err);
+      if (__DEV__) console.error('[alocar] falha', err);
       Alert.alert('Erro', err?.message || 'Falha ao alocar.');
     } finally {
       submittingRef.current = false;

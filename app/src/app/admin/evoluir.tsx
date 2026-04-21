@@ -98,9 +98,11 @@ export default function EvoluirScreen() {
     submittingRef.current = true;
     setSubmitting(true);
     try {
-      for (const [from, d] of selectedEntries) {
-        await applyMovement(from, d.destination, d.count, '');
-      }
+      await db.withTransactionAsync(async () => {
+        for (const [from, d] of selectedEntries) {
+          await applyMovement(from, d.destination, d.count, '');
+        }
+      });
       if (router.canGoBack()) router.back();
       else router.replace('/(tabs)/rebanho');
     } catch (err: any) {
@@ -133,7 +135,9 @@ export default function EvoluirScreen() {
     submittingRef.current = true;
     setSubmitting(true);
     try {
-      await applyMovement(manualFrom, manualTo, manualCount, 'ajuste manual');
+      await db.withTransactionAsync(async () => {
+        await applyMovement(manualFrom, manualTo, manualCount, 'ajuste manual');
+      });
       if (router.canGoBack()) router.back();
       else router.replace('/(tabs)/rebanho');
     } catch (err: any) {

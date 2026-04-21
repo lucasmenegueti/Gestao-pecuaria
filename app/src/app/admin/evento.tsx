@@ -62,28 +62,31 @@ export default function EventoScreen() {
       return;
     }
     try {
-      await db.runAsync(
-        'INSERT INTO herd_events (paddock_id, event_type, category, head_count, notes, date) VALUES (?,?,?,?,?,date(\'now\',\'localtime\'))',
-        [Number(paddockId), eventType, category, count, notes]
-      );
-      const isAdd = eventType === 'NASCIMENTO' || eventType === 'COMPRA';
-      const existing = await db.getFirstAsync<{ id: number }>(
-        'SELECT id FROM herd WHERE paddock_id=? AND category=?',
-        [Number(paddockId), category]
-      );
-      if (existing) {
-        if (isAdd) {
-          await db.runAsync('UPDATE herd SET head_count = head_count + ? WHERE id=?', [count, existing.id]);
-        } else {
-          await db.runAsync('UPDATE herd SET head_count = MAX(0, head_count - ?) WHERE id=?', [count, existing.id]);
-        }
-      } else if (isAdd) {
+      await db.withTransactionAsync(async () => {
         await db.runAsync(
-          'INSERT INTO herd (paddock_id, category, head_count) VALUES (?,?,?)',
-          [Number(paddockId), category, count]
+          'INSERT INTO herd_events (paddock_id, event_type, category, head_count, notes, date) VALUES (?,?,?,?,?,date(\'now\',\'localtime\'))',
+          [Number(paddockId), eventType, category, count, notes]
         );
-      }
-      await db.runAsync('DELETE FROM herd WHERE head_count <= 0');
+        const isAdd = eventType === 'NASCIMENTO' || eventType === 'COMPRA';
+        const existing = await db.getFirstAsync<{ id: number }>(
+          'SELECT id FROM herd WHERE paddock_id=? AND category=?',
+          [Number(paddockId), category]
+        );
+        if (existing) {
+          if (isAdd) {
+            await db.runAsync('UPDATE herd SET head_count = head_count + ? WHERE id=?', [count, existing.id]);
+          } else {
+            await db.runAsync('UPDATE herd SET head_count = MAX(0, head_count - ?) WHERE id=?', [count, existing.id]);
+          }
+        } else if (isAdd) {
+          await db.runAsync(
+            'INSERT INTO herd (paddock_id, category, head_count) VALUES (?,?,?)',
+            [Number(paddockId), category, count]
+          );
+        }
+        // NÃO deletar rows com head_count=0 — preserva supabase_id pra sync UPDATE
+        // em vez de INSERT (ver comentário em desalocar.tsx).
+      });
       Alert.alert('Sucesso', 'Evento registrado!', [{ text: 'OK', onPress: () => router.back() }]);
     } catch (err) {
       Alert.alert('Erro', 'Falha ao registrar evento');
