@@ -3,6 +3,7 @@ import { View, Text, TextInput, StyleSheet, Alert, TouchableOpacity, Image } fro
 import { router } from 'expo-router';
 import { Check, Wifi } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Constants from 'expo-constants';
 import { useAuthStore } from '@/stores/authStore';
 import { useDatabase } from '@/lib/db/provider';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
@@ -123,6 +124,7 @@ export default function LoginScreen() {
         <Wifi size={12} color={NSA.inkMuted} strokeWidth={1.75} />
         <Text style={styles.footerText}>Primeiro acesso requer internet</Text>
       </View>
+      <Text style={styles.version}>v{Constants.expoConfig?.version ?? '—'}</Text>
     </SafeAreaView>
   );
 }
@@ -214,5 +216,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: NSA.inkMuted,
     fontFamily: Fonts.mono,
+  },
+  version: {
+    textAlign: 'center',
+    paddingBottom: 10,
+    fontSize: 10,
+    color: NSA.inkDisabled,
+    fontFamily: Fonts.mono,
+    letterSpacing: 0.5,
   },
 });
