@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { Check, Wifi } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
+import * as Updates from 'expo-updates';
 import { useAuthStore } from '@/stores/authStore';
 import { useDatabase } from '@/lib/db/provider';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
@@ -148,7 +149,9 @@ export default function LoginScreen() {
         <Wifi size={12} color={NSA.inkMuted} strokeWidth={1.75} />
         <Text style={styles.footerText}>Primeiro acesso requer internet</Text>
       </View>
-      <Text style={styles.version}>v{Constants.expoConfig?.version ?? '—'}</Text>
+      <Text style={styles.version}>
+        v{Constants.expoConfig?.version ?? '—'} · {Updates.updateId ? Updates.updateId.slice(0, 8) : 'embedded'}
+      </Text>
     </SafeAreaView>
   );
 }
