@@ -2,14 +2,18 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
-import { Truck, ChevronRight } from 'lucide-react-native';
+import { Truck, ChevronRight, AlertTriangle } from 'lucide-react-native';
+import { Alert } from 'react-native';
 import { useDatabase } from '@/lib/db/provider';
 import { Card, Button, StatusPill, BrandHeader } from '@/components/ui';
 import { NSA, Fonts, Radius, tokensForStatus } from '@/theme/nsa';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuthStore } from '@/stores/authStore';
 import {
   getActiveRoute,
   getInTransitTotals,
+  countActiveRoutes,
+  cancelStaleRoutes,
   type ActiveRoute,
   type InTransitTotal,
 } from '@/lib/reabastecimento/active-route';
@@ -35,6 +39,8 @@ export default function EstoqueScreen() {
   const [bombonaTotals, setBombonaTotals] = useState<FormulaTotal[]>([]);
   const [activeRoute, setActiveRoute] = useState<ActiveRoute | null>(null);
   const [inTransit, setInTransit] = useState<InTransitTotal[]>([]);
+  const [staleRoutesCount, setStaleRoutesCount] = useState(0);
+  const userId = useAuthStore((s) => s.user?.id ?? null);
 
   useFocusEffect(
     useCallback(() => {
@@ -43,12 +49,15 @@ export default function EstoqueScreen() {
   );
 
   async function loadInventory() {
-    const [active, transit] = await Promise.all([
+    const [active, transit, activeCount] = await Promise.all([
       getActiveRoute(db),
       getInTransitTotals(db),
+      countActiveRoutes(db),
     ]);
     setActiveRoute(active);
     setInTransit(transit);
+    // staleRoutesCount = quantas além da mais recente (que é a "ativa" legítima)
+    setStaleRoutesCount(Math.max(0, activeCount - 1));
 
     const central = await db.getAllAsync<FormulaTotal>(`
       SELECT f.name as formula_name, SUM(i.quantity_sacks) as total
@@ -83,6 +92,33 @@ export default function EstoqueScreen() {
   const totals = tab === 'central' ? centralTotals : bombonaTotals;
   const grandTotal = totals.reduce((s, r) => s + (r.total || 0), 0);
 
+  function handleCleanupStale() {
+    Alert.alert(
+      'Limpar rotas antigas?',
+      `${staleRoutesCount} rota(s) antiga(s) permanece(m) em andamento por bug de versão anterior. O que vai acontecer:\n\n• Os sacos ainda no trator dessas rotas voltam ao estoque central\n• As entregas já registradas nas bombonas continuam\n• A rota mais recente NÃO é mexida`,
+      [
+        { text: 'Voltar', style: 'cancel' },
+        {
+          text: 'Limpar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const r = await cancelStaleRoutes(db, userId);
+              Alert.alert(
+                'Limpeza concluída',
+                `${r.cancelled} rota(s) cancelada(s), ${r.returnedToStock} saco(s) voltaram ao central.`,
+              );
+              loadInventory();
+            } catch (err) {
+              if (__DEV__) console.error('[estoque] cleanup falhou', err);
+              Alert.alert('Erro', 'Falha ao limpar rotas antigas.');
+            }
+          },
+        },
+      ],
+    );
+  }
+
   return (
     <View style={styles.root}>
       <BrandHeader title="Estoque" context={`${grandTotal} sacos · ${tab === 'central' ? 'central' : 'bombonas'}`} />
@@ -103,6 +139,16 @@ export default function EstoqueScreen() {
       <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        {staleRoutesCount > 0 && (
+          <TouchableOpacity onPress={handleCleanupStale} style={styles.staleBanner} activeOpacity={0.85}>
+            <AlertTriangle size={16} color={NSA.warnFg} strokeWidth={1.75} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.staleTitle}>{staleRoutesCount} rota(s) antiga(s) penduradas</Text>
+              <Text style={styles.staleDetail}>Toque pra limpar. Sacos voltam ao central.</Text>
+            </View>
+            <ChevronRight size={16} color={NSA.warnFg} strokeWidth={1.75} />
+          </TouchableOpacity>
+        )}
         {activeRoute && (
           <TouchableOpacity
             activeOpacity={0.85}
@@ -315,6 +361,19 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 6,
   },
+  staleBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: NSA.warnBg,
+    borderWidth: 1,
+    borderColor: NSA.warn,
+    borderRadius: Radius.xl,
+    padding: 12,
+    marginBottom: 8,
+  },
+  staleTitle: { fontSize: 13, fontFamily: Fonts.semibold, color: NSA.warnFg, letterSpacing: -0.1 },
+  staleDetail: { fontSize: 11, color: NSA.inkSecondary, fontFamily: Fonts.regular, marginTop: 2 },
   activeRouteIcon: {
     width: 34,
     height: 34,

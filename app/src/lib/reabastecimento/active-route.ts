@@ -66,6 +66,69 @@ export async function getInTransitTotals(db: SQLiteDatabase): Promise<InTransitT
   );
 }
 
+// Conta quantas rotas estão in_progress. Normalmente deveria ser 0 ou 1 —
+// se for >1, houve bug de finalização em versão anterior (rotas não fechadas).
+export async function countActiveRoutes(db: SQLiteDatabase): Promise<number> {
+  const row = await db.getFirstAsync<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM resupply_routes WHERE status = 'in_progress'`
+  );
+  return row?.n ?? 0;
+}
+
+// Cancela todas as rotas in_progress EXCETO a mais recente. Devolve todo
+// remaining ao central. Usado pra limpar state sujo sem perder a rota atual
+// que o user está usando.
+export async function cancelStaleRoutes(
+  db: SQLiteDatabase,
+  userId: string | null
+): Promise<{ cancelled: number; returnedToStock: number }> {
+  const stale = await db.getAllAsync<{ id: number }>(
+    `SELECT id FROM resupply_routes
+     WHERE status = 'in_progress'
+       AND id NOT IN (
+         SELECT id FROM resupply_routes
+         WHERE status = 'in_progress'
+         ORDER BY start_time DESC LIMIT 1
+       )`
+  );
+  if (stale.length === 0) return { cancelled: 0, returnedToStock: 0 };
+  let totalReturned = 0;
+  await db.withTransactionAsync(async () => {
+    for (const r of stale) {
+      const loads = await db.getAllAsync<{ formula_id: number; remaining: number }>(
+        `SELECT formula_id, (sacks_loaded - sacks_distributed) AS remaining
+         FROM resupply_loads
+         WHERE route_id = ? AND (sacks_loaded - sacks_distributed) > 0`,
+        [r.id]
+      );
+      for (const l of loads) {
+        await db.runAsync(
+          `UPDATE inventory SET quantity_sacks = quantity_sacks + ?
+           WHERE formula_id = ? AND location = 'central'`,
+          [l.remaining, l.formula_id]
+        );
+        await db.runAsync(
+          `INSERT INTO inventory_events (event_type, formula_id, paddock_id, sacks_delta, reason, user_id)
+           VALUES ('CANCELAMENTO_ROTA', ?, NULL, ?, ?, ?)`,
+          [l.formula_id, l.remaining, `Limpeza rota antiga #${r.id}`, userId]
+        );
+        await db.runAsync(
+          `UPDATE resupply_loads SET sacks_returned = ?
+           WHERE route_id = ? AND formula_id = ?`,
+          [l.remaining, r.id, l.formula_id]
+        );
+        totalReturned += l.remaining;
+      }
+      await db.runAsync(
+        `UPDATE resupply_routes SET status = 'cancelled', end_time = datetime('now','localtime')
+         WHERE id = ?`,
+        [r.id]
+      );
+    }
+  });
+  return { cancelled: stale.length, returnedToStock: totalReturned };
+}
+
 // Cancela a rota e devolve todo o restante ao central. Idempotente via
 // status='cancelled' (se chamada 2x, a segunda encontra nada pra devolver).
 export async function cancelActiveRoute(
