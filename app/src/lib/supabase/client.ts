@@ -58,10 +58,11 @@ const offlineSafeFetch: typeof fetch = async (input, init) => {
   const short = offlineShortCircuit(url);
   if (short) return short;
   // Timeout — Wi-Fi conectado mas sem internet trava fetch ~30s (TCP connect).
-  // 30s é razoável pra 3G/rede de sítio carregando tabelas grandes (herd, rondas).
-  // 10s era apertado demais quando peão tá em área com sinal fraco.
+  // 10s é agressivo o suficiente pra matar requests travados rápido e deixar o
+  // usuário seguir (daemon retoma em background). 30s deixava login lento demais
+  // quando algo falhava (auth, profile, sync) — cada request esperava 30s.
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30_000);
+  const timer = setTimeout(() => controller.abort(), 10_000);
   try {
     return await fetch(input, { ...init, signal: controller.signal });
   } catch (e) {

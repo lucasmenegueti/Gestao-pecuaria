@@ -26,7 +26,9 @@ async function emailForUsername(username: string): Promise<string> {
 
 function isNetworkError(err: unknown): boolean {
   const msg = String((err as { message?: unknown })?.message ?? err ?? '');
-  return /network|fetch|offline|timeout|failed to fetch/i.test(msg);
+  // "aborted" / "signal" = fetch AbortController disparou (nosso timeout de 10s).
+  // Sem isso, login com rede lenta vazava o erro bruto pro Alert do peão.
+  return /network|fetch|offline|timeout|failed to fetch|abort|signal/i.test(msg);
 }
 
 export interface User {
@@ -134,12 +136,16 @@ export const useAuthStore = create<AuthState>()(
           if (!data.user) throw new Error('Sem usuário na resposta.');
           logInfo('auth', 'login_ok', { username: usernameClean, userId: data.user.id });
           const profile = await fetchProfile(data.user.id);
+          // Fallback em cascata: profile fresco → cache do login anterior → usuário digitado.
+          // Evita "Boa tarde, lucas@menegueti.com.br" quando fetchProfile aborta no timeout.
+          const cachedUser = get().offlineCache?.user;
+          const cachedMatches = cachedUser && cachedUser.id === data.user.id;
           const user: User = {
             id: data.user.id,
             email: data.user.email ?? email,
-            username: profile?.username ?? usernameClean,
-            name: profile?.name ?? data.user.email ?? usernameClean,
-            role: profile?.role ?? 'peao',
+            username: profile?.username ?? (cachedMatches ? cachedUser.username : usernameClean),
+            name: profile?.name ?? (cachedMatches ? cachedUser.name : usernameClean),
+            role: profile?.role ?? (cachedMatches ? cachedUser.role : 'peao'),
           };
           const hash = await credentialHash(usernameClean, password);
           set({
