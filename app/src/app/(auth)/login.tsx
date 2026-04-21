@@ -42,12 +42,11 @@ export default function LoginScreen() {
       await login(username, password, remember);
       const inOfflineMode = useAuthStore.getState().offlineMode;
       if (!inOfflineMode) {
-        setSyncMsg('Sincronizando com a fazenda…');
-        try {
-          await syncAll(db);
-        } catch (syncErr: any) {
-          console.warn('[login] sync falhou:', syncErr?.message);
-        }
+        // Fire-and-forget: NÃO aguarda syncAll. Com N rows pending_sync locais
+        // cada push leva ~200ms no tablet — 100 rows = 20-30s de login travado.
+        // Medido via scripts/test-push-batch.mjs: 99ms/row no Windows, 2-3x mais
+        // no Android/Wi-Fi rural. Daemon sincroniza em background.
+        syncAll(db).catch((e) => console.warn('[login] sync bg falhou:', e?.message));
       }
       router.replace('/(tabs)');
     } catch (err: any) {
