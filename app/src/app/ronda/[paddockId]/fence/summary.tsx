@@ -36,16 +36,37 @@ export default function FenceSummary() {
     : 0;
 
   async function handleSave() {
-    if (!store.currentRondaId) return;
+    if (!store.currentRondaId) {
+      Alert.alert('Erro', 'Ronda não iniciada. Volte pro menu e reinicie a ronda.');
+      return;
+    }
     setSaving(true);
+
+    const voltageSafe = Number.isFinite(fence.voltage) ? fence.voltage : 0;
+    const isElectricInt = fence.isElectric ? 1 : 0;
+    const preventsMixingInt = fence.preventsMixing ? 1 : 0;
+    const classificationSafe = classification || 'SEM CHOQUE';
+
+    console.log('[summary-save]', {
+      wizard: 'fence',
+      rondaId: store.currentRondaId,
+      voltage: fence.voltage,
+      isElectric: fence.isElectric,
+      preventsMixing: fence.preventsMixing,
+      classification,
+      photo,
+      insertValues: [store.currentRondaId, voltageSafe, isElectricInt, preventsMixingInt, classificationSafe, photo],
+    });
+
     try {
       await db.runAsync(
         'INSERT INTO fence_evals (ronda_id, voltage, is_electric, prevents_mixing, classification, photo_uri) VALUES (?, ?, ?, ?, ?, ?)',
-        [store.currentRondaId, fence.voltage, fence.isElectric ? 1 : 0, fence.preventsMixing ? 1 : 0, classification, photo]
+        [store.currentRondaId, voltageSafe, isElectricInt, preventsMixingInt, classificationSafe, photo]
       );
       router.replace('/(tabs)/ronda');
     } catch (err) {
-      Alert.alert('Erro', 'Falha ao salvar');
+      console.error('[summary-save-error]', { wizard: 'fence', err });
+      Alert.alert('Erro', 'Falha ao salvar avaliação de cerca. Tente novamente.');
     }
     setSaving(false);
   }

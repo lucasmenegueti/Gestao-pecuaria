@@ -8,6 +8,7 @@ import { Card, Button, SliderInput, BrandHeader } from '@/components/ui';
 import { useAuthStore } from '@/stores/authStore';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 import { cancelActiveRoute } from '@/lib/reabastecimento/active-route';
+import { sacos } from '@/constants';
 
 interface LoadInfo {
   formula_id: number;
@@ -50,15 +51,27 @@ export default function RotaScreen() {
   }, []);
 
   async function loadData() {
+    // BUG #20/#21: calcula distribuído a partir do SUM de deliveries (fonte da
+    // verdade) em vez de confiar em rl.sacks_distributed, que pode estar
+    // desatualizado (sync remoto não propaga o UPDATE). Sem isso o header "No
+    // trator" e o "disp" dos chips mostram os valores iniciais ignorando as
+    // entregas já feitas. Mesmo padrão aplicado em resumo.tsx:loadSummary.
     const loadRows = await db.getAllAsync<{
       formula_id: number;
       name: string;
       sacks_loaded: number;
       sacks_distributed: number;
     }>(
-      `SELECT rl.formula_id, f.name, rl.sacks_loaded, rl.sacks_distributed
+      `SELECT rl.formula_id, f.name, rl.sacks_loaded,
+              COALESCE((
+                SELECT SUM(rd.sacks_delivered)
+                FROM resupply_deliveries rd
+                WHERE rd.route_id = rl.route_id
+                  AND rd.formula_id = rl.formula_id
+                  AND rd.deleted_at IS NULL
+              ), 0) AS sacks_distributed
        FROM resupply_loads rl JOIN formulas f ON f.id=rl.formula_id
-       WHERE rl.route_id=?`,
+       WHERE rl.route_id=? AND rl.deleted_at IS NULL`,
       [Number(routeId)]
     );
     setLoads(
@@ -67,12 +80,12 @@ export default function RotaScreen() {
         formula_name: r.name,
         loaded: r.sacks_loaded,
         distributed: r.sacks_distributed,
-        remaining: r.sacks_loaded - r.sacks_distributed,
+        remaining: Math.max(0, r.sacks_loaded - r.sacks_distributed),
       }))
     );
 
     const paddockRows = await db.getAllAsync<{ id: number; name: string }>(
-      `SELECT id, name FROM paddocks WHERE active=1 ORDER BY name`
+      `SELECT id, name FROM paddocks WHERE active=1 AND deleted_at IS NULL ORDER BY name`
     );
 
     const bombonaRows = await db.getAllAsync<{
@@ -83,7 +96,7 @@ export default function RotaScreen() {
     }>(
       `SELECT i.paddock_id, i.formula_id, f.name as formula_name, i.quantity_sacks
        FROM inventory i JOIN formulas f ON f.id=i.formula_id
-       WHERE i.location='bombona'`
+       WHERE i.location='bombona' AND i.deleted_at IS NULL`
     );
     const bombMap = new Map<number, PaddockRow['bombonas']>();
     bombonaRows.forEach((b) => {
@@ -94,7 +107,7 @@ export default function RotaScreen() {
 
     const delivRows = await db.getAllAsync<{ paddock_id: number; total: number }>(
       `SELECT paddock_id, SUM(sacks_delivered) as total FROM resupply_deliveries
-       WHERE route_id=? GROUP BY paddock_id`,
+       WHERE route_id=? AND deleted_at IS NULL GROUP BY paddock_id`,
       [Number(routeId)]
     );
     const delivMap = new Map(delivRows.map((d) => [d.paddock_id, d.total]));
@@ -110,14 +123,33 @@ export default function RotaScreen() {
   }
 
   function openDelivery(p: PaddockRow) {
-    // default: primeira fórmula do trator com remaining > 0 ou primeira bombona existente
-    const firstLoad = loads.find((l) => l.remaining > 0) ?? loads[0];
-    const formulaId = firstLoad?.formula_id ?? p.bombonas[0]?.formula_id;
+    // BUG #19: preferir a fórmula da bombona existente (que é o que aparece no
+    // header do card) para que `currentDbSacks` bata com o "Probeef X · 15
+    // sacos" exibido. Antes, o default era a primeira fórmula do trator, que
+    // podia não ter bombona nesse piquete → painel mostrava "Estoque atual: 0"
+    // mesmo com o header dizendo 15.
+    // Ordem de preferência:
+    //   1. Fórmula da bombona existente que AINDA tem carga no trator
+    //   2. Qualquer carga do trator com remaining > 0
+    //   3. Primeira carga do trator (fallback, mesmo com remaining 0)
+    //   4. Primeira bombona existente (quando o trator está vazio)
+    const bombonaWithLoad = p.bombonas.find((b) =>
+      loads.some((l) => l.formula_id === b.formula_id && l.remaining > 0)
+    );
+    const firstBombona = p.bombonas[0];
+    const firstLoadRemaining = loads.find((l) => l.remaining > 0);
+    const firstLoad = loads[0];
+    const formulaId =
+      bombonaWithLoad?.formula_id ??
+      firstLoadRemaining?.formula_id ??
+      firstBombona?.formula_id ??
+      firstLoad?.formula_id;
     if (!formulaId) {
       Alert.alert('Sem ração', 'Não há ração no trator.');
       return;
     }
     const existing = p.bombonas.find((b) => b.formula_id === formulaId);
+    const load = loads.find((l) => l.formula_id === formulaId);
     setDelivering({
       paddockId: p.paddock_id,
       paddockName: p.paddock_name,
@@ -125,7 +157,7 @@ export default function RotaScreen() {
       currentDbSacks: existing?.db_sacks ?? 0,
       manualAdjust: 0,
       showManualAdjust: false,
-      toDeliver: Math.min(firstLoad?.remaining ?? 0, 5),
+      toDeliver: Math.min(load?.remaining ?? 0, 5),
     });
   }
 
@@ -149,7 +181,7 @@ export default function RotaScreen() {
     const load = loads.find((l) => l.formula_id === delivering.formulaId);
     const remaining = load?.remaining ?? 0;
     if (delivering.toDeliver > remaining) {
-      Alert.alert('Sem ração', `Só restam ${remaining} sacos desta fórmula no trator.`);
+      Alert.alert('Sem ração', `Disponível apenas ${sacos(remaining)} desta fórmula no trator.`);
       return;
     }
     try {
@@ -215,7 +247,7 @@ export default function RotaScreen() {
     Alert.alert(
       'Cancelar rota?',
       total > 0
-        ? `${total} sacos voltam ao estoque central. As entregas já feitas nas bombonas continuam.`
+        ? `${sacos(total)} voltam ao estoque central. As entregas já feitas nas bombonas continuam.`
         : 'Não há sacos no trator. A rota será finalizada como cancelada.',
       [
         { text: 'Voltar', style: 'cancel' },
@@ -325,7 +357,7 @@ export default function RotaScreen() {
                   ) : (
                     p.bombonas.map((b) => (
                       <Text key={b.formula_id} style={styles.itemDetail}>
-                        {b.formula_name} · {b.db_sacks} sacos
+                        {b.formula_name} · {sacos(b.db_sacks)}
                       </Text>
                     ))
                   )}
@@ -374,7 +406,7 @@ export default function RotaScreen() {
                   <View style={styles.currentRow}>
                     <Text style={styles.currentLabel}>Estoque atual na bombona:</Text>
                     <Text style={styles.currentValue}>
-                      {delivering.currentDbSacks + delivering.manualAdjust} sacos
+                      {sacos(delivering.currentDbSacks + delivering.manualAdjust)}
                       {delivering.manualAdjust !== 0 && (
                         <Text style={styles.currentAdj}>
                           {' '}({delivering.manualAdjust > 0 ? '+' : ''}{delivering.manualAdjust})
@@ -420,7 +452,10 @@ export default function RotaScreen() {
 
                   <Text style={styles.formLabel}>Sacos que vou deixar agora</Text>
                   <Text style={styles.formHint}>
-                    Restam {loads.find((l) => l.formula_id === delivering.formulaId)?.remaining ?? 0} sacos no trator
+                    {(() => {
+                      const rem = loads.find((l) => l.formula_id === delivering.formulaId)?.remaining ?? 0;
+                      return rem === 1 ? `Resta ${sacos(rem)} no trator` : `Restam ${sacos(rem)} no trator`;
+                    })()}
                   </Text>
                   <SliderInput
                     value={delivering.toDeliver}
@@ -437,7 +472,7 @@ export default function RotaScreen() {
                   <View style={styles.formTotal}>
                     <Text style={styles.formTotalLabel}>Total na bombona após:</Text>
                     <Text style={styles.formTotalValue}>
-                      {delivering.currentDbSacks + delivering.manualAdjust + delivering.toDeliver} sacos
+                      {sacos(delivering.currentDbSacks + delivering.manualAdjust + delivering.toDeliver)}
                     </Text>
                   </View>
 
@@ -453,14 +488,18 @@ export default function RotaScreen() {
 
         <Card style={{ marginTop: 12 }}>
           <Text style={styles.progressText}>
-            {totalRemaining} sacos restam no trator → voltam à sede
+            {totalRemaining === 1
+              ? `${sacos(totalRemaining)} resta no trator → volta à sede`
+              : `${sacos(totalRemaining)} restam no trator → voltam à sede`}
           </Text>
         </Card>
       </ScrollView>
 
       <SafeAreaView edges={['bottom']} style={styles.stickyFooter}>
         <Button
-          title={`Encerrar rota · ${totalRemaining} sacos voltam`}
+          title={totalRemaining === 1
+            ? `Encerrar rota · ${sacos(totalRemaining)} volta`
+            : `Encerrar rota · ${sacos(totalRemaining)} voltam`}
           onPress={() => router.replace(`/reabastecimento/resumo?routeId=${routeId}`)}
         />
       </SafeAreaView>

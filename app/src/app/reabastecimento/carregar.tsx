@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { Card, Button, SliderInput, BrandHeader } from '@/components/ui';
 import { NSA, Fonts } from '@/theme/nsa';
 import { getActiveRoute } from '@/lib/reabastecimento/active-route';
+import { sacos } from '@/constants';
 
 interface LoadItem {
   formula_id: number;
@@ -133,7 +134,7 @@ export default function CarregarScreen() {
               <TouchableOpacity onPress={() => toggleItem(idx)} activeOpacity={0.85}>
                 <View style={styles.itemHeader}>
                   <Text style={styles.itemName}>{item.name}</Text>
-                  <Text style={styles.itemAvail}>Central · {item.available} sacos</Text>
+                  <Text style={styles.itemAvail}>Central · {sacos(item.available)}</Text>
                 </View>
               </TouchableOpacity>
               {item.selected && (
@@ -154,9 +155,9 @@ export default function CarregarScreen() {
             <Card borderColor={NSA.green800}>
               <Text style={styles.totalLabel}>NO TRATOR</Text>
               {selectedItems.map((i, idx) => (
-                <Text key={idx} style={styles.totalItem}>{i.loading} sacos · {i.name}</Text>
+                <Text key={idx} style={styles.totalItem}>{sacos(i.loading)} · {i.name}</Text>
               ))}
-              <Text style={styles.totalSum}>Total · {totalSacks} sacos</Text>
+              <Text style={styles.totalSum}>Total · {sacos(totalSacks)}</Text>
             </Card>
           )}
         </ScrollView>

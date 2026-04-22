@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { useDatabase } from '@/lib/db/provider';
 import { WizardFlow, MultiChoice } from '@/components/ui';
-import { Colors } from '@/constants';
+import { Colors, cabecas } from '@/constants';
 import { NSA, Fonts } from '@/theme/nsa';
 
 export default function WeightStep1() {
@@ -37,7 +37,7 @@ export default function WeightStep1() {
         options={categories.map((c) => ({
           value: c.category,
           label: c.category,
-          description: `${c.head_count} cabeças`,
+          description: cabecas(c.head_count),
           color: Colors.peso,
         }))}
         value={visualWeight.category}

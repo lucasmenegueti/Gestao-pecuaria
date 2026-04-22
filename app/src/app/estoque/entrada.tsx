@@ -6,6 +6,7 @@ import { useDatabase } from '@/lib/db/provider';
 import { Button, Card, MultiChoice, SliderInput, SummaryRow, BrandHeader } from '@/components/ui';
 import { useAuthStore } from '@/stores/authStore';
 import { NSA, Fonts } from '@/theme/nsa';
+import { sacos } from '@/constants';
 
 export default function EntradaEstoqueScreen() {
   const db = useDatabase();
@@ -58,7 +59,8 @@ export default function EntradaEstoqueScreen() {
          VALUES ('ENTRADA_CENTRAL', ?, NULL, ?, 'Entrada manual', ?)`,
         [Number(formulaId), quantity, user?.id ?? null]
       );
-      router.back();
+      // replace() em vez de back(): deep-link/reload sem stack quebra GO_BACK.
+      router.replace('/(tabs)/estoque');
     } catch (err) {
       Alert.alert('Erro', 'Falha ao registrar entrada');
     } finally {
@@ -76,9 +78,9 @@ export default function EntradaEstoqueScreen() {
             <Card borderColor={NSA.ok}>
               <Text style={styles.reviewLabel}>ENTRADA NO ESTOQUE CENTRAL</Text>
               <SummaryRow label="Produto" value={formulaName} />
-              <SummaryRow label="Quantidade" value={`${quantity} sacos`} valueColor={NSA.ok} />
+              <SummaryRow label="Quantidade" value={sacos(quantity)} valueColor={NSA.ok} />
               <Text style={styles.reviewNote}>
-                Essa entrada será contabilizada como {quantity} sacos adicionados ao estoque central
+                Essa entrada será contabilizada como {sacos(quantity)} {quantity === 1 ? 'adicionado' : 'adicionados'} ao estoque central
                 e registrada no ledger (relatório de movimentações).
               </Text>
             </Card>
@@ -86,7 +88,7 @@ export default function EntradaEstoqueScreen() {
 
           <View style={styles.stickyFooter}>
             <Button
-              title={submitting ? 'Registrando…' : `Confirmar entrada · ${quantity} sacos`}
+              title={submitting ? 'Registrando…' : `Confirmar entrada · ${sacos(quantity)}`}
               onPress={handleConfirm}
               disabled={submitting}
             />
@@ -120,7 +122,7 @@ export default function EntradaEstoqueScreen() {
 
         <View style={styles.stickyFooter}>
           <Button
-            title={!formulaId ? 'Selecione um produto' : `Revisar · ${quantity} sacos`}
+            title={!formulaId ? 'Selecione um produto' : `Revisar · ${sacos(quantity)}`}
             onPress={goToReview}
             disabled={!formulaId || quantity <= 0}
           />

@@ -15,16 +15,32 @@ export default function WashingSummary() {
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
-    if (!store.currentRondaId) return;
+    if (!store.currentRondaId) {
+      Alert.alert('Erro', 'Ronda não iniciada. Volte pro menu e reinicie a ronda.');
+      return;
+    }
     setSaving(true);
+
+    const wasWashedInt = washing.wasWashed ? 1 : 0;
+    const photoUriSafe = washing.photoUri ?? null;
+
+    console.log('[summary-save]', {
+      wizard: 'washing',
+      rondaId: store.currentRondaId,
+      wasWashed: washing.wasWashed,
+      photoUri: washing.photoUri,
+      insertValues: [store.currentRondaId, wasWashedInt, photoUriSafe],
+    });
+
     try {
       await db.runAsync(
         'INSERT INTO washing_evals (ronda_id, was_washed, photo_uri) VALUES (?, ?, ?)',
-        [store.currentRondaId, washing.wasWashed ? 1 : 0, washing.photoUri]
+        [store.currentRondaId, wasWashedInt, photoUriSafe]
       );
       router.replace('/(tabs)/ronda');
     } catch (err) {
-      Alert.alert('Erro', 'Falha ao salvar');
+      console.error('[summary-save-error]', { wizard: 'washing', err });
+      Alert.alert('Erro', 'Falha ao salvar registro de lavagem. Tente novamente.');
     }
     setSaving(false);
   }
@@ -53,7 +69,7 @@ export default function WashingSummary() {
         title={saving ? 'Salvando…' : 'Confirmar'}
         onPress={handleSave}
         disabled={saving}
-        
+
       />
     </WizardFlow>
   );

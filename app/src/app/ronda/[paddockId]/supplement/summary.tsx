@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { useDatabase } from '@/lib/db/provider';
 import { WizardFlow, SummaryRow, ResultCard, PhotoButton, Button, Card } from '@/components/ui';
-import { Colors, calculateSupplementDays, dailyConsumptionKg } from '@/constants';
+import { Colors, calculateSupplementDays, dailyConsumptionKg, sacos, cabecas } from '@/constants';
 import { NSA } from '@/theme/nsa';
 
 export default function SupplementSummary() {
@@ -61,7 +61,7 @@ export default function SupplementSummary() {
   return (
     <WizardFlow
       title="Suplementação"
-      subtitle={`${store.currentPaddockName} • ${store.currentPaddockHeads} cabeças`}
+      subtitle={`${store.currentPaddockName} • ${cabecas(store.currentPaddockHeads)}`}
       step={6}
       totalSteps={6}
       accentColor={Colors.suplementacao}
@@ -71,7 +71,7 @@ export default function SupplementSummary() {
         <SummaryRow label="Escore do cocho" value={supplement.troughScore || '-'} valueColor={scoreColor} />
         <SummaryRow label="Abasteceu" value={supplement.restocked ? 'Sim' : 'Não'} />
         {supplement.formulaName && <SummaryRow label="Formulação" value={supplement.formulaName} />}
-        {supplement.restocked && <SummaryRow label="Sacos no cocho" value={`${supplement.sacksInTrough} sacos`} />}
+        {supplement.restocked && <SummaryRow label="Sacos no cocho" value={sacos(supplement.sacksInTrough)} />}
         <SummaryRow label="Acesso ao cocho" value={supplement.troughAccess || '-'} valueColor={supplement.troughAccess === 'BOM' ? NSA.ok : NSA.danger} />
       </Card>
 

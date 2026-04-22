@@ -7,6 +7,7 @@ import { useDatabase } from '@/lib/db/provider';
 import { Button, MultiChoice, SliderInput, BrandHeader } from '@/components/ui';
 import { useAuthStore } from '@/stores/authStore';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
+import { sacos } from '@/constants';
 
 type Mode = 'add' | 'remove';
 
@@ -75,7 +76,7 @@ export default function AjusteEstoqueScreen() {
       return;
     }
     if (mode === 'remove' && quantity > selected.qty) {
-      Alert.alert('Erro', `Só ${selected.qty} sacos disponíveis. Reduza a quantidade.`);
+      Alert.alert('Erro', `Só ${sacos(selected.qty)} ${selected.qty === 1 ? 'disponível' : 'disponíveis'}. Reduza a quantidade.`);
       return;
     }
     setSaving(true);
@@ -103,9 +104,9 @@ export default function AjusteEstoqueScreen() {
         [eventType, selected.formula_id, delta, reason.trim(), user?.id ?? null]
       );
       const msg = mode === 'add'
-        ? `+${quantity} saco(s) adicionados.`
-        : `${quantity} saco(s) removidos (perda).`;
-      Alert.alert('Registrado', msg, [{ text: 'OK', onPress: () => router.back() }]);
+        ? `+${sacos(quantity)} ${quantity === 1 ? 'adicionado' : 'adicionados'}.`
+        : `${sacos(quantity)} ${quantity === 1 ? 'removido' : 'removidos'} (perda).`;
+      Alert.alert('Registrado', msg, [{ text: 'OK', onPress: () => router.replace('/(tabs)/estoque') }]);
     } catch (err) {
       Alert.alert('Erro', 'Falha ao registrar ajuste');
     }
@@ -201,8 +202,8 @@ export default function AjusteEstoqueScreen() {
             title={saving
               ? 'Registrando…'
               : isAdd
-                ? `Registrar entrada · ${quantity} sacos`
-                : `Registrar perda · ${quantity} sacos`}
+                ? `Registrar entrada · ${sacos(quantity)}`
+                : `Registrar perda · ${sacos(quantity)}`}
             variant={isAdd ? 'primary' : 'danger'}
             onPress={handleSave}
             disabled={saving || !selected}

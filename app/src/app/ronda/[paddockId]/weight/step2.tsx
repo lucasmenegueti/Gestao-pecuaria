@@ -35,7 +35,7 @@ export default function WeightStep2() {
   return (
     <WizardFlow
       title="Peso visual"
-      subtitle={`${visualWeight.category} - ${store.currentPaddockName}`}
+      subtitle={`${visualWeight.category ?? '—'} · ${store.currentPaddockName ?? '—'}`}
       step={2}
       totalSteps={3}
       accentColor={Colors.peso}

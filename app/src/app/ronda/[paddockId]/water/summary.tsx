@@ -16,16 +16,33 @@ export default function WaterSummary() {
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
-    if (!store.currentRondaId) return;
+    if (!store.currentRondaId) {
+      Alert.alert('Erro', 'Ronda não iniciada. Volte pro menu e reinicie a ronda.');
+      return;
+    }
     setSaving(true);
+
+    const availableInt = water.available ? 1 : 0;
+    const qualitySafe = water.quality ?? null;
+
+    console.log('[summary-save]', {
+      wizard: 'water',
+      rondaId: store.currentRondaId,
+      available: water.available,
+      quality: water.quality,
+      photo,
+      insertValues: [store.currentRondaId, availableInt, qualitySafe, photo],
+    });
+
     try {
       await db.runAsync(
         'INSERT INTO water_evals (ronda_id, available, quality, photo_uri) VALUES (?, ?, ?, ?)',
-        [store.currentRondaId, water.available ? 1 : 0, water.quality, photo]
+        [store.currentRondaId, availableInt, qualitySafe, photo]
       );
       router.replace('/(tabs)/ronda');
     } catch (err) {
-      Alert.alert('Erro', 'Falha ao salvar');
+      console.error('[summary-save-error]', { wizard: 'water', err });
+      Alert.alert('Erro', 'Falha ao salvar avaliação de aguada. Tente novamente.');
     }
     setSaving(false);
   }
