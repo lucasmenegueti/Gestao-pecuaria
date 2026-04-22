@@ -42,13 +42,12 @@ update resupply_routes
   set created_by = user_id
   where created_by is null and user_id is not null;
 
-update inventory_events
-  set created_by = user_id
-  where created_by is null and user_id is not null;
-
-update herd_events
-  set created_by = user_id
-  where created_by is null and user_id is not null;
+-- inventory_events e herd_events: pular backfill.
+-- Alguns ambientes (schema de produção antes do migration v0.5.x) não têm
+-- user_id nessa tabela, o UPDATE quebra com "column does not exist".
+-- Deixar rows antigos com created_by=NULL é aceitável — são eventos
+-- append-only/ledger, o RLS UPDATE não afeta (ninguém atualiza esses rows).
+-- Novos inserts vão preencher via DEFAULT auth.uid().
 
 -- Para rows sem user_id explícito (evals), herdar da ronda pai:
 update supplement_evals e
