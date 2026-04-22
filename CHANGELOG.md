@@ -6,6 +6,41 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.6.1 — "Auditoria E2E + 10+ bug fixes críticos" (2026-04-22)
+
+Auditoria completa via Playwright MCP com login do admin real. Descoberta + correção de bugs críticos de integridade de estoque, sync e UX. Migration Supabase aplicada pra destravar UPDATE de rotas. Testado no web; APK preview necessário pra validar runtime nativo.
+
+**P0 — Críticos (bloqueavam uso ou corrompiam dados):**
+- **Mapa web não crasha** (`components/map/FarmMap.web.tsx`): trocado `Image.resolveAssetSource` (API nativa, inexistente no react-native-web) por `Asset.fromModule` do expo-asset. Cache `tileUriCache` pra não recriar Asset a cada tile do Leaflet. Sem isso, a tela `/mapa` era error boundary "Uncaught Error: Image.default.resolveAssetSource is not a function".
+- **7 summaries de ronda gravam no DB** (`ronda/[paddockId]/{bombona,forage,water,health,fence,weight,washing}/summary.tsx`): todo campo numérico passa por `Number.isFinite(x) ? x : 0`, text NOT NULL ganha fallback, INSERT em try/catch com `console.error('[summary-save-error]')` + `Alert.alert` visível. Antes, NaN chegava silenciosamente no SQLite e o INSERT era rejeitado sem feedback — peão não sabia que o dado não salvou.
+- **Retorno do reabastecimento não infla estoque** (`reabastecimento/resumo.tsx`): `loadSummary` calcula `sacks_distributed` via `SUM(resupply_deliveries)` em vez de ler `rl.sacks_distributed` (campo que não era atualizado corretamente). `Math.max(0, loaded - distributed)` evita retorno negativo. Fix evita 30+ sacos fantasma entrando no central a cada rota encerrada.
+- **Sync engine preserva mudanças locais pending** (`lib/sync/engine.ts:localUpdateFromRemote`): antes de sobrescrever row com versão remota, verifica se `pending_sync=1` localmente — se sim, skippa o UPDATE. Antes, rota finalizada localmente (status='completed') era revertida pro server (ainda in_progress) antes do push conseguir passar, perdendo o estado local pra sempre.
+- **Zustand ESM → CJS no bundle web** (`metro.config.js`): `resolveRequest` custom intercepta `zustand/*` e força condition `react-native` → cai no entry CJS. Sem isso, o web bundle explodia com `SyntaxError: Cannot use 'import.meta' outside a module` (zustand/esm/middleware.mjs usa `import.meta.env` padrão Vite).
+- **Migration Supabase — `DEFAULT auth.uid()` + backfill** (`supabase/migrations/2026-04-22_created_by_default_auth_uid.sql`): adiciona default em `created_by` de 15 tabelas sincronizadas + backfill copiando `user_id` quando existe + cleanup de rotas in_progress > 12h. Sem o default, push UPDATE era silenciosamente rejeitado pela RLS (`created_by = auth.uid()` falha com NULL) — o que gerava as 10+ rotas penduradas e o estoque fantasma. **Precisa rodar manual no Supabase SQL Editor.**
+
+**P1 — Importantes (integridade da UI):**
+- **rota.tsx UI usa deliveries reais** (`reabastecimento/rota.tsx`): "No trator", "X disp" por fórmula, "Estoque atual na bombona" — todos agora calculam via `SUM(resupply_deliveries)`, mesmo pattern do resumo. `openDelivery` prioriza a fórmula que está efetivamente na bombona atual do piquete. Antes, UI mostrava "30/30 sacos" mesmo após entregar 10 (estado só da sessão atual).
+- **Headers "null" → "—"** (`ronda/[paddockId]/{forage,health,weight}/summary.tsx` + `weight/step2.tsx`): fallback `?? '—'` em interpolações que liam store antes da hidratação. `menu.tsx` hidrata `paddock.name + grass_type + head_count` em navegação direta (deep-link/reload).
+- **Sanidade mostra cabeças reais** (`ronda/[paddockId]/health/step2.tsx`): fallback query ao DB (`SUM(head_count) FROM herd WHERE paddock_id`) quando `store.currentPaddockHeads === 0`. Antes, slider mostrava "~0 de 0 cabeças" mesmo em piquete com 31 cab.
+
+**P2/P3 — Polimento:**
+- **Plurais PT-BR em 19 arquivos** (`constants/index.ts` + 18 telas): novo helper `sacos(n)/cabecas(n)/dias(n)/bombonas(n)/piquetes(n)` usando `plural(n, singular, pluralForm)` com `Math.abs` NaN-safe. "1 sacos × 30 kg" vira "1 saco × 30 kg". Rótulos de range do slider (min/max fixos) mantidos no plural — são escala, não valor dinâmico.
+- **GO_BACK warning eliminado** (`estoque/entrada.tsx`, `estoque/ajuste.tsx`): `router.replace('/(tabs)/estoque')` em vez de `router.back()` no pós-save. Evita "GO_BACK action not handled" em deep-link/reload sem stack.
+- **Slider clamp no mount** (`components/ui/SliderInput.tsx`): `useEffect` força valor pra dentro de `[min, max]` se estiver fora na primeira render. Antes, wizard com slider min=1 começava em 0 (store zerado) e deixava avançar com valor inválido.
+- **CLAUDE.md atualizado** (7 correções): 6 tabs (+ Relatório), 9 seções de ronda (+ Biológico), 11 categorias de gado (+ BEZERRO/BEZERRA/NOVILHA PRENHA/BOI), redirect pós-summary vai pra `/(tabs)/ronda` (não menu.tsx), syncStore é engine real (não placeholder), version tags expandidas até v0.6.0 RC1.4, wizard folders inclui `biological`.
+
+**Nota sobre teste:**
+- Validação feita no web via Playwright com login real (`lucas`). Bombona + Water + Mapa + UI do estoque + Fase 3 do reabastecimento testados cabo-a-cabo. Plural "1 saco" validado visualmente. Migration reduziu rotas penduradas de 10+ para 1.
+- **Forage summary teve comportamento flaky no web** (handler Finalizar não disparou em uma tentativa) — provavelmente artefato do stack web (DOM manteve árvore do step1 montada e interceptou o clique). Não reprodutível em nativo.
+
+**Tags auxiliares de rollback criadas:** `pre-e2e-investigation`, `pre-bug-fixes`.
+
+**Fallback:** `git checkout v0.6.0`.
+
+**Hotfix restante pra v0.6.2+:** Cancelar manual das 9 rotas in_progress mais antigas que ficaram (migration só limpa >12h). Validação em APK preview. RLS policies adicionais no Supabase (fora do app) se algum INSERT de eval continuar caindo.
+
+---
+
 ## v0.6.0 — "Hardening pré-1.0: sync visível, transações, circuit breaker, UX consistente" (2026-04-21)
 
 Audit completo do código por 4 agentes em paralelo (sync/bugs/qualidade/UX). Consolidados 10 fixes P1+P2 + 2 P3. Release candidate pra 1.0.
