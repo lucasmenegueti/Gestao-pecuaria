@@ -34,6 +34,7 @@ export default function EvalMenuScreen() {
 
   useEffect(() => {
     initRonda();
+    hydratePaddock();
   }, [user, paddockId]);
 
   useFocusEffect(
@@ -56,6 +57,30 @@ export default function EvalMenuScreen() {
         [Number(paddockId), user.id]
       );
       store.setRondaId(result.lastInsertRowId);
+    }
+  }
+
+  // Hidrata dados do piquete no rondaStore sempre que a menu é aberta.
+  // Sem isso, entrar direto via URL (sem passar pelo tab ronda/mapa) deixa
+  // `currentPaddockName`/`currentGrassTypeName`/`currentPaddockHeads` nulos,
+  // o que vaza como "null" nos headers dos wizards/summaries.
+  async function hydratePaddock() {
+    if (!paddockId) return;
+    const pid = Number(paddockId);
+    const row = await db.getFirstAsync<{
+      id: number; name: string; area_hectares: number;
+      grass_name: string; total_heads: number | null;
+    }>(
+      `SELECT p.id, p.name, p.area_hectares, gt.name as grass_name,
+        (SELECT COALESCE(SUM(h.head_count), 0) FROM herd h
+          WHERE h.paddock_id = p.id AND h.head_count > 0) as total_heads
+       FROM paddocks p
+       JOIN grass_types gt ON gt.id = p.grass_type_id
+       WHERE p.id = ?`,
+      [pid]
+    );
+    if (row) {
+      store.setCurrentPaddock(row.id, row.name, row.total_heads ?? 0, row.area_hectares, row.grass_name);
     }
   }
 

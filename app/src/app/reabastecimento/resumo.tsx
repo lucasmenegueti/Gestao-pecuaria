@@ -42,15 +42,26 @@ export default function ResumoScreen() {
   }, []);
 
   async function loadSummary() {
+    // Calcula distribuído a partir do SUM de deliveries (fonte da verdade) em vez
+    // de confiar em rl.sacks_distributed, que só é atualizado se rota.tsx rodar o
+    // UPDATE corretamente. Sem isso, distribuído=0 → retorno = loaded inteiro → o
+    // trator "devolve" ao central sacos que já foram entregues (estoque fantasma).
     const rows = await db.getAllAsync<{
       formula_id: number;
       name: string;
       sacks_loaded: number;
       sacks_distributed: number;
     }>(
-      `SELECT rl.formula_id, f.name, rl.sacks_loaded, rl.sacks_distributed
+      `SELECT rl.formula_id, f.name, rl.sacks_loaded,
+              COALESCE((
+                SELECT SUM(rd.sacks_delivered)
+                FROM resupply_deliveries rd
+                WHERE rd.route_id = rl.route_id
+                  AND rd.formula_id = rl.formula_id
+                  AND rd.deleted_at IS NULL
+              ), 0) AS sacks_distributed
        FROM resupply_loads rl JOIN formulas f ON f.id=rl.formula_id
-       WHERE rl.route_id=?`,
+       WHERE rl.route_id=? AND rl.deleted_at IS NULL`,
       [Number(routeId)]
     );
     setLoads(
@@ -59,7 +70,7 @@ export default function ResumoScreen() {
         formula_name: r.name,
         loaded: r.sacks_loaded,
         distributed: r.sacks_distributed,
-        returned: r.sacks_loaded - r.sacks_distributed,
+        returned: Math.max(0, r.sacks_loaded - r.sacks_distributed),
       }))
     );
 
@@ -104,9 +115,9 @@ export default function ResumoScreen() {
             );
           }
           await db.runAsync(
-            `UPDATE resupply_loads SET sacks_returned=?
+            `UPDATE resupply_loads SET sacks_returned=?, sacks_distributed=?
              WHERE route_id=? AND formula_id=?`,
-            [load.returned, Number(routeId), load.formula_id]
+            [load.returned, load.distributed, Number(routeId), load.formula_id]
           );
         }
         await db.runAsync(

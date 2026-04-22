@@ -15,27 +15,52 @@ export default function BombonaSummary() {
   const [photo, setPhoto] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const totalKg = bombona.sacks * bombona.kgPerSack;
+  const safeSacks = Number.isFinite(bombona.sacks) ? bombona.sacks : 0;
+  const safeKgPerSack = Number.isFinite(bombona.kgPerSack) ? bombona.kgPerSack : 0;
+  const totalKg = safeSacks * safeKgPerSack;
   const step = bombona.hasStock ? 4 : 2;
   const totalSteps = bombona.hasStock ? 4 : 2;
 
   async function handleSave() {
-    if (!store.currentRondaId) return;
+    if (!store.currentRondaId) {
+      Alert.alert('Erro', 'Ronda não iniciada. Volte pro menu e reinicie a ronda.');
+      return;
+    }
     setSaving(true);
+
+    const hasStockInt = bombona.hasStock ? 1 : 0;
+    const formulaIdSafe = bombona.hasStock ? (bombona.formulaId ?? null) : null;
+    const sacksSafe = bombona.hasStock
+      ? (Number.isFinite(bombona.sacks) ? bombona.sacks : 0)
+      : null;
+
+    console.log('[summary-save]', {
+      wizard: 'bombona',
+      rondaId: store.currentRondaId,
+      hasStock: bombona.hasStock,
+      formulaId: bombona.formulaId,
+      formulaName: bombona.formulaName,
+      sacks: bombona.sacks,
+      kgPerSack: bombona.kgPerSack,
+      photo,
+      insertValues: [store.currentRondaId, hasStockInt, formulaIdSafe, sacksSafe, photo],
+    });
+
     try {
       await db.runAsync(
         `INSERT INTO bombona_evals (ronda_id, has_stock, formula_id, sacks, photo_uri) VALUES (?, ?, ?, ?, ?)`,
         [
           store.currentRondaId,
-          bombona.hasStock ? 1 : 0,
-          bombona.hasStock ? bombona.formulaId : null,
-          bombona.hasStock ? bombona.sacks : null,
+          hasStockInt,
+          formulaIdSafe,
+          sacksSafe,
           photo,
         ]
       );
       router.replace('/(tabs)/ronda');
     } catch (err) {
-      Alert.alert('Erro', 'Falha ao salvar avaliação');
+      console.error('[summary-save-error]', { wizard: 'bombona', err });
+      Alert.alert('Erro', 'Falha ao salvar avaliação de bombona. Tente novamente.');
     }
     setSaving(false);
   }
@@ -51,9 +76,9 @@ export default function BombonaSummary() {
     >
       {bombona.hasStock ? (
         <ResultCard
-          value={`${bombona.sacks} sacos`}
+          value={`${safeSacks} sacos`}
           label={`${totalKg} kg ${bombona.formulaName || ''}`}
-          color={bombona.sacks > 0 ? NSA.ok : NSA.warn}
+          color={safeSacks > 0 ? NSA.ok : NSA.warn}
         />
       ) : (
         <ResultCard
@@ -68,7 +93,7 @@ export default function BombonaSummary() {
         {bombona.hasStock && (
           <>
             <SummaryRow label="Formulação" value={bombona.formulaName || '-'} />
-            <SummaryRow label="Sacos" value={`${bombona.sacks} sacos`} />
+            <SummaryRow label="Sacos" value={`${safeSacks} sacos`} />
             <SummaryRow label="Total" value={`${totalKg} kg`} />
           </>
         )}

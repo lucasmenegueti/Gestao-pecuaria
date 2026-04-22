@@ -15,20 +15,46 @@ export default function ForageSummary() {
   const [photo, setPhoto] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const avg = calculateForageAverage(forage.measure1, forage.measure2, forage.measure3);
+  const rawAvg = calculateForageAverage(forage.measure1, forage.measure2, forage.measure3);
+  const avg = Number.isFinite(rawAvg) ? rawAvg : 0;
 
   async function handleSave() {
-    if (!store.currentRondaId) return;
+    if (!store.currentRondaId) {
+      Alert.alert('Erro', 'Ronda não iniciada. Volte pro menu e reinicie a ronda.');
+      return;
+    }
     setSaving(true);
+
+    const m1 = Number.isFinite(forage.measure1) ? forage.measure1 : 0;
+    const m2 = Number.isFinite(forage.measure2) ? forage.measure2 : 0;
+    const m3 = Number.isFinite(forage.measure3) ? forage.measure3 : 0;
+    const avgSafe = Number.isFinite(avg) ? avg : 0;
+    const measurementType = forage.measurementType || 'ENTRADA';
+    const quality = forage.quality || 'REGULAR';
+
+    console.log('[summary-save]', {
+      wizard: 'forage',
+      rondaId: store.currentRondaId,
+      measurementType: forage.measurementType,
+      measure1: forage.measure1,
+      measure2: forage.measure2,
+      measure3: forage.measure3,
+      rawAvg,
+      quality: forage.quality,
+      photo,
+      insertValues: [store.currentRondaId, measurementType, m1, m2, m3, avgSafe, quality, photo],
+    });
+
     try {
       await db.runAsync(
         `INSERT INTO forage_evals (ronda_id, measurement_type, measure_1_cm, measure_2_cm, measure_3_cm, average_cm, quality, photo_uri)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [store.currentRondaId, forage.measurementType, forage.measure1, forage.measure2, forage.measure3, avg, forage.quality, photo]
+        [store.currentRondaId, measurementType, m1, m2, m3, avgSafe, quality, photo]
       );
       router.replace('/(tabs)/ronda');
     } catch (err) {
-      Alert.alert('Erro', 'Falha ao salvar');
+      console.error('[summary-save-error]', { wizard: 'forage', err });
+      Alert.alert('Erro', 'Falha ao salvar avaliação de forragem. Tente novamente.');
     }
     setSaving(false);
   }
@@ -36,7 +62,7 @@ export default function ForageSummary() {
   return (
     <WizardFlow
       title="Forragem"
-      subtitle={`${store.currentPaddockName} • ${forage.measurementType} • ${store.currentGrassTypeName}`}
+      subtitle={`${store.currentPaddockName ?? '—'} • ${forage.measurementType ?? '—'} • ${store.currentGrassTypeName ?? '—'}`}
       step={6}
       totalSteps={6}
       accentColor={Colors.forragem}
@@ -64,7 +90,7 @@ export default function ForageSummary() {
         title={saving ? 'Salvando…' : 'Finalizar'}
         onPress={handleSave}
         disabled={saving}
-        
+
       />
     </WizardFlow>
   );

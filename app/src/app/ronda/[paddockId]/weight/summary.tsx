@@ -19,21 +19,47 @@ export default function WeightSummary() {
   const gainPct = visualWeight.previousWeight ? ((gain / visualWeight.previousWeight) * 100).toFixed(1) : '0';
 
   async function handleSave() {
-    if (!store.currentRondaId) return;
+    if (!store.currentRondaId) {
+      Alert.alert('Erro', 'Ronda não iniciada. Volte pro menu e reinicie a ronda.');
+      return;
+    }
+    if (!visualWeight.category) {
+      Alert.alert('Erro', 'Selecione uma categoria antes de finalizar.');
+      return;
+    }
     setSaving(true);
+
+    const categorySafe = visualWeight.category;
+    const estimatedSafe = Number.isFinite(visualWeight.estimatedWeight) ? visualWeight.estimatedWeight : 0;
+    const previousSafe = Number.isFinite(visualWeight.previousWeight as number) ? visualWeight.previousWeight : null;
+    const previousDateSafe = visualWeight.previousDate ?? null;
+
+    console.log('[summary-save]', {
+      wizard: 'weight',
+      rondaId: store.currentRondaId,
+      paddockId: Number(paddockId),
+      category: visualWeight.category,
+      estimatedWeight: visualWeight.estimatedWeight,
+      previousWeight: visualWeight.previousWeight,
+      previousDate: visualWeight.previousDate,
+      photo,
+      insertValues: [store.currentRondaId, categorySafe, estimatedSafe, previousSafe, previousDateSafe, photo],
+    });
+
     try {
       await db.runAsync(
         'INSERT INTO visual_weight_evals (ronda_id, category, estimated_weight_kg, previous_weight_kg, previous_date, photo_uri) VALUES (?, ?, ?, ?, ?, ?)',
-        [store.currentRondaId, visualWeight.category, visualWeight.estimatedWeight, visualWeight.previousWeight, visualWeight.previousDate, photo]
+        [store.currentRondaId, categorySafe, estimatedSafe, previousSafe, previousDateSafe, photo]
       );
       // Update herd avg weight
       await db.runAsync(
         'UPDATE herd SET avg_weight_kg = ? WHERE paddock_id = ? AND category = ?',
-        [visualWeight.estimatedWeight, Number(paddockId), visualWeight.category]
+        [estimatedSafe, Number(paddockId), categorySafe]
       );
       router.replace('/(tabs)/ronda');
     } catch (err) {
-      Alert.alert('Erro', 'Falha ao salvar');
+      console.error('[summary-save-error]', { wizard: 'weight', err });
+      Alert.alert('Erro', 'Falha ao salvar avaliação de peso visual. Tente novamente.');
     }
     setSaving(false);
   }
@@ -41,7 +67,7 @@ export default function WeightSummary() {
   return (
     <WizardFlow
       title="Peso visual"
-      subtitle={`${store.currentPaddockName} • ${visualWeight.category}`}
+      subtitle={`${store.currentPaddockName ?? '—'} • ${visualWeight.category ?? '—'}`}
       step={3}
       totalSteps={3}
       accentColor={Colors.peso}

@@ -15,16 +15,35 @@ export default function HealthSummary() {
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
-    if (!store.currentRondaId) return;
+    if (!store.currentRondaId) {
+      Alert.alert('Erro', 'Ronda não iniciada. Volte pro menu e reinicie a ronda.');
+      return;
+    }
     setSaving(true);
+
+    const parasiteFreeInt = health.parasiteFree ? 1 : 0;
+    const affectedPctSafe = Number.isFinite(health.affectedPct) ? health.affectedPct : 0;
+    const observationsSafe = health.observations ?? '';
+
+    console.log('[summary-save]', {
+      wizard: 'health',
+      rondaId: store.currentRondaId,
+      parasiteFree: health.parasiteFree,
+      affectedPct: health.affectedPct,
+      observations: health.observations,
+      photoUri: health.photoUri,
+      insertValues: [store.currentRondaId, parasiteFreeInt, affectedPctSafe, observationsSafe, health.photoUri],
+    });
+
     try {
       await db.runAsync(
         'INSERT INTO health_evals (ronda_id, parasite_free, affected_pct, observations, photo_uri) VALUES (?, ?, ?, ?, ?)',
-        [store.currentRondaId, health.parasiteFree ? 1 : 0, health.affectedPct, health.observations, health.photoUri]
+        [store.currentRondaId, parasiteFreeInt, affectedPctSafe, observationsSafe, health.photoUri]
       );
       router.replace('/(tabs)/ronda');
     } catch (err) {
-      Alert.alert('Erro', 'Falha ao salvar');
+      console.error('[summary-save-error]', { wizard: 'health', err });
+      Alert.alert('Erro', 'Falha ao salvar avaliação de sanidade. Tente novamente.');
     }
     setSaving(false);
   }
@@ -32,7 +51,7 @@ export default function HealthSummary() {
   return (
     <WizardFlow
       title="Sanidade"
-      subtitle={`${store.currentPaddockName} • ${store.currentPaddockHeads} cabeças`}
+      subtitle={`${store.currentPaddockName ?? '—'} • ${store.currentPaddockHeads || '—'} cabeças`}
       step={4}
       totalSteps={4}
       accentColor={Colors.sanidade}

@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, Polygon, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Image, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Asset } from 'expo-asset';
 import { FarmMapProps, parsePolygon, stylePaddock } from './types';
 import { Colors } from '@/constants';
 import { TILE_MODULES, TILE_MIN_ZOOM, TILE_MAX_ZOOM } from './tile-manifest';
@@ -20,11 +21,37 @@ L.Icon.Default.mergeOptions({
 const TRANSPARENT_1X1 =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
+// No web, Image.resolveAssetSource (API nativa do RN) não existe — usamos
+// expo-asset, que devolve a URL já bundled pelo Metro/webpack. Asset.fromModule
+// é síncrono e funciona tanto pra module id (number) quanto pra objeto já
+// resolvido ({ uri }). Cache local pra evitar recriar Asset em cada tile.
+const tileUriCache: Record<string, string | null> = {};
+
 function resolveTileUri(key: string): string | null {
+  if (key in tileUriCache) return tileUriCache[key];
   const mod = TILE_MODULES[key];
-  if (mod == null) return null;
-  const src = Image.resolveAssetSource(mod as any);
-  return src?.uri ?? null;
+  if (mod == null) {
+    tileUriCache[key] = null;
+    return null;
+  }
+  let uri: string | null = null;
+  try {
+    // Caso 1: Metro web às vezes exporta require('./foo.jpg') como string direto
+    if (typeof mod === 'string') {
+      uri = mod;
+    } else if (typeof mod === 'object' && mod !== null && typeof (mod as any).uri === 'string') {
+      // Caso 2: alguns bundlers retornam { uri, width, height }
+      uri = (mod as any).uri;
+    } else {
+      // Caso 3 (padrão): module id numérico — resolve via expo-asset
+      const asset = Asset.fromModule(mod as any);
+      uri = asset?.localUri ?? asset?.uri ?? null;
+    }
+  } catch {
+    uri = null;
+  }
+  tileUriCache[key] = uri;
+  return uri;
 }
 
 function BundledTileLayer() {
