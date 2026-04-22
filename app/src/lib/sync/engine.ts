@@ -181,6 +181,21 @@ async function localUpdateFromRemote(
   remoteRow: any,
   localFks: Record<string, number | null>,
 ) {
+  // Proteção contra revert: se o row local tem mudança pendente (pending_sync=1),
+  // o pull pode estar trazendo uma versão stale do servidor que sobrescreveria a
+  // mudança local antes dela ser pushada. Isso acontecia com resupply_routes:
+  // usuário finalizava a rota local (status='completed'), push falhava por RLS ou
+  // era adiado, pull buscava a versão antiga (status='in_progress') e forçava
+  // pending_sync=0 — a mudança local era esquecida. Agora preservamos.
+  const localMeta = await db.getFirstAsync<{ pending_sync: number }>(
+    `SELECT pending_sync FROM ${table} WHERE id = ?`,
+    [localId]
+  );
+  if (localMeta?.pending_sync === 1) {
+    if (__DEV__) console.log(`[sync pull skip] ${table}#${localId} has pending_sync=1 (preserving local)`);
+    return;
+  }
+
   const sets: string[] = [];
   const vals: any[] = [];
   // Propaga deleted_at localmente (diferente do insert, que já o seta via metadata de sync).
