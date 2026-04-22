@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, PanResponder, TextInput, TouchableOpacity } from 'react-native';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 
@@ -18,6 +18,16 @@ export function SliderInput({ value, onValueChange, min, max, step = 1, unit = '
   const layoutRef = useRef<{ pageX: number; width: number }>({ pageX: 0, width: 0 });
   const [editing, setEditing] = useState(false);
   const [textValue, setTextValue] = useState('');
+
+  // Clamp inicial: se o pai começou com value fora de [min, max] (ex.: store
+  // zerado com min=1), empurra pro min logo de cara. Sem isso, o usuário
+  // conseguia avançar um step com valor inválido — silent bug em supplement
+  // step4 e outros wizards.
+  useEffect(() => {
+    if (!Number.isFinite(value) || value < min) onValueChange(min);
+    else if (value > max) onValueChange(max);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [min, max]);
 
   const fraction = max > min ? (value - min) / (max - min) : 0;
 

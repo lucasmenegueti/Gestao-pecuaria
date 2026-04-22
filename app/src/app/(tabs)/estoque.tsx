@@ -9,6 +9,7 @@ import { Card, Button, StatusPill, BrandHeader } from '@/components/ui';
 import { NSA, Fonts, Radius, tokensForStatus } from '@/theme/nsa';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/authStore';
+import { sacos } from '@/constants';
 import {
   getActiveRoute,
   getInTransitTotals,
@@ -121,7 +122,7 @@ export default function EstoqueScreen() {
 
   return (
     <View style={styles.root}>
-      <BrandHeader title="Estoque" context={`${grandTotal} sacos · ${tab === 'central' ? 'central' : 'bombonas'}`} />
+      <BrandHeader title="Estoque" context={`${sacos(grandTotal)} · ${tab === 'central' ? 'central' : 'bombonas'}`} />
       <View style={styles.tabRow}>
         <TouchableOpacity
           style={[styles.tab, tab === 'central' && styles.tabActive]}
@@ -161,7 +162,7 @@ export default function EstoqueScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.activeRouteTitle}>Rota em andamento</Text>
               <Text style={styles.activeRouteDetail}>
-                {activeRoute.total_remaining} sacos no trator · iniciada {formatStarted(activeRoute.start_time)}
+                {sacos(activeRoute.total_remaining)} no trator · iniciada {formatStarted(activeRoute.start_time)}
               </Text>
             </View>
             <ChevronRight size={16} color={NSA.infoFg} strokeWidth={1.75} />
@@ -176,13 +177,13 @@ export default function EstoqueScreen() {
             totals.map((t) => (
               <View key={t.formula_name} style={styles.totalRow}>
                 <Text style={styles.totalCat}>{t.formula_name}</Text>
-                <Text style={styles.totalCount}>{t.total || 0} sacos</Text>
+                <Text style={styles.totalCount}>{sacos(t.total || 0)}</Text>
               </View>
             ))
           )}
           <View style={[styles.totalRow, styles.totalSum]}>
             <Text style={styles.totalSumLabel}>TOTAL</Text>
-            <Text style={styles.totalSumCount}>{grandTotal} sacos</Text>
+            <Text style={styles.totalSumCount}>{sacos(grandTotal)}</Text>
           </View>
         </Card>
 
@@ -195,7 +196,7 @@ export default function EstoqueScreen() {
                   {inTransit.map((t) => (
                     <View key={t.formula_id} style={styles.totalRow}>
                       <Text style={styles.totalCat}>{t.formula_name}</Text>
-                      <Text style={styles.totalCount}>{t.total} sacos</Text>
+                      <Text style={styles.totalCount}>{sacos(t.total)}</Text>
                     </View>
                   ))}
                   <Text style={styles.inTransitHint}>
@@ -232,7 +233,7 @@ export default function EstoqueScreen() {
                     <Text style={styles.itemName}>{item.paddock_name}</Text>
                     <StatusPill kind={kind}>{label}</StatusPill>
                   </View>
-                  <Text style={styles.itemQty}>{item.formula_name} · {item.quantity_sacks} sacos</Text>
+                  <Text style={styles.itemQty}>{item.formula_name} · {sacos(item.quantity_sacks)}</Text>
                   {item.last_resupply_date && (
                     <Text style={styles.itemMin}>Últ. reab {item.last_resupply_date}</Text>
                   )}

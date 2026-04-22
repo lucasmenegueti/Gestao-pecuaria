@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { useDatabase } from '@/lib/db/provider';
 import { WizardFlow, SliderInput } from '@/components/ui';
-import { Colors } from '@/constants';
+import { Colors, cabecas } from '@/constants';
 import { NSA, Fonts, Radius, DOMAIN } from '@/theme/nsa';
 
 export default function HealthStep2() {
@@ -53,7 +53,7 @@ export default function HealthStep2() {
       <View style={styles.infoCard}>
         <Text style={styles.infoText}>
           {hasHeadCount
-            ? `~${estimatedHeads} de ${headCount} cabeças`
+            ? `~${estimatedHeads} de ${cabecas(headCount)}`
             : 'Piquete sem gado registrado'}
         </Text>
       </View>

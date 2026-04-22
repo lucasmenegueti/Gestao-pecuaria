@@ -8,6 +8,7 @@ import { NSA, Fonts, Radius } from '@/theme/nsa';
 import { FarmMap, PaddockGeo, WaterTank } from '@/components/map';
 import type { MapMode } from '@/components/map/types';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { piquetes, plural } from '@/constants';
 
 interface Row extends PaddockGeo {
   total_heads: number;
@@ -84,7 +85,7 @@ export default function MapaScreen() {
     <View style={styles.root}>
       <BrandHeader
         title="Mapa"
-        context={`${paddocks.length} piquetes · ${tanks.length} caixas d'água`}
+        context={`${piquetes(paddocks.length)} · ${tanks.length} ${plural(tanks.length, "caixa d'água", "caixas d'água")}`}
       />
       <View style={styles.modeBar}>
         <TouchableOpacity

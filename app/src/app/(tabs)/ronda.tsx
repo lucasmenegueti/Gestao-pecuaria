@@ -7,7 +7,7 @@ import { useDatabase } from '@/lib/db/provider';
 import { useRondaStore } from '@/stores/rondaStore';
 import { StatusPill, BrandHeader } from '@/components/ui';
 import { NSA, Fonts, Radius, tokensForStatus } from '@/theme/nsa';
-import { calculateSupplementDays, dailyConsumptionKg } from '@/constants';
+import { calculateSupplementDays, dailyConsumptionKg, piquetes } from '@/constants';
 
 interface PaddockRow {
   id: number;
@@ -91,7 +91,7 @@ export default function RondaScreen() {
 
   return (
     <View style={styles.root}>
-      <BrandHeader title="Ronda" context={`${paddocks.length} piquetes com gado`} />
+      <BrandHeader title="Ronda" context={`${piquetes(paddocks.length)} com gado`} />
       <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
         <View style={styles.searchBar}>
           <Search size={16} color={NSA.inkMuted} strokeWidth={1.75} style={{ marginLeft: 2 }} />

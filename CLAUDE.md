@@ -19,7 +19,7 @@ The app is used by field workers ("peões") on tractors/horses in remote pasture
 - `main` — current development branch
 - `claude/nsa-livestock-app-VSLd2` — initial branch, kept as tracking for legacy commits
 - `gh-pages` — static HTML prototype only
-- Version tags: `v0.1.0` (Protótipo HTML), `v0.2.0` (Protótipo UX Ajustes), `v0.3.0` (App Expo + Refinamentos + Nav Unificada). See `CHANGELOG.md`.
+- Version tags: `v0.1.0`..`v0.3.0` (iterações iniciais do app), `v0.5.x` (design system NSA + sync Supabase), `v0.6.0 RC1.4` (release candidate atual). Tags auxiliares: `pre-redesign-v0.5.3`, `pre-e2e-investigation`, `pre-bug-fixes` (checkpoints de rollback). See `CHANGELOG.md`.
 
 To roll back: `git checkout v0.X.0` (read-only) or `git reset --hard v0.X.0` (destructive).
 
@@ -85,7 +85,7 @@ Wizards route sequentially (each `step` calls `router.push` to next). `summary.t
 
 - `authStore` — current user, login/logout
 - `rondaStore` — wizard state per ronda section (supplement/bombona/forage/water/biologicalWater/health/fence/visualWeight/washing). Each section has its own slice + `updateX`/`resetX` actions. `resetAll` clears everything between rondas.
-- `syncStore` — placeholder for Supabase sync
+- `syncStore` — estado do daemon de sync (status, pending counts, last sync). Engine real em `app/src/lib/sync/engine.ts` + `daemon.ts`.
 
 Wizard pattern: step1 calls `resetX()` in `useEffect`, each step calls `updateX({ field })`, summary reads slice and issues INSERT.
 

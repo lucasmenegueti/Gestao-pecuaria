@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDatabase } from '@/lib/db/provider';
 import { Card, Button, StatusPill, BrandHeader } from '@/components/ui';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
+import { sacos } from '@/constants';
 
 interface FormulaRow {
   id: number;
@@ -113,7 +114,7 @@ export default function FormulasScreen() {
               </View>
               <Text style={styles.itemDetail}>{f.kg_per_sack} kg por saco</Text>
               <Text style={styles.itemDetail}>Consumo alvo · {f.target_g_per_kg_body_day} g/kg PV/dia</Text>
-              <Text style={styles.itemDetail}>Estoque mínimo · {f.min_sacks} sacos</Text>
+              <Text style={styles.itemDetail}>Estoque mínimo · {sacos(f.min_sacks)}</Text>
               <View style={styles.itemActions}>
                 <TouchableOpacity onPress={() => openEdit(f)} style={styles.actionLink}>
                   <Text style={styles.actionText}>Editar</Text>

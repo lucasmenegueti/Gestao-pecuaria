@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { useDatabase } from '@/lib/db/provider';
 import { WizardFlow, SummaryRow, ResultCard, Button, Card } from '@/components/ui';
-import { Colors } from '@/constants';
+import { Colors, cabecas } from '@/constants';
 import { NSA } from '@/theme/nsa';
 
 export default function HealthSummary() {
@@ -51,7 +51,7 @@ export default function HealthSummary() {
   return (
     <WizardFlow
       title="Sanidade"
-      subtitle={`${store.currentPaddockName ?? '—'} • ${store.currentPaddockHeads || '—'} cabeças`}
+      subtitle={`${store.currentPaddockName ?? '—'} • ${store.currentPaddockHeads ? cabecas(store.currentPaddockHeads) : '—'}`}
       step={4}
       totalSteps={4}
       accentColor={Colors.sanidade}

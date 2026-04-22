@@ -25,6 +25,7 @@ import { loadAlerts, AlertsData } from '@/lib/alerts';
 import { getSyncStatus } from '@/lib/sync/engine';
 import { forceSync, isOnline } from '@/lib/sync/daemon';
 import { getActiveRoute, type ActiveRoute } from '@/lib/reabastecimento/active-route';
+import { sacos, dias } from '@/constants';
 
 export default function DashboardScreen() {
   const db = useDatabase();
@@ -136,7 +137,7 @@ export default function DashboardScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.routeBannerTitle}>Rota de reabastecimento em andamento</Text>
               <Text style={styles.routeBannerDetail}>
-                {activeRoute.total_remaining} sacos no trator · tocar para continuar
+                {sacos(activeRoute.total_remaining)} no trator · tocar para continuar
               </Text>
             </View>
             <ChevronRight size={16} color={NSA.infoFg} strokeWidth={1.75} />
@@ -174,7 +175,7 @@ export default function DashboardScreen() {
               right:
                 b.daysLeft <= 0
                   ? `Cocho previsto vazio · ${b.formulaName}`
-                  : `Cocho · ${b.daysLeft} dia(s) · ${b.formulaName}`,
+                  : `Cocho · ${dias(b.daysLeft)} · ${b.formulaName}`,
               Icon: Package,
               onPress: () => router.push(`/ronda/${b.paddockId}/menu`),
             })),
@@ -211,7 +212,7 @@ export default function DashboardScreen() {
           items={(alerts?.central ?? []).map((c) => ({
             kind: severityToKind(c.severity),
             left: `Central · ${c.formulaName}`,
-            right: `${c.have} sacos · ${c.daysLeft} dia(s)`,
+            right: `${sacos(c.have)} · ${dias(c.daysLeft)}`,
             Icon: Package,
             onPress: () => router.push('/(tabs)/estoque'),
           }))}
