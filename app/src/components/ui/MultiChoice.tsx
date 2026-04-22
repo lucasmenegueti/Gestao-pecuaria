@@ -1,10 +1,12 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { NSA, Fonts, Radius } from '@/theme/nsa';
 
 interface Option {
   value: string;
   label: string;
   description?: string;
+  /** Cor de tint do ChoiceCard quando selecionado — usada no radio externo. */
   color?: string;
   icon?: string;
 }
@@ -20,26 +22,36 @@ export function MultiChoice({ options, value, onChange }: MultiChoiceProps) {
     <View style={styles.container}>
       {options.map((option) => {
         const isSelected = value === option.value;
+        const tint = option.color ?? NSA.green800;
         return (
           <TouchableOpacity
             key={option.value}
             style={[
               styles.option,
-              isSelected && { backgroundColor: option.color || '#1a6b54', borderColor: option.color || '#1a6b54' },
-              !isSelected && option.color ? { borderColor: option.color } : undefined,
+              isSelected && { borderColor: tint, borderWidth: 1.5, backgroundColor: NSA.green50 },
             ]}
             onPress={() => onChange(option.value)}
-            activeOpacity={0.7}
+            activeOpacity={0.85}
           >
-            {option.icon && <Text style={styles.icon}>{option.icon}</Text>}
+            {option.icon && (
+              <View style={[styles.iconWrap, { backgroundColor: isSelected ? NSA.bgElevated : NSA.bgMuted }]}>
+                <Text style={styles.icon}>{option.icon}</Text>
+              </View>
+            )}
             <View style={styles.textContainer}>
-              <Text style={[styles.label, isSelected && styles.selectedText]}>{option.label}</Text>
+              <Text style={[styles.label, isSelected && { color: tint }]}>{option.label}</Text>
               {option.description && (
-                <Text style={[styles.description, isSelected && styles.selectedDescription]}>
+                <Text style={styles.description}>
                   {option.description}
                 </Text>
               )}
             </View>
+            <View
+              style={[
+                styles.radio,
+                isSelected && { borderColor: tint, borderWidth: 5 },
+              ]}
+            />
           </TouchableOpacity>
         );
       })}
@@ -54,35 +66,43 @@ const styles = StyleSheet.create({
   option: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 72,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#e0dcd5',
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    gap: 12,
+    minHeight: 60,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: NSA.border,
+    backgroundColor: NSA.bgElevated,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  icon: {
-    fontSize: 24,
-    marginRight: 12,
+  iconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  textContainer: {
-    flex: 1,
-  },
+  icon: { fontSize: 18 },
+  textContainer: { flex: 1 },
   label: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#2c2c2c',
+    fontSize: 14,
+    fontFamily: Fonts.semibold,
+    color: NSA.inkPrimary,
+    letterSpacing: -0.15,
   },
   description: {
-    fontSize: 14,
-    color: '#7a7a7a',
+    fontSize: 12,
+    color: NSA.inkSecondary,
     marginTop: 2,
+    fontFamily: Fonts.regular,
+    lineHeight: 16,
   },
-  selectedText: {
-    color: '#ffffff',
-  },
-  selectedDescription: {
-    color: 'rgba(255,255,255,0.8)',
+  radio: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: NSA.borderStrong,
+    backgroundColor: NSA.bgElevated,
   },
 });

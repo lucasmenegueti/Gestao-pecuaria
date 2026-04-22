@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { NSA, Fonts } from '@/theme/nsa';
 
 interface SummaryRowProps {
   label: string;
@@ -26,15 +27,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0ede8',
+    borderBottomColor: NSA.borderSubtle,
   },
   label: {
-    fontSize: 16,
-    color: '#7a7a7a',
+    fontSize: 13,
+    color: NSA.inkSecondary,
+    fontFamily: Fonts.regular,
   },
   value: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#2c2c2c',
+    fontSize: 14,
+    fontFamily: Fonts.semibold,
+    color: NSA.inkPrimary,
+    letterSpacing: -0.1,
   },
 });

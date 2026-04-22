@@ -5,6 +5,7 @@ import { useRondaStore } from '@/stores/rondaStore';
 import { useDatabase } from '@/lib/db/provider';
 import { WizardFlow, MultiChoice } from '@/components/ui';
 import { Colors } from '@/constants';
+import { NSA, Fonts } from '@/theme/nsa';
 
 export default function BombonaStep2() {
   const { paddockId } = useLocalSearchParams();
@@ -20,7 +21,7 @@ export default function BombonaStep2() {
 
   return (
     <WizardFlow
-      title="BOMBONA"
+      title="Bombona"
       subtitle="Qual formulação?"
       step={2}
       totalSteps={4}
@@ -29,7 +30,7 @@ export default function BombonaStep2() {
       onNext={() => router.push(`/ronda/${paddockId}/bombona/step3`)}
       nextDisabled={!bombona.formulaId}
     >
-      <Text style={styles.question}>QUAL FORMULAÇÃO?</Text>
+      <Text style={styles.question}>Qual formulação?</Text>
       <MultiChoice
         options={formulas.map((f) => ({
           value: String(f.id),
@@ -50,5 +51,5 @@ export default function BombonaStep2() {
 }
 
 const styles = StyleSheet.create({
-  question: { fontSize: 22, fontWeight: '800', color: '#2c2c2c', marginBottom: 20, textAlign: 'center' },
+  question: { fontSize: 22, fontFamily: Fonts.semibold, color: NSA.inkPrimary, marginBottom: 20, textAlign: 'center' },
 });

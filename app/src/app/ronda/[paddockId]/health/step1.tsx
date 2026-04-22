@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { WizardFlow, BinaryChoice } from '@/components/ui';
 import { Colors } from '@/constants';
+import { NSA, Fonts } from '@/theme/nsa';
 
 export default function HealthStep1() {
   const { paddockId } = useLocalSearchParams();
@@ -13,7 +14,7 @@ export default function HealthStep1() {
 
   return (
     <WizardFlow
-      title="SANIDADE"
+      title="Sanidade"
       subtitle="Parasitas"
       step={1}
       totalSteps={4}
@@ -28,7 +29,7 @@ export default function HealthStep1() {
       }}
       nextDisabled={health.parasiteFree === null}
     >
-      <Text style={styles.question}>REBANHO LIVRE DE PARASITAS?</Text>
+      <Text style={styles.question}>Rebanho livre de parasitas?</Text>
       <Text style={styles.sub}>(mosca, berne e carrapato)</Text>
       <BinaryChoice value={health.parasiteFree} onChange={(v) => updateHealth({ parasiteFree: v })} />
     </WizardFlow>
@@ -36,6 +37,6 @@ export default function HealthStep1() {
 }
 
 const styles = StyleSheet.create({
-  question: { fontSize: 22, fontWeight: '800', color: '#2c2c2c', marginBottom: 4, textAlign: 'center' },
-  sub: { fontSize: 16, color: '#7a7a7a', textAlign: 'center', marginBottom: 20 },
+  question: { fontSize: 22, fontFamily: Fonts.semibold, color: NSA.inkPrimary, marginBottom: 4, textAlign: 'center' },
+  sub: { fontSize: 16, color: NSA.inkMuted, textAlign: 'center', marginBottom: 20 },
 });

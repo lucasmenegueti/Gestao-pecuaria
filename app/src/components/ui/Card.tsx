@@ -1,23 +1,23 @@
 import React from 'react';
-import { View, Text, StyleSheet, ViewStyle, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, StyleProp, ViewStyle, TextStyle, TouchableOpacity } from 'react-native';
+import { NSA, Fonts, Radius } from '@/theme/nsa';
 
 interface CardProps {
   children: React.ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   onPress?: () => void;
   borderColor?: string;
 }
 
 export function Card({ children, style, onPress, borderColor }: CardProps) {
   const content = (
-    <View style={[styles.card, borderColor ? { borderLeftWidth: 4, borderLeftColor: borderColor } : undefined, style]}>
+    <View style={[styles.card, borderColor ? { borderLeftWidth: 3, borderLeftColor: borderColor } : undefined, style]}>
       {children}
     </View>
   );
-
   if (onPress) {
     return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+      <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
         {content}
       </TouchableOpacity>
     );
@@ -27,7 +27,7 @@ export function Card({ children, style, onPress, borderColor }: CardProps) {
 
 interface CardTitleProps {
   children: string;
-  style?: any;
+  style?: StyleProp<TextStyle>;
 }
 
 export function CardTitle({ children, style }: CardTitleProps) {
@@ -36,20 +36,18 @@ export function CardTitle({ children, style }: CardTitleProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: NSA.bgElevated,
+    borderRadius: Radius.xl,
+    padding: 14,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: NSA.border,
   },
   title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#2c2c2c',
+    fontSize: 15,
+    fontFamily: Fonts.semibold,
+    color: NSA.inkPrimary,
+    letterSpacing: -0.15,
     marginBottom: 8,
   },
 });

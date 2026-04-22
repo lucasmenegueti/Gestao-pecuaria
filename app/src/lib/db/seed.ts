@@ -1,70 +1,112 @@
-export const SEED_SQL = `
--- Users (password is "123456" — just a placeholder hash)
-INSERT OR IGNORE INTO users (username, name, role, password_hash) VALUES
-  ('admin', 'Administrador', 'admin', '123456'),
-  ('joao.peao', 'João Peão', 'peao', '123456'),
-  ('maria.peao', 'Maria Peão', 'peao', '123456');
+export const SEED_HERD_SQL = `
+INSERT OR IGNORE INTO herd (paddock_id, category, head_count, avg_weight_kg) VALUES
+  (5, 'NOVILHA', 61, 198),
+  (11, 'GARROTE', 110, 375),
+  (15, 'GARROTE', 61, 330),
+  (19, 'GARROTE', 77, 206),
+  (21, 'VACA PARIDA', 73, 450),
+  (21, 'BEZERRO MAMANDO', 37, 95),
+  (21, 'BEZERRA MAMANDO', 27, 90),
+  (24, 'VACA PARIDA', 5, 450),
+  (24, 'BEZERRA MAMANDO', 4, 100),
+  (24, 'BEZERRO MAMANDO', 1, 100),
+  (25, 'BEZERRA MAMANDO', 13, 100),
+  (25, 'VACA PARIDA', 11, 450),
+  (25, 'BEZERRO MAMANDO', 4, 100),
+  (29, 'GARROTE', 90, 288),
+  (32, 'GARROTE', 71, 300),
+  (33, 'GARROTE', 74, 180),
+  (35, 'GARROTE', 102, 254),
+  (36, 'GARROTE', 90, 273),
+  (37, 'GARROTE', 107, 338),
+  (38, 'GARROTE', 93, 216),
+  (40, 'NOVILHA', 89, 319),
+  (43, 'NOVILHA', 84, 254),
+  (45, 'VACA SOLTEIRA', 23, 450),
+  (65, 'GARROTE', 103, 350),
+  (70, 'GARROTE', 108, 375),
+  (75, 'GARROTE', 87, 337),
+  (78, 'BEZERRO MAMANDO', 7, 100),
+  (78, 'VACA PARIDA', 5, 450),
+  (78, 'BEZERRA MAMANDO', 2, 100),
+  (82, 'VACA PARIDA', 83, 470),
+  (82, 'BEZERRA MAMANDO', 54, 71),
+  (82, 'BEZERRO MAMANDO', 24, 80),
+  (84, 'NOVILHA', 45, 312),
+  (87, 'VACA PRENHA', 103, 450),
+  (87, 'BEZERRO MAMANDO', 45, 118),
+  (87, 'BEZERRA MAMANDO', 37, 114),
+  (90, 'VACA PRENHA', 98, 450),
+  (90, 'BEZERRA MAMANDO', 34, 100),
+  (90, 'BEZERRO MAMANDO', 28, 100),
+  (91, 'VACA PRENHA', 93, 450),
+  (91, 'BEZERRA MAMANDO', 48, 100),
+  (91, 'BEZERRO MAMANDO', 44, 100),
+  (93, 'VACA PRENHA', 138, 450),
+  (93, 'BEZERRO MAMANDO', 68, 120),
+  (93, 'BEZERRA MAMANDO', 50, 130),
+  (98, 'VACA PARIDA', 111, 420),
+  (98, 'BEZERRO MAMANDO', 109, 140),
+  (98, 'BEZERRA MAMANDO', 80, 130),
+  (103, 'NOVILHA', 136, 279),
+  (104, 'NOVILHA', 115, 201),
+  (108, 'VACA PARIDA', 149, 450),
+  (108, 'BEZERRO MAMANDO', 79, 120),
+  (108, 'BEZERRA MAMANDO', 75, 115),
+  (110, 'NOVILHA', 129, 312),
+  (115, 'GARROTE', 110, 349),
+  (116, 'GARROTE', 99, 387),
+  (118, 'GARROTE', 110, 350),
+  (123, 'GARROTE', 71, 221),
+  (125, 'GARROTE', 71, 375);
+`;
 
--- Grass Types
+export const SEED_FORMULAS_SQL = `
+-- target_g_per_kg_body_day = gramas de ração por kg de peso vivo por dia.
+-- Ajustáveis em admin/formulas.
+INSERT OR IGNORE INTO formulas (name, kg_per_sack, target_g_per_kg_body_day) VALUES
+  ('Probeef Reprodução', 30, 0.25),
+  ('Probeef Topmost Golden', 30, 0.5),
+  ('Engorda 3 KG', 25, 7.5),
+  ('Sal Mineral', 30, 0.2),
+  ('Proteinado Seco', 25, 0.375);
+`;
+
+export const SEED_GRASS_TYPES_SQL = `
 INSERT OR IGNORE INTO grass_types (name, entry_height_cm, exit_height_cm) VALUES
   ('Braquiarão', 40, 20),
   ('Mombaça', 80, 40),
   ('Tifton', 25, 10);
+`;
 
--- Formulas
-INSERT OR IGNORE INTO formulas (name, kg_per_sack, target_consumption_g_per_day) VALUES
-  ('Probeef Reprodução', 25, 100),
-  ('Engorda 3 KG', 25, 3000),
-  ('Recria Top Most', 25, 200),
-  ('Sal Mineral', 30, 80),
-  ('Proteinado Seco', 25, 150);
+// users agora vem do Supabase Auth; tabela local fica vazia até o primeiro pull
+// popular com os profiles.
+export const SEED_USERS_SQL = `-- (sem seed; populado via sync do Supabase)`;
 
--- Paddocks
-INSERT OR IGNORE INTO paddocks (name, area_hectares, grass_type_id, latitude, longitude) VALUES
-  ('Pasto 14', 45, 1, -15.30, -45.60),
-  ('Pasto 14A', 52, 1, -15.31, -45.61),
-  ('Pasto 15', 38, 1, -15.32, -45.62),
-  ('Pasto 15A', 41, 1, -15.33, -45.63),
-  ('Pasto 16', 60, 1, -15.34, -45.64),
-  ('Pasto 17', 35, 2, -15.35, -45.65),
-  ('Pasto 18', 70, 1, -15.36, -45.66),
-  ('Pasto 19', 30, 2, -15.37, -45.67),
-  ('Pasto 20', 55, 1, -15.38, -45.68),
-  ('Pasto 21', 48, 1, -15.39, -45.69);
-
--- Herd
-INSERT OR IGNORE INTO herd (paddock_id, category, head_count, avg_weight_kg) VALUES
-  (1, 'GARROTE', 45, 350),
-  (1, 'NOVILHA', 20, 280),
-  (1, 'VACA', 15, 450),
-  (1, 'BEZERRO MAMANDO', 5, 80),
-  (2, 'BOI', 72, 420),
-  (3, 'GARROTE', 40, 310),
-  (3, 'BEZERRO', 25, 150),
-  (4, 'NOVILHA', 90, 290),
-  (5, 'VACA', 60, 460),
-  (5, 'BEZERRA MAMANDO', 30, 70),
-  (5, 'BEZERRO MAMANDO', 20, 75),
-  (6, 'GARROTE', 55, 320),
-  (7, 'NOVILHA', 95, 300),
-  (8, 'TOURO', 30, 600),
-  (9, 'BOI', 80, 440),
-  (10, 'VACA', 40, 470),
-  (10, 'BEZERRA', 27, 200);
-
--- Central Inventory
+// Estoque central atualizado em 2026-04-17 (dados reais da fazenda).
+// Sacos de 30kg: 22020kg → 734 sacos de Topmost Golden; 12000kg → 400 de Reprodução.
+// Demais fórmulas zeradas.
+export const SEED_INVENTORY_CENTRAL_SQL = `
 INSERT OR IGNORE INTO inventory (formula_id, quantity_sacks, min_sacks, location) VALUES
-  (1, 200, 10, 'central'),
-  (2, 15, 8, 'central'),
-  (4, 3, 15, 'central'),
-  (5, 50, 5, 'central');
+  (1, 400, 10, 'central'),
+  (2, 734, 10, 'central'),
+  (3, 0, 5, 'central'),
+  (4, 0, 5, 'central'),
+  (5, 0, 5, 'central');
+`;
 
--- Bombona Inventory
-INSERT OR IGNORE INTO inventory (formula_id, quantity_sacks, min_sacks, location, paddock_id, last_resupply_date) VALUES
-  (1, 8, 2, 'bombona', 1, '2026-04-07'),
-  (1, 0, 2, 'bombona', 2, '2026-04-02'),
-  (1, 2, 2, 'bombona', 3, '2026-04-05'),
-  (4, 5, 2, 'bombona', 4, '2026-04-07'),
-  (4, 3, 2, 'bombona', 5, '2026-04-05'),
-  (5, 6, 2, 'bombona', 6, '2026-04-08');
+// Bombonas zeradas — serão preenchidas via fluxo de reabastecimento no app.
+export const SEED_INVENTORY_BOMBONA_SQL = `
+-- Vazio: bombonas são criadas via reabastecimento (admin/reabastecimento).
+`;
+
+// Mantido pra compatibilidade: bloca tudo que o provider roda no primeiro boot
+// quando users ainda está vazio. Agora cada bloco tem seu próprio export também.
+export const SEED_SQL = `
+${SEED_USERS_SQL}
+${SEED_GRASS_TYPES_SQL}
+${SEED_FORMULAS_SQL}
+${SEED_HERD_SQL}
+${SEED_INVENTORY_CENTRAL_SQL}
+${SEED_INVENTORY_BOMBONA_SQL}
 `;

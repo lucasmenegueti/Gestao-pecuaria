@@ -3,8 +3,9 @@ import { View, StyleSheet, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { useDatabase } from '@/lib/db/provider';
-import { WizardFlow, SummaryRow, ResultCard, PhotoButton, Button } from '@/components/ui';
+import { WizardFlow, SummaryRow, ResultCard, PhotoButton, Button, Card } from '@/components/ui';
 import { Colors } from '@/constants';
+import { NSA } from '@/theme/nsa';
 
 export default function WaterSummary() {
   const { paddockId } = useLocalSearchParams();
@@ -15,16 +16,33 @@ export default function WaterSummary() {
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
-    if (!store.currentRondaId) return;
+    if (!store.currentRondaId) {
+      Alert.alert('Erro', 'Ronda não iniciada. Volte pro menu e reinicie a ronda.');
+      return;
+    }
     setSaving(true);
+
+    const availableInt = water.available ? 1 : 0;
+    const qualitySafe = water.quality ?? null;
+
+    console.log('[summary-save]', {
+      wizard: 'water',
+      rondaId: store.currentRondaId,
+      available: water.available,
+      quality: water.quality,
+      photo,
+      insertValues: [store.currentRondaId, availableInt, qualitySafe, photo],
+    });
+
     try {
       await db.runAsync(
         'INSERT INTO water_evals (ronda_id, available, quality, photo_uri) VALUES (?, ?, ?, ?)',
-        [store.currentRondaId, water.available ? 1 : 0, water.quality, photo]
+        [store.currentRondaId, availableInt, qualitySafe, photo]
       );
-      router.push(`/ronda/${paddockId}/menu`);
+      router.replace('/(tabs)/ronda');
     } catch (err) {
-      Alert.alert('Erro', 'Falha ao salvar');
+      console.error('[summary-save-error]', { wizard: 'water', err });
+      Alert.alert('Erro', 'Falha ao salvar avaliação de aguada. Tente novamente.');
     }
     setSaving(false);
   }
@@ -33,31 +51,29 @@ export default function WaterSummary() {
 
   return (
     <WizardFlow
-      title="AGUADA"
+      title="Aguada"
       subtitle={store.currentPaddockName || ''}
       step={3}
       totalSteps={3}
       accentColor={Colors.aguada}
       onBack={() => router.back()}
     >
-      <View style={styles.summaryBox}>
-        <SummaryRow label="Água disponível" value={water.available ? '✅ SIM' : '❌ NÃO'} />
+      <Card>
+        <SummaryRow label="Água disponível" value={water.available ? 'Sim' : 'Não'} />
         <SummaryRow label="Qualidade" value={water.quality || '-'} />
-      </View>
+      </Card>
 
       <ResultCard
-        icon="💧"
-        value={isOk ? 'AGUADA OK' : 'ATENÇÃO'}
+        value={isOk ? 'Aguada OK' : 'Atenção'}
         label={water.quality || ''}
-        color={isOk ? Colors.success : Colors.danger}
+        color={isOk ? NSA.ok : NSA.danger}
       />
 
       <PhotoButton uri={photo} onPhoto={setPhoto} />
-      <Button title={saving ? 'SALVANDO...' : 'FINALIZAR ✅'} onPress={handleSave} disabled={saving} variant="success" size="large" style={{ marginTop: 24 }} />
+      <Button title={saving ? 'Salvando…' : 'Finalizar'} onPress={handleSave} disabled={saving}  />
     </WizardFlow>
   );
 }
 
 const styles = StyleSheet.create({
-  summaryBox: { backgroundColor: '#ffffff', borderRadius: 12, padding: 16, elevation: 2 },
 });

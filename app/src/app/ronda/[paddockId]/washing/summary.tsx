@@ -3,8 +3,9 @@ import { View, StyleSheet, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { useDatabase } from '@/lib/db/provider';
-import { WizardFlow, SummaryRow, ResultCard, Button } from '@/components/ui';
+import { WizardFlow, SummaryRow, ResultCard, Button, Card } from '@/components/ui';
 import { Colors } from '@/constants';
+import { NSA } from '@/theme/nsa';
 
 export default function WashingSummary() {
   const { paddockId } = useLocalSearchParams();
@@ -14,23 +15,39 @@ export default function WashingSummary() {
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
-    if (!store.currentRondaId) return;
+    if (!store.currentRondaId) {
+      Alert.alert('Erro', 'Ronda não iniciada. Volte pro menu e reinicie a ronda.');
+      return;
+    }
     setSaving(true);
+
+    const wasWashedInt = washing.wasWashed ? 1 : 0;
+    const photoUriSafe = washing.photoUri ?? null;
+
+    console.log('[summary-save]', {
+      wizard: 'washing',
+      rondaId: store.currentRondaId,
+      wasWashed: washing.wasWashed,
+      photoUri: washing.photoUri,
+      insertValues: [store.currentRondaId, wasWashedInt, photoUriSafe],
+    });
+
     try {
       await db.runAsync(
         'INSERT INTO washing_evals (ronda_id, was_washed, photo_uri) VALUES (?, ?, ?)',
-        [store.currentRondaId, washing.wasWashed ? 1 : 0, washing.photoUri]
+        [store.currentRondaId, wasWashedInt, photoUriSafe]
       );
-      router.replace(`/ronda/${paddockId}/menu`);
+      router.replace('/(tabs)/ronda');
     } catch (err) {
-      Alert.alert('Erro', 'Falha ao salvar');
+      console.error('[summary-save-error]', { wizard: 'washing', err });
+      Alert.alert('Erro', 'Falha ao salvar registro de lavagem. Tente novamente.');
     }
     setSaving(false);
   }
 
   return (
     <WizardFlow
-      title="LAVAGEM"
+      title="Lavagem"
       subtitle={store.currentPaddockName || ''}
       step={3}
       totalSteps={3}
@@ -38,29 +55,25 @@ export default function WashingSummary() {
       onBack={() => router.back()}
     >
       <ResultCard
-        icon="🚿"
         value="LAVAGEM REGISTRADA"
         label="Bebedouro limpo ✓"
-        color={Colors.success}
+        color={NSA.green800}
       />
 
-      <View style={styles.summaryBox}>
+      <Card>
         <SummaryRow label="Data" value={new Date().toLocaleDateString('pt-BR')} />
         <SummaryRow label="Foto" value={washing.photoUri ? '📸 Anexada' : 'Sem foto'} />
-      </View>
+      </Card>
 
       <Button
-        title={saving ? 'SALVANDO...' : 'CONFIRMAR ✅'}
+        title={saving ? 'Salvando…' : 'Confirmar'}
         onPress={handleSave}
         disabled={saving}
-        variant="success"
-        size="large"
-        style={{ marginTop: 24 }}
+
       />
     </WizardFlow>
   );
 }
 
 const styles = StyleSheet.create({
-  summaryBox: { backgroundColor: '#ffffff', borderRadius: 12, padding: 16, elevation: 2, marginTop: 16 },
 });

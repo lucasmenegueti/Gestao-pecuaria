@@ -3,8 +3,9 @@ import { Text, View, StyleSheet, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { useDatabase } from '@/lib/db/provider';
-import { WizardFlow, SummaryRow, ResultCard, PhotoButton, Button } from '@/components/ui';
+import { WizardFlow, SummaryRow, ResultCard, PhotoButton, Button, Card } from '@/components/ui';
 import { Colors, calculateForageAverage } from '@/constants';
+import { NSA } from '@/theme/nsa';
 
 export default function ForageSummary() {
   const { paddockId } = useLocalSearchParams();
@@ -14,72 +15,85 @@ export default function ForageSummary() {
   const [photo, setPhoto] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const avg = calculateForageAverage(forage.measure1, forage.measure2, forage.measure3);
+  const rawAvg = calculateForageAverage(forage.measure1, forage.measure2, forage.measure3);
+  const avg = Number.isFinite(rawAvg) ? rawAvg : 0;
 
   async function handleSave() {
-    if (!store.currentRondaId) return;
+    if (!store.currentRondaId) {
+      Alert.alert('Erro', 'Ronda não iniciada. Volte pro menu e reinicie a ronda.');
+      return;
+    }
     setSaving(true);
+
+    const m1 = Number.isFinite(forage.measure1) ? forage.measure1 : 0;
+    const m2 = Number.isFinite(forage.measure2) ? forage.measure2 : 0;
+    const m3 = Number.isFinite(forage.measure3) ? forage.measure3 : 0;
+    const avgSafe = Number.isFinite(avg) ? avg : 0;
+    const measurementType = forage.measurementType || 'ENTRADA';
+    const quality = forage.quality || 'REGULAR';
+
+    console.log('[summary-save]', {
+      wizard: 'forage',
+      rondaId: store.currentRondaId,
+      measurementType: forage.measurementType,
+      measure1: forage.measure1,
+      measure2: forage.measure2,
+      measure3: forage.measure3,
+      rawAvg,
+      quality: forage.quality,
+      photo,
+      insertValues: [store.currentRondaId, measurementType, m1, m2, m3, avgSafe, quality, photo],
+    });
+
     try {
       await db.runAsync(
         `INSERT INTO forage_evals (ronda_id, measurement_type, measure_1_cm, measure_2_cm, measure_3_cm, average_cm, quality, photo_uri)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [store.currentRondaId, forage.measurementType, forage.measure1, forage.measure2, forage.measure3, avg, forage.quality, photo]
+        [store.currentRondaId, measurementType, m1, m2, m3, avgSafe, quality, photo]
       );
-      router.push(`/ronda/${paddockId}/menu`);
+      router.replace('/(tabs)/ronda');
     } catch (err) {
-      Alert.alert('Erro', 'Falha ao salvar');
+      console.error('[summary-save-error]', { wizard: 'forage', err });
+      Alert.alert('Erro', 'Falha ao salvar avaliação de forragem. Tente novamente.');
     }
     setSaving(false);
   }
 
   return (
     <WizardFlow
-      title="FORRAGEM"
-      subtitle={`${store.currentPaddockName} • ${forage.measurementType} • ${store.currentGrassTypeName}`}
+      title="Forragem"
+      subtitle={`${store.currentPaddockName ?? '—'} • ${forage.measurementType ?? '—'} • ${store.currentGrassTypeName ?? '—'}`}
       step={6}
       totalSteps={6}
       accentColor={Colors.forragem}
       onBack={() => router.back()}
     >
-      <View style={styles.summaryBox}>
+      <Card>
         <SummaryRow label="1ª medida" value={`${forage.measure1} cm`} />
         <SummaryRow label="2ª medida" value={`${forage.measure2} cm`} />
         <SummaryRow label="3ª medida" value={`${forage.measure3} cm`} />
-      </View>
+      </Card>
 
       <ResultCard
         value={`${avg} cm`}
         label="MÉDIA"
-        color={avg >= 40 ? Colors.success : avg >= 20 ? Colors.warning : Colors.danger}
+        color={avg >= 40 ? NSA.ok : avg >= 20 ? NSA.warn : NSA.danger}
       />
 
-      <View style={styles.summaryBox}>
-        <SummaryRow label="Qualidade" value={forage.quality || '-'} valueColor={forage.quality === 'BOM' ? Colors.success : forage.quality === 'REGULAR' ? Colors.warning : Colors.danger} />
-      </View>
+      <Card>
+        <SummaryRow label="Qualidade" value={forage.quality || '-'} valueColor={forage.quality === 'BOM' ? NSA.ok : forage.quality === 'REGULAR' ? NSA.warn : NSA.danger} />
+      </Card>
 
       <PhotoButton uri={photo} onPhoto={setPhoto} />
 
       <Button
-        title={saving ? 'SALVANDO...' : 'FINALIZAR ✅'}
+        title={saving ? 'Salvando…' : 'Finalizar'}
         onPress={handleSave}
         disabled={saving}
-        variant="success"
-        size="large"
-        style={{ marginTop: 24 }}
+
       />
     </WizardFlow>
   );
 }
 
-const styles = StyleSheet.create({
-  summaryBox: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-});
+const styles = StyleSheet.create({});

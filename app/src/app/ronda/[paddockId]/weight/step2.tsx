@@ -5,6 +5,7 @@ import { useRondaStore } from '@/stores/rondaStore';
 import { useDatabase } from '@/lib/db/provider';
 import { WizardFlow, SliderInput } from '@/components/ui';
 import { Colors } from '@/constants';
+import { NSA, Fonts, Radius } from '@/theme/nsa';
 
 export default function WeightStep2() {
   const { paddockId } = useLocalSearchParams();
@@ -33,15 +34,15 @@ export default function WeightStep2() {
 
   return (
     <WizardFlow
-      title="PESO VISUAL"
-      subtitle={`${visualWeight.category} - ${store.currentPaddockName}`}
+      title="Peso visual"
+      subtitle={`${visualWeight.category ?? '—'} · ${store.currentPaddockName ?? '—'}`}
       step={2}
       totalSteps={3}
       accentColor={Colors.peso}
       onBack={() => router.back()}
       onNext={() => router.push(`/ronda/${paddockId}/weight/summary`)}
     >
-      <Text style={styles.question}>PESO MÉDIO ESTIMADO?</Text>
+      <Text style={styles.question}>Peso médio estimado?</Text>
       {visualWeight.previousWeight && (
         <View style={styles.prevCard}>
           <Text style={styles.prevText}>Peso anterior: {visualWeight.previousWeight} kg ({visualWeight.previousDate})</Text>
@@ -61,7 +62,7 @@ export default function WeightStep2() {
 }
 
 const styles = StyleSheet.create({
-  question: { fontSize: 22, fontWeight: '800', color: '#2c2c2c', marginBottom: 20, textAlign: 'center' },
-  prevCard: { backgroundColor: '#e3f2fd', borderRadius: 12, padding: 12, alignItems: 'center', marginBottom: 16 },
-  prevText: { fontSize: 16, fontWeight: '600', color: '#2980b9' },
+  question: { fontSize: 22, fontFamily: Fonts.semibold, color: NSA.inkPrimary, marginBottom: 20, textAlign: 'center' },
+  prevCard: { backgroundColor: NSA.infoBg, borderRadius: Radius.xl, padding: 12, alignItems: 'center', marginBottom: 16 },
+  prevText: { fontSize: 16, fontFamily: Fonts.medium, color: NSA.infoFg },
 });

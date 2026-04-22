@@ -3,8 +3,9 @@ import { View, StyleSheet, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { useDatabase } from '@/lib/db/provider';
-import { WizardFlow, SummaryRow, ResultCard, PhotoButton, Button } from '@/components/ui';
-import { Colors } from '@/constants';
+import { WizardFlow, SummaryRow, ResultCard, PhotoButton, Button, Card } from '@/components/ui';
+import { Colors, sacos } from '@/constants';
+import { NSA } from '@/theme/nsa';
 
 export default function BombonaSummary() {
   const { paddockId } = useLocalSearchParams();
@@ -14,34 +15,59 @@ export default function BombonaSummary() {
   const [photo, setPhoto] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const totalKg = bombona.sacks * bombona.kgPerSack;
+  const safeSacks = Number.isFinite(bombona.sacks) ? bombona.sacks : 0;
+  const safeKgPerSack = Number.isFinite(bombona.kgPerSack) ? bombona.kgPerSack : 0;
+  const totalKg = safeSacks * safeKgPerSack;
   const step = bombona.hasStock ? 4 : 2;
   const totalSteps = bombona.hasStock ? 4 : 2;
 
   async function handleSave() {
-    if (!store.currentRondaId) return;
+    if (!store.currentRondaId) {
+      Alert.alert('Erro', 'Ronda não iniciada. Volte pro menu e reinicie a ronda.');
+      return;
+    }
     setSaving(true);
+
+    const hasStockInt = bombona.hasStock ? 1 : 0;
+    const formulaIdSafe = bombona.hasStock ? (bombona.formulaId ?? null) : null;
+    const sacksSafe = bombona.hasStock
+      ? (Number.isFinite(bombona.sacks) ? bombona.sacks : 0)
+      : null;
+
+    console.log('[summary-save]', {
+      wizard: 'bombona',
+      rondaId: store.currentRondaId,
+      hasStock: bombona.hasStock,
+      formulaId: bombona.formulaId,
+      formulaName: bombona.formulaName,
+      sacks: bombona.sacks,
+      kgPerSack: bombona.kgPerSack,
+      photo,
+      insertValues: [store.currentRondaId, hasStockInt, formulaIdSafe, sacksSafe, photo],
+    });
+
     try {
       await db.runAsync(
         `INSERT INTO bombona_evals (ronda_id, has_stock, formula_id, sacks, photo_uri) VALUES (?, ?, ?, ?, ?)`,
         [
           store.currentRondaId,
-          bombona.hasStock ? 1 : 0,
-          bombona.hasStock ? bombona.formulaId : null,
-          bombona.hasStock ? bombona.sacks : null,
+          hasStockInt,
+          formulaIdSafe,
+          sacksSafe,
           photo,
         ]
       );
-      router.push(`/ronda/${paddockId}/menu`);
+      router.replace('/(tabs)/ronda');
     } catch (err) {
-      Alert.alert('Erro', 'Falha ao salvar avaliação');
+      console.error('[summary-save-error]', { wizard: 'bombona', err });
+      Alert.alert('Erro', 'Falha ao salvar avaliação de bombona. Tente novamente.');
     }
     setSaving(false);
   }
 
   return (
     <WizardFlow
-      title="BOMBONA"
+      title="Bombona"
       subtitle={store.currentPaddockName || ''}
       step={step}
       totalSteps={totalSteps}
@@ -50,37 +76,34 @@ export default function BombonaSummary() {
     >
       {bombona.hasStock ? (
         <ResultCard
-          icon="🛢️"
-          value={`${bombona.sacks} SACOS`}
+          value={sacos(safeSacks)}
           label={`${totalKg} kg ${bombona.formulaName || ''}`}
-          color={bombona.sacks > 0 ? Colors.success : Colors.warning}
+          color={safeSacks > 0 ? NSA.ok : NSA.warn}
         />
       ) : (
         <ResultCard
-          icon="⚠️"
-          value="BOMBONA VAZIA"
+          value="Bombona vazia"
           label="Reabastecer"
-          color={Colors.danger}
+          color={NSA.danger}
         />
       )}
 
-      <View style={styles.summaryBox}>
-        <SummaryRow label="Tem estoque" value={bombona.hasStock ? '✅ SIM' : '❌ NÃO'} />
+      <Card>
+        <SummaryRow label="Tem estoque" value={bombona.hasStock ? 'Sim' : 'Não'} />
         {bombona.hasStock && (
           <>
             <SummaryRow label="Formulação" value={bombona.formulaName || '-'} />
-            <SummaryRow label="Sacos" value={`${bombona.sacks} sacos`} />
+            <SummaryRow label="Sacos" value={sacos(safeSacks)} />
             <SummaryRow label="Total" value={`${totalKg} kg`} />
           </>
         )}
-      </View>
+      </Card>
 
       <PhotoButton uri={photo} onPhoto={setPhoto} />
-      <Button title={saving ? 'SALVANDO...' : 'FINALIZAR ✅'} onPress={handleSave} disabled={saving} variant="success" size="large" style={{ marginTop: 24 }} />
+      <Button title={saving ? 'Salvando…' : 'Finalizar'} onPress={handleSave} disabled={saving}  />
     </WizardFlow>
   );
 }
 
 const styles = StyleSheet.create({
-  summaryBox: { backgroundColor: '#ffffff', borderRadius: 12, padding: 16, elevation: 2 },
 });

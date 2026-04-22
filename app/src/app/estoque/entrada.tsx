@@ -1,23 +1,46 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import { router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDatabase } from '@/lib/db/provider';
-import { Button, MultiChoice, SliderInput } from '@/components/ui';
-import { Colors } from '@/constants';
+import { Button, Card, MultiChoice, SliderInput, SummaryRow, BrandHeader } from '@/components/ui';
+import { useAuthStore } from '@/stores/authStore';
+import { NSA, Fonts } from '@/theme/nsa';
+import { sacos } from '@/constants';
 
 export default function EntradaEstoqueScreen() {
   const db = useDatabase();
+  const user = useAuthStore((s) => s.user);
   const [formulas, setFormulas] = useState<Array<{ id: number; name: string }>>([]);
   const [formulaId, setFormulaId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(10);
+  const [reviewing, setReviewing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     db.getAllAsync<{ id: number; name: string }>('SELECT id, name FROM formulas WHERE active=1')
       .then(setFormulas);
   }, []);
 
-  async function handleSave() {
-    if (!formulaId) { Alert.alert('Erro', 'Selecione um produto'); return; }
+  const formulaName = formulas.find((f) => String(f.id) === formulaId)?.name ?? '';
+
+  function goToReview() {
+    if (!formulaId) {
+      Alert.alert('Erro', 'Selecione um produto');
+      return;
+    }
+    if (quantity <= 0) {
+      Alert.alert('Erro', 'Quantidade precisa ser maior que 0');
+      return;
+    }
+    setReviewing(true);
+  }
+
+  async function handleConfirm() {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setSubmitting(true);
     try {
       const existing = await db.getFirstAsync<{ id: number }>(
         "SELECT id FROM inventory WHERE formula_id=? AND location='central'",
@@ -26,44 +49,124 @@ export default function EntradaEstoqueScreen() {
       if (existing) {
         await db.runAsync('UPDATE inventory SET quantity_sacks = quantity_sacks + ? WHERE id=?', [quantity, existing.id]);
       } else {
-        await db.runAsync("INSERT INTO inventory (formula_id, quantity_sacks, min_sacks, location) VALUES (?,?,0,'central')",
-          [Number(formulaId), quantity]);
+        await db.runAsync(
+          "INSERT INTO inventory (formula_id, quantity_sacks, min_sacks, location) VALUES (?,?,0,'central')",
+          [Number(formulaId), quantity]
+        );
       }
-      Alert.alert('Sucesso', `${quantity} sacos adicionados!`, [{ text: 'OK', onPress: () => router.back() }]);
+      await db.runAsync(
+        `INSERT INTO inventory_events (event_type, formula_id, paddock_id, sacks_delta, reason, user_id)
+         VALUES ('ENTRADA_CENTRAL', ?, NULL, ?, 'Entrada manual', ?)`,
+        [Number(formulaId), quantity, user?.id ?? null]
+      );
+      // replace() em vez de back(): deep-link/reload sem stack quebra GO_BACK.
+      router.replace('/(tabs)/estoque');
     } catch (err) {
       Alert.alert('Erro', 'Falha ao registrar entrada');
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   }
 
-  return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.back}>← VOLTAR</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Entrada de Estoque</Text>
+  if (reviewing) {
+    return (
+      <View style={styles.root}>
+        <BrandHeader title="Confirmar entrada" context="Estoque" onBack={() => setReviewing(false)} />
+        <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+            <Card borderColor={NSA.ok}>
+              <Text style={styles.reviewLabel}>ENTRADA NO ESTOQUE CENTRAL</Text>
+              <SummaryRow label="Produto" value={formulaName} />
+              <SummaryRow label="Quantidade" value={sacos(quantity)} valueColor={NSA.ok} />
+              <Text style={styles.reviewNote}>
+                Essa entrada será contabilizada como {sacos(quantity)} {quantity === 1 ? 'adicionado' : 'adicionados'} ao estoque central
+                e registrada no ledger (relatório de movimentações).
+              </Text>
+            </Card>
+          </ScrollView>
+
+          <View style={styles.stickyFooter}>
+            <Button
+              title={submitting ? 'Registrando…' : `Confirmar entrada · ${sacos(quantity)}`}
+              onPress={handleConfirm}
+              disabled={submitting}
+            />
+            <Button
+              title="Voltar e ajustar"
+              variant="outline"
+              onPress={() => setReviewing(false)}
+              disabled={submitting}
+              style={{ marginTop: 10 }}
+            />
+          </View>
+        </SafeAreaView>
       </View>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.label}>PRODUTO</Text>
-        <MultiChoice
-          options={formulas.map((f) => ({ value: String(f.id), label: f.name }))}
-          value={formulaId}
-          onChange={setFormulaId}
-        />
-        <Text style={[styles.label, { marginTop: 20 }]}>QUANTIDADE</Text>
-        <SliderInput value={quantity} onValueChange={setQuantity} min={1} max={500} step={1} unit="sacos" color={Colors.success} />
-        <Button title="REGISTRAR ENTRADA" variant="success" onPress={handleSave} size="large" style={{ marginTop: 24 }} />
-      </ScrollView>
-    </SafeAreaView>
+    );
+  }
+
+  return (
+    <View style={styles.root}>
+      <BrandHeader title="Entrada de estoque" context="Central" onBack={() => router.back()} />
+      <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          <Text style={styles.label}>PRODUTO</Text>
+          <MultiChoice
+            options={formulas.map((f) => ({ value: String(f.id), label: f.name }))}
+            value={formulaId}
+            onChange={setFormulaId}
+          />
+          <Text style={[styles.label, { marginTop: 22 }]}>QUANTIDADE</Text>
+          <SliderInput value={quantity} onValueChange={setQuantity} min={1} max={500} step={1} unit="sacos" />
+        </ScrollView>
+
+        <View style={styles.stickyFooter}>
+          <Button
+            title={!formulaId ? 'Selecione um produto' : `Revisar · ${sacos(quantity)}`}
+            onPress={goToReview}
+            disabled={!formulaId || quantity <= 0}
+          />
+        </View>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f4f1ec' },
-  header: { backgroundColor: '#2d8a4e', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
-  back: { color: 'rgba(255,255,255,0.9)', fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#ffffff' },
+  root: { flex: 1, backgroundColor: NSA.bg },
   scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 40 },
-  label: { fontSize: 18, fontWeight: '800', color: '#2c2c2c', marginBottom: 10 },
+  scrollContent: { padding: 20, paddingBottom: 110 },
+  label: {
+    fontSize: 11,
+    fontFamily: Fonts.medium,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: NSA.inkMuted,
+    marginBottom: 10,
+  },
+  reviewLabel: {
+    fontSize: 10,
+    fontFamily: Fonts.medium,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: NSA.inkMuted,
+    marginBottom: 8,
+  },
+  reviewNote: {
+    fontSize: 12,
+    color: NSA.inkSecondary,
+    marginTop: 12,
+    fontFamily: Fonts.regular,
+    lineHeight: 17,
+  },
+  stickyFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: NSA.bgElevated,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: NSA.border,
+  },
 });

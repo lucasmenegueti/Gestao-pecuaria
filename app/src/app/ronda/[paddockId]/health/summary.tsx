@@ -3,8 +3,9 @@ import { View, StyleSheet, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { useDatabase } from '@/lib/db/provider';
-import { WizardFlow, SummaryRow, ResultCard, Button } from '@/components/ui';
-import { Colors } from '@/constants';
+import { WizardFlow, SummaryRow, ResultCard, Button, Card } from '@/components/ui';
+import { Colors, cabecas } from '@/constants';
+import { NSA } from '@/theme/nsa';
 
 export default function HealthSummary() {
   const { paddockId } = useLocalSearchParams();
@@ -14,44 +15,62 @@ export default function HealthSummary() {
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
-    if (!store.currentRondaId) return;
+    if (!store.currentRondaId) {
+      Alert.alert('Erro', 'Ronda não iniciada. Volte pro menu e reinicie a ronda.');
+      return;
+    }
     setSaving(true);
+
+    const parasiteFreeInt = health.parasiteFree ? 1 : 0;
+    const affectedPctSafe = Number.isFinite(health.affectedPct) ? health.affectedPct : 0;
+    const observationsSafe = health.observations ?? '';
+
+    console.log('[summary-save]', {
+      wizard: 'health',
+      rondaId: store.currentRondaId,
+      parasiteFree: health.parasiteFree,
+      affectedPct: health.affectedPct,
+      observations: health.observations,
+      photoUri: health.photoUri,
+      insertValues: [store.currentRondaId, parasiteFreeInt, affectedPctSafe, observationsSafe, health.photoUri],
+    });
+
     try {
       await db.runAsync(
         'INSERT INTO health_evals (ronda_id, parasite_free, affected_pct, observations, photo_uri) VALUES (?, ?, ?, ?, ?)',
-        [store.currentRondaId, health.parasiteFree ? 1 : 0, health.affectedPct, health.observations, health.photoUri]
+        [store.currentRondaId, parasiteFreeInt, affectedPctSafe, observationsSafe, health.photoUri]
       );
-      router.push(`/ronda/${paddockId}/menu`);
+      router.replace('/(tabs)/ronda');
     } catch (err) {
-      Alert.alert('Erro', 'Falha ao salvar');
+      console.error('[summary-save-error]', { wizard: 'health', err });
+      Alert.alert('Erro', 'Falha ao salvar avaliação de sanidade. Tente novamente.');
     }
     setSaving(false);
   }
 
   return (
     <WizardFlow
-      title="SANIDADE"
-      subtitle={`${store.currentPaddockName} • ${store.currentPaddockHeads} cabeças`}
+      title="Sanidade"
+      subtitle={`${store.currentPaddockName ?? '—'} • ${store.currentPaddockHeads ? cabecas(store.currentPaddockHeads) : '—'}`}
       step={4}
       totalSteps={4}
       accentColor={Colors.sanidade}
       onBack={() => router.back()}
     >
       {health.parasiteFree ? (
-        <ResultCard icon="🩺" value="LIVRE" label="Sem parasitas detectados" color={Colors.success} />
+        <ResultCard value="LIVRE" label="Sem parasitas detectados" color={NSA.green800} />
       ) : (
-        <ResultCard icon="🩺" value={`${health.affectedPct}%`} label="do rebanho afetado" color={Colors.danger} />
+        <ResultCard value={`${health.affectedPct}%`} label="do rebanho afetado" color={NSA.danger} />
       )}
-      <View style={styles.summaryBox}>
-        <SummaryRow label="Livre de parasitas" value={health.parasiteFree ? '✅ SIM' : '❌ NÃO'} />
+      <Card>
+        <SummaryRow label="Livre de parasitas" value={health.parasiteFree ? 'Sim' : 'Não'} />
         {!health.parasiteFree && <SummaryRow label="% afetados" value={`${health.affectedPct}%`} />}
         {health.observations ? <SummaryRow label="Observações" value={health.observations} /> : null}
-      </View>
-      <Button title={saving ? 'SALVANDO...' : 'FINALIZAR ✅'} onPress={handleSave} disabled={saving} variant="success" size="large" style={{ marginTop: 24 }} />
+      </Card>
+      <Button title={saving ? 'Salvando…' : 'Finalizar'} onPress={handleSave} disabled={saving}  />
     </WizardFlow>
   );
 }
 
 const styles = StyleSheet.create({
-  summaryBox: { backgroundColor: '#ffffff', borderRadius: 12, padding: 16, elevation: 2 },
 });

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { NSA, Fonts } from '@/theme/nsa';
 
 interface BadgeProps {
   label: string;
@@ -7,12 +8,12 @@ interface BadgeProps {
 }
 
 const BADGE_COLORS = {
-  ok: { bg: '#e8f5e9', text: '#2d8a4e' },
-  warning: { bg: '#fff3e0', text: '#e67e22' },
-  danger: { bg: '#fce4ec', text: '#c0392b' },
-  info: { bg: '#e3f2fd', text: '#2980b9' },
-  muted: { bg: '#f5f5f5', text: '#7a7a7a' },
-};
+  ok: { bg: NSA.okBg, text: NSA.okFg },
+  warning: { bg: NSA.warnBg, text: NSA.warnFg },
+  danger: { bg: NSA.dangerBg, text: NSA.dangerFg },
+  info: { bg: NSA.infoBg, text: NSA.infoFg },
+  muted: { bg: NSA.grey100, text: NSA.inkSecondary },
+} as const;
 
 export function Badge({ label, variant = 'info' }: BadgeProps) {
   const colors = BADGE_COLORS[variant];
@@ -25,13 +26,14 @@ export function Badge({ label, variant = 'info' }: BadgeProps) {
 
 const styles = StyleSheet.create({
   badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
     alignSelf: 'flex-start',
   },
   text: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 11,
+    fontFamily: Fonts.medium,
+    letterSpacing: 0,
   },
 });

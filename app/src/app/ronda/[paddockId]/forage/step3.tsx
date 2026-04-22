@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { WizardFlow, SliderInput, Badge } from '@/components/ui';
 import { Colors } from '@/constants';
+import { NSA, Fonts } from '@/theme/nsa';
 
 export default function ForageStep3() {
   const { paddockId } = useLocalSearchParams();
@@ -11,7 +12,7 @@ export default function ForageStep3() {
 
   return (
     <WizardFlow
-      title="FORRAGEM"
+      title="Forragem"
       subtitle="2ª Medida"
       step={3}
       totalSteps={6}
@@ -20,7 +21,7 @@ export default function ForageStep3() {
       onNext={() => router.push(`/ronda/${paddockId}/forage/step4`)}
     >
       <Badge label="Medida 2 de 3" variant="info" />
-      <Text style={styles.question}>2ª MEDIDA</Text>
+      <Text style={styles.question}>2ª medida</Text>
       <SliderInput
         value={forage.measure2}
         onValueChange={(v) => updateForage({ measure2: v })}
@@ -35,5 +36,5 @@ export default function ForageStep3() {
 }
 
 const styles = StyleSheet.create({
-  question: { fontSize: 22, fontWeight: '800', color: '#2c2c2c', marginBottom: 20, textAlign: 'center', marginTop: 12 },
+  question: { fontSize: 22, fontFamily: Fonts.semibold, color: NSA.inkPrimary, marginBottom: 20, textAlign: 'center', marginTop: 12 },
 });

@@ -1,21 +1,28 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Wheat, PackageOpen, Sprout, Droplets, Stethoscope, Zap, Scale, Droplet, FlaskConical } from 'lucide-react-native';
 import { useRondaStore } from '@/stores/rondaStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useDatabase } from '@/lib/db/provider';
-import { BottomNav } from '@/components/ui';
-import { Colors } from '@/constants';
+import { BrandHeader } from '@/components/ui';
+import { NSA, DOMAIN, Fonts, Radius } from '@/theme/nsa';
 
-const EVAL_ITEMS = [
-  { key: 'suplementacao', label: 'SUPLEMENTAÇÃO', icon: '🍶', color: Colors.suplementacao, route: 'supplement/step1' },
-  { key: 'bombona', label: 'BOMBONA', icon: '🛢️', color: Colors.bombona, route: 'bombona/step1' },
-  { key: 'forragem', label: 'FORRAGEM', icon: '🌿', color: Colors.forragem, route: 'forage/step1' },
-  { key: 'aguada', label: 'AGUADA', icon: '💧', color: Colors.aguada, route: 'water/step1' },
-  { key: 'sanidade', label: 'SANIDADE', icon: '🩺', color: Colors.sanidade, route: 'health/step1' },
-  { key: 'cerca', label: 'CERCA', icon: '⚡', color: Colors.cerca, route: 'fence/step1' },
-  { key: 'peso_visual', label: 'PESO VISUAL', icon: '⚖️', color: Colors.peso, route: 'weight/step1' },
-  { key: 'lavagem', label: 'LAVAGEM', icon: '🚿', color: Colors.lavagem, route: 'washing/step1' },
+type LucideIcon = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+
+const EVAL_ITEMS: Array<{
+  key: string; label: string; Icon: LucideIcon; domain: keyof typeof DOMAIN; route: string; tableKey: string;
+}> = [
+  { key: 'suplementacao', label: 'Suplementação', Icon: Wheat, domain: 'suplementacao', route: 'supplement/step1', tableKey: 'supplement_evals' },
+  { key: 'bombona', label: 'Bombona', Icon: PackageOpen, domain: 'bombona', route: 'bombona/step1', tableKey: 'bombona_evals' },
+  { key: 'forragem', label: 'Forragem', Icon: Sprout, domain: 'forragem', route: 'forage/step1', tableKey: 'forage_evals' },
+  { key: 'aguada', label: 'Aguada', Icon: Droplets, domain: 'aguada', route: 'water/step1', tableKey: 'water_evals' },
+  { key: 'biologico', label: 'Biológico', Icon: FlaskConical, domain: 'biologico', route: 'biological/step1', tableKey: 'biological_water_evals' },
+  { key: 'sanidade', label: 'Sanidade', Icon: Stethoscope, domain: 'sanidade', route: 'health/step1', tableKey: 'health_evals' },
+  { key: 'cerca', label: 'Cerca', Icon: Zap, domain: 'cerca', route: 'fence/step1', tableKey: 'fence_evals' },
+  { key: 'peso_visual', label: 'Peso visual', Icon: Scale, domain: 'peso', route: 'weight/step1', tableKey: 'visual_weight_evals' },
+  { key: 'lavagem', label: 'Lavagem', Icon: Droplet, domain: 'lavagem', route: 'washing/step1', tableKey: 'washing_evals' },
 ];
 
 export default function EvalMenuScreen() {
@@ -27,13 +34,19 @@ export default function EvalMenuScreen() {
 
   useEffect(() => {
     initRonda();
-    loadLastEvals();
-  }, []);
+    hydratePaddock();
+  }, [user, paddockId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadLastEvals();
+    }, [paddockId])
+  );
 
   async function initRonda() {
     if (!user || !paddockId) return;
     const existing = await db.getFirstAsync<{ id: number }>(
-      "SELECT id FROM rondas WHERE paddock_id = ? AND user_id = ? AND date = date('now')",
+      "SELECT id FROM rondas WHERE paddock_id = ? AND user_id = ? AND date = date('now','localtime')",
       [Number(paddockId), user.id]
     );
     if (existing) {
@@ -47,101 +60,139 @@ export default function EvalMenuScreen() {
     }
   }
 
+  // Hidrata dados do piquete no rondaStore sempre que a menu é aberta.
+  // Sem isso, entrar direto via URL (sem passar pelo tab ronda/mapa) deixa
+  // `currentPaddockName`/`currentGrassTypeName`/`currentPaddockHeads` nulos,
+  // o que vaza como "null" nos headers dos wizards/summaries.
+  async function hydratePaddock() {
+    if (!paddockId) return;
+    const pid = Number(paddockId);
+    const row = await db.getFirstAsync<{
+      id: number; name: string; area_hectares: number;
+      grass_name: string; total_heads: number | null;
+    }>(
+      `SELECT p.id, p.name, p.area_hectares, gt.name as grass_name,
+        (SELECT COALESCE(SUM(h.head_count), 0) FROM herd h
+          WHERE h.paddock_id = p.id AND h.head_count > 0) as total_heads
+       FROM paddocks p
+       JOIN grass_types gt ON gt.id = p.grass_type_id
+       WHERE p.id = ?`,
+      [pid]
+    );
+    if (row) {
+      store.setCurrentPaddock(row.id, row.name, row.total_heads ?? 0, row.area_hectares, row.grass_name);
+    }
+  }
+
   async function loadLastEvals() {
     if (!paddockId) return;
     const pid = Number(paddockId);
-    const tables: Record<string, string> = {
-      suplementacao: 'supplement_evals',
-      bombona: 'bombona_evals',
-      forragem: 'forage_evals',
-      aguada: 'water_evals',
-      sanidade: 'health_evals',
-      cerca: 'fence_evals',
-      peso_visual: 'visual_weight_evals',
-      lavagem: 'washing_evals',
-    };
     const results: Record<string, string> = {};
-    for (const [key, table] of Object.entries(tables)) {
+    for (const item of EVAL_ITEMS) {
       const row = await db.getFirstAsync<{ created_at: string }>(
-        `SELECT e.created_at FROM ${table} e JOIN rondas r ON r.id = e.ronda_id WHERE r.paddock_id = ? ORDER BY e.created_at DESC LIMIT 1`,
+        `SELECT e.created_at FROM ${item.tableKey} e JOIN rondas r ON r.id = e.ronda_id WHERE r.paddock_id = ? ORDER BY e.created_at DESC LIMIT 1`,
         [pid]
       );
       if (row) {
-        results[key] = row.created_at.split('T')[0] || row.created_at.split(' ')[0];
+        const d = (row.created_at.split('T')[0] ?? row.created_at.split(' ')[0])!;
+        const parts = d.split('-');
+        if (parts.length === 3) results[item.key] = `${parts[2]}/${parts[1]}`;
       }
     }
     setLastEvals(results);
   }
 
+  const context = [store.currentPaddockHeads ? `${store.currentPaddockHeads} cab` : null, store.currentPaddockArea ? `${store.currentPaddockArea} ha` : null, store.currentGrassTypeName]
+    .filter(Boolean).join(' · ');
+
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>← VOLTAR</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Menu de Avaliação</Text>
-        <Text style={styles.subtitle}>
-          {store.currentPaddockName} • {store.currentPaddockHeads} cab • {store.currentPaddockArea} ha • {store.currentGrassTypeName}
-        </Text>
-      </View>
-
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.grid}>
-        {EVAL_ITEMS.map((item) => (
-          <TouchableOpacity
-            key={item.key}
-            style={[styles.evalCard, { borderLeftColor: item.color }]}
-            onPress={() => router.push(`/ronda/${paddockId}/${item.route}`)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.evalIcon}>{item.icon}</Text>
-            <Text style={styles.evalLabel}>{item.label}</Text>
-            {lastEvals[item.key] && (
-              <Text style={styles.evalDate}>Últ: {lastEvals[item.key]}</Text>
-            )}
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      <BottomNav active="Ronda" />
-    </SafeAreaView>
+    <View style={styles.root}>
+      <BrandHeader
+        title={store.currentPaddockName || 'Piquete'}
+        context={context ? `Ronda · ${context}` : 'Ronda'}
+        onBack={() => router.back()}
+      />
+      <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          <Text style={styles.sectionLabel}>AVALIAR</Text>
+          <View style={styles.grid}>
+            {EVAL_ITEMS.map((item) => {
+              const pal = DOMAIN[item.domain];
+              return (
+                <TouchableOpacity
+                  key={item.key}
+                  style={styles.tile}
+                  onPress={() => router.push(`/ronda/${paddockId}/${item.route}`)}
+                  activeOpacity={0.85}
+                >
+                  <View style={[styles.iconWrap, { backgroundColor: pal.tint }]}>
+                    <item.Icon size={20} color={pal.dot} strokeWidth={1.75} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.tileLabel}>{item.label}</Text>
+                    {lastEvals[item.key] ? (
+                      <Text style={styles.tileLast}>Últ. {lastEvals[item.key]}</Text>
+                    ) : (
+                      <Text style={styles.tileLastFaded}>Sem registro</Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 16,
-  },
-  backBtn: { paddingVertical: 8 },
-  backText: { color: 'rgba(255,255,255,0.9)', fontSize: 16, fontWeight: '600' },
-  title: { color: Colors.white, fontSize: 20, fontWeight: '800' },
-  subtitle: { color: 'rgba(255,255,255,0.7)', fontSize: 14, marginTop: 2 },
+  root: { flex: 1, backgroundColor: NSA.bg },
   scroll: { flex: 1 },
-  grid: {
-    padding: 16,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  scrollContent: { padding: 20, paddingBottom: 24 },
+  sectionLabel: {
+    fontSize: 11,
+    fontFamily: Fonts.medium,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: NSA.inkMuted,
+    marginBottom: 12,
+  },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  tile: {
+    width: '47.5%',
+    backgroundColor: NSA.bgElevated,
+    borderWidth: 1,
+    borderColor: NSA.border,
+    borderRadius: Radius.xxl,
+    padding: 14,
+    minHeight: 106,
     gap: 12,
   },
-  evalCard: {
-    width: '47%',
-    backgroundColor: Colors.card,
-    borderRadius: 12,
-    padding: 16,
-    borderLeftWidth: 4,
-    minHeight: 100,
-    justifyContent: 'center',
+  iconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.xl,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    justifyContent: 'center',
   },
-  evalIcon: { fontSize: 32, marginBottom: 8 },
-  evalLabel: { fontSize: 14, fontWeight: '800', color: Colors.text, textAlign: 'center' },
-  evalDate: { fontSize: 12, color: Colors.textMuted, marginTop: 4 },
+  tileLabel: {
+    fontSize: 13,
+    fontFamily: Fonts.semibold,
+    color: NSA.inkPrimary,
+    letterSpacing: -0.15,
+    lineHeight: 17,
+  },
+  tileLast: {
+    fontSize: 11,
+    fontFamily: Fonts.regular,
+    color: NSA.inkMuted,
+    marginTop: 3,
+  },
+  tileLastFaded: {
+    fontSize: 11,
+    fontFamily: Fonts.regular,
+    color: NSA.inkDisabled,
+    marginTop: 3,
+  },
 });

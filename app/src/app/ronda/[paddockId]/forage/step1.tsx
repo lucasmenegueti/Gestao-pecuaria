@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { WizardFlow, MultiChoice } from '@/components/ui';
 import { Colors } from '@/constants';
+import { NSA, Fonts } from '@/theme/nsa';
 
 export default function ForageStep1() {
   const { paddockId } = useLocalSearchParams();
@@ -13,7 +14,7 @@ export default function ForageStep1() {
 
   return (
     <WizardFlow
-      title="FORRAGEM"
+      title="Forragem"
       subtitle="Tipo de medição"
       step={1}
       totalSteps={6}
@@ -22,12 +23,12 @@ export default function ForageStep1() {
       onNext={() => router.push(`/ronda/${paddockId}/forage/step2`)}
       nextDisabled={!forage.measurementType}
     >
-      <Text style={styles.question}>TIPO DE MEDIÇÃO?</Text>
+      <Text style={styles.question}>Qual é o tipo de medição?</Text>
       <MultiChoice
         options={[
-          { value: 'ENTRADA', label: 'ENTRADA', description: 'Gado entrando no pasto', color: Colors.success, icon: '🟢' },
-          { value: 'AFERICAO', label: 'AFERIÇÃO', description: 'Medição de acompanhamento', color: Colors.warning, icon: '🟡' },
-          { value: 'SAIDA', label: 'SAÍDA', description: 'Gado saindo do pasto', color: Colors.danger, icon: '🔴' },
+          { value: 'ENTRADA', label: 'Entrada', description: 'Gado entrando no pasto', color: NSA.ok },
+          { value: 'AFERICAO', label: 'Aferição', description: 'Medição de acompanhamento', color: NSA.warn },
+          { value: 'SAIDA', label: 'Saída', description: 'Gado saindo do pasto', color: NSA.danger },
         ]}
         value={forage.measurementType}
         onChange={(v) => updateForage({ measurementType: v })}
@@ -37,5 +38,5 @@ export default function ForageStep1() {
 }
 
 const styles = StyleSheet.create({
-  question: { fontSize: 22, fontWeight: '800', color: '#2c2c2c', marginBottom: 20, textAlign: 'center' },
+  question: { fontSize: 22, fontFamily: Fonts.semibold, color: NSA.inkPrimary, marginBottom: 20, textAlign: 'center' },
 });
