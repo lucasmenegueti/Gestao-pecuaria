@@ -69,22 +69,22 @@ Deixa rodando. Terminal mostra QR code. Tab A9 abre **Expo Go** → "Scan QR cod
 ```
 app/src/app/
 ├── (auth)/login.tsx              Auth gate (first login online, cached after)
-├── (tabs)/                       5 main tabs: index/ronda/rebanho/estoque/mapa
+├── (tabs)/                       6 main tabs: index(Painel)/ronda/rebanho/estoque/mapa/relatorio
 ├── ronda/[paddockId]/
 │   ├── menu.tsx                  Menu de Avaliação — uses <BottomNav/> for persistent nav
-│   └── {supplement,bombona,forage,water,health,fence,weight,washing}/
+│   └── {supplement,bombona,forage,water,biological,health,fence,weight,washing}/
 │       └── step1..N.tsx + summary.tsx
 ├── admin/                        Formulações, tipos de capim, lotação, mover rebanho
 ├── estoque/                      Entrada/saída
 └── reabastecimento/              3-phase: carregar → rota → resumo
 ```
 
-Wizards route sequentially (each `step` calls `router.push` to next). `summary.tsx` saves to SQLite and `router.replace`s to `menu.tsx`. **Don't** add `<BottomNav/>` inside wizard steps — it breaks flow integrity. Only main screens and the evaluation menu carry the bottom nav.
+Wizards route sequentially (each `step` calls `router.push` to next). `summary.tsx` saves to SQLite and `router.replace`s to `/(tabs)/ronda` (a listagem de piquetes). **Don't** add `<BottomNav/>` inside wizard steps — it breaks flow integrity. Only main screens and the evaluation menu carry the bottom nav.
 
 ### State — Zustand (`app/src/stores/`)
 
 - `authStore` — current user, login/logout
-- `rondaStore` — wizard state per ronda section (supplement/bombona/forage/water/health/fence/visualWeight/washing). Each section has its own slice + `updateX`/`resetX` actions. `resetAll` clears everything between rondas.
+- `rondaStore` — wizard state per ronda section (supplement/bombona/forage/water/biologicalWater/health/fence/visualWeight/washing). Each section has its own slice + `updateX`/`resetX` actions. `resetAll` clears everything between rondas.
 - `syncStore` — placeholder for Supabase sync
 
 Wizard pattern: step1 calls `resetX()` in `useEffect`, each step calls `updateX({ field })`, summary reads slice and issues INSERT.
@@ -95,7 +95,7 @@ Wizard pattern: step1 calls `resetX()` in `useEffect`, each step calls `updateX(
 - `seed.ts` — single `SEED_SQL` string (users, grass types, formulas, etc.). Seed runs only when `users` table is empty.
 - `provider.tsx` — `DatabaseProvider` React context + `useDatabase()` hook. Handles WAL mode, FK enforcement, schema versioning, seed bootstrap.
 
-Each ronda section has its own `*_evals` table FK'd to `rondas.id`. Menu screen queries each for the last `created_at` to show "Últ: DATA" per card.
+Each ronda section has its own `*_evals` table FK'd to `rondas.id` (`supplement_evals`, `bombona_evals`, `forage_evals`, `water_evals`, `biological_water_evals`, `health_evals`, `fence_evals`, `visual_weight_evals`, `washing_evals`). Menu screen queries each for the last `created_at` to show "Últ: DATA" per card.
 
 ### UI Components (`app/src/components/ui/`)
 
@@ -107,7 +107,7 @@ Reusable primitives — treat as the design system. Don't introduce new button/i
 - `SliderInput` — numeric with min/max/step/unit
 - `PhotoButton` — optional photo capture (never required)
 - `ResultCard`, `SummaryRow`, `Badge`, `Card`, `Button` — layout helpers
-- `BottomNav` — 5-tab persistent bar (use only on main screens + ronda menu)
+- `BottomNav` — 6-tab persistent bar (use only on main screens + ronda menu)
 
 ## Domain
 
@@ -116,7 +116,7 @@ Reusable primitives — treat as the design system. Don't introduce new button/i
 - **Bombona**: per-paddock supplement storage. **Separate from Suplementação** — each has its own item in the evaluation menu and its own eval table (`bombona_evals`).
 - **Reabastecimento**: 3-phase tractor route — Load at sede → Distribute to bombonas → Return leftover
 - **Lotação**: cab/ha (heads per hectare), per paddock and overall
-- **Categorias de gado**: GARROTE, NOVILHA, VACA PARIDA, VACA PRENHA, VACA SOLTEIRA, BEZERRO MAMANDO, BEZERRA MAMANDO (7 categorias; definidas em `constants/index.ts CATTLE_CATEGORIES`). Lote de pares = VACA PARIDA + BEZERRO/A MAMANDO no mesmo piquete (`PAIR_CATEGORIES`).
+- **Categorias de gado**: BEZERRO MAMANDO, BEZERRA MAMANDO, BEZERRO, BEZERRA, GARROTE, NOVILHA, NOVILHA PRENHA, BOI, VACA SOLTEIRA, VACA PRENHA, VACA PARIDA (11 categorias; definidas em `constants/index.ts CATTLE_CATEGORIES`, ordem por evolução etária). Lote de pares = VACA PARIDA + BEZERRO/A MAMANDO no mesmo piquete (`PAIR_CATEGORIES`).
 - **Formulações**: supplement formulas (CRUD) — `kg_per_sack`, `target_consumption_g_per_day`
 - **Tipos de Capim**: grass types (CRUD) with entry/exit height targets (cm)
 
@@ -129,7 +129,7 @@ Reusable primitives — treat as the design system. Don't introduce new button/i
 
 ### Ronda sections — current shape
 
-Section order in `menu.tsx`: Suplementação → Bombona → Forragem → Aguada → Sanidade → Cerca → Peso Visual → Lavagem.
+Section order in `menu.tsx`: Suplementação → Bombona → Forragem → Aguada → Biológico → Sanidade → Cerca → Peso visual → Lavagem (9 seções).
 
 - **Sanidade** stores **`affected_pct` (REAL, 0–100)**, not a count
 - **Cerca** asks "evita mistura?" first, voltage second

@@ -105,7 +105,7 @@ export default function AjusteEstoqueScreen() {
       const msg = mode === 'add'
         ? `+${quantity} saco(s) adicionados.`
         : `${quantity} saco(s) removidos (perda).`;
-      Alert.alert('Registrado', msg, [{ text: 'OK', onPress: () => router.back() }]);
+      Alert.alert('Registrado', msg, [{ text: 'OK', onPress: () => router.replace('/(tabs)/estoque') }]);
     } catch (err) {
       Alert.alert('Erro', 'Falha ao registrar ajuste');
     }

@@ -7,6 +7,7 @@ import { useDatabase } from '@/lib/db/provider';
 import { Card, Button, SummaryRow, KPI, BrandHeader } from '@/components/ui';
 import { useAuthStore } from '@/stores/authStore';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
+import { sacos } from '@/constants';
 
 interface LoadSummary {
   formula_id: number;
@@ -180,7 +181,7 @@ export default function ResumoScreen() {
                     {items.map((it) => (
                       <View key={it.formula} style={styles.paddockRow}>
                         <Text style={styles.paddockFormula}>{it.formula}</Text>
-                        <Text style={styles.paddockQty}>+{it.total} sacos</Text>
+                        <Text style={styles.paddockQty}>+{sacos(it.total)}</Text>
                       </View>
                     ))}
                   </View>
@@ -193,11 +194,11 @@ export default function ResumoScreen() {
           {loads.map((l) => (
             <Card key={l.formula_id}>
               <Text style={styles.loadName}>{l.formula_name}</Text>
-              <SummaryRow label="Levou do central" value={`${l.loaded} sacos`} />
-              <SummaryRow label="Entregou" value={`${l.distributed} sacos`} valueColor={NSA.ok} />
+              <SummaryRow label="Levou do central" value={sacos(l.loaded)} />
+              <SummaryRow label="Entregou" value={sacos(l.distributed)} valueColor={NSA.ok} />
               <SummaryRow
                 label="Volta pra sede"
-                value={`${l.returned} sacos`}
+                value={sacos(l.returned)}
                 valueColor={l.returned > 0 ? NSA.warnFg : NSA.inkMuted}
               />
             </Card>
@@ -208,14 +209,14 @@ export default function ResumoScreen() {
               <AlertTriangle size={14} color={NSA.warnFg} strokeWidth={1.75} />
               <Text style={styles.returnLabel}>CONFIRMAR DEVOLUÇÃO À SEDE</Text>
             </View>
-            <Text style={styles.returnAmount}>{totalReturned} sacos</Text>
+            <Text style={styles.returnAmount}>{sacos(totalReturned)}</Text>
             <Text style={styles.returnHint}>
               Vão voltar ao estoque central. Verifique o trator antes de confirmar.
             </Text>
             {loads.filter((l) => l.returned > 0).map((l) => (
               <View key={l.formula_id} style={styles.returnRow}>
                 <Text style={styles.returnRowName}>{l.formula_name}</Text>
-                <Text style={styles.returnRowQty}>{l.returned} sacos</Text>
+                <Text style={styles.returnRowQty}>{sacos(l.returned)}</Text>
               </View>
             ))}
             {totalReturned === 0 && (

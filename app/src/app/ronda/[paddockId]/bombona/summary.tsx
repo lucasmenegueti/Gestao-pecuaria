@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { useDatabase } from '@/lib/db/provider';
 import { WizardFlow, SummaryRow, ResultCard, PhotoButton, Button, Card } from '@/components/ui';
-import { Colors } from '@/constants';
+import { Colors, sacos } from '@/constants';
 import { NSA } from '@/theme/nsa';
 
 export default function BombonaSummary() {
@@ -76,7 +76,7 @@ export default function BombonaSummary() {
     >
       {bombona.hasStock ? (
         <ResultCard
-          value={`${safeSacks} sacos`}
+          value={sacos(safeSacks)}
           label={`${totalKg} kg ${bombona.formulaName || ''}`}
           color={safeSacks > 0 ? NSA.ok : NSA.warn}
         />
@@ -93,7 +93,7 @@ export default function BombonaSummary() {
         {bombona.hasStock && (
           <>
             <SummaryRow label="Formulação" value={bombona.formulaName || '-'} />
-            <SummaryRow label="Sacos" value={`${safeSacks} sacos`} />
+            <SummaryRow label="Sacos" value={sacos(safeSacks)} />
             <SummaryRow label="Total" value={`${totalKg} kg`} />
           </>
         )}

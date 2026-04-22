@@ -3,7 +3,7 @@ import { Text, View, StyleSheet } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { WizardFlow, SliderInput } from '@/components/ui';
-import { Colors } from '@/constants';
+import { Colors, plural } from '@/constants';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 
 export default function BombonaStep3() {
@@ -32,7 +32,7 @@ export default function BombonaStep3() {
         color={Colors.bombona}
       />
       <View style={styles.calcCard}>
-        <Text style={styles.calcText}>{bombona.sacks} sacos × {bombona.kgPerSack} kg = {totalKg} kg</Text>
+        <Text style={styles.calcText}>{bombona.sacks} {plural(bombona.sacks, 'saco', 'sacos')} × {bombona.kgPerSack} kg = {totalKg} kg</Text>
         <Text style={styles.calcSub}>{bombona.formulaName}</Text>
       </View>
     </WizardFlow>

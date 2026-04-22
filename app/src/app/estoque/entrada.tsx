@@ -58,7 +58,8 @@ export default function EntradaEstoqueScreen() {
          VALUES ('ENTRADA_CENTRAL', ?, NULL, ?, 'Entrada manual', ?)`,
         [Number(formulaId), quantity, user?.id ?? null]
       );
-      router.back();
+      // replace() em vez de back(): deep-link/reload sem stack quebra GO_BACK.
+      router.replace('/(tabs)/estoque');
     } catch (err) {
       Alert.alert('Erro', 'Falha ao registrar entrada');
     } finally {

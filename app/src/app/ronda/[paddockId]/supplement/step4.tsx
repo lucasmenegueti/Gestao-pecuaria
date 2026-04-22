@@ -3,7 +3,7 @@ import { Text, View, StyleSheet } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { WizardFlow, SliderInput } from '@/components/ui';
-import { Colors } from '@/constants';
+import { Colors, plural } from '@/constants';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 
 export default function SupplementStep4() {
@@ -33,7 +33,7 @@ export default function SupplementStep4() {
       />
       <View style={styles.calcCard}>
         <Text style={styles.calcText}>
-          {supplement.sacksInTrough} sacos × {supplement.kgPerSack} kg = {totalKg} kg
+          {supplement.sacksInTrough} {plural(supplement.sacksInTrough, 'saco', 'sacos')} × {supplement.kgPerSack} kg = {totalKg} kg
         </Text>
         <Text style={styles.calcSub}>{supplement.formulaName}</Text>
       </View>

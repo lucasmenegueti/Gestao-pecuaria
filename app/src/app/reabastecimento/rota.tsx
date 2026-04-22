@@ -8,6 +8,7 @@ import { Card, Button, SliderInput, BrandHeader } from '@/components/ui';
 import { useAuthStore } from '@/stores/authStore';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 import { cancelActiveRoute } from '@/lib/reabastecimento/active-route';
+import { sacos } from '@/constants';
 
 interface LoadInfo {
   formula_id: number;
@@ -180,7 +181,7 @@ export default function RotaScreen() {
     const load = loads.find((l) => l.formula_id === delivering.formulaId);
     const remaining = load?.remaining ?? 0;
     if (delivering.toDeliver > remaining) {
-      Alert.alert('Sem ração', `Só restam ${remaining} sacos desta fórmula no trator.`);
+      Alert.alert('Sem ração', `Disponível apenas ${sacos(remaining)} desta fórmula no trator.`);
       return;
     }
     try {
@@ -246,7 +247,7 @@ export default function RotaScreen() {
     Alert.alert(
       'Cancelar rota?',
       total > 0
-        ? `${total} sacos voltam ao estoque central. As entregas já feitas nas bombonas continuam.`
+        ? `${sacos(total)} voltam ao estoque central. As entregas já feitas nas bombonas continuam.`
         : 'Não há sacos no trator. A rota será finalizada como cancelada.',
       [
         { text: 'Voltar', style: 'cancel' },
@@ -356,7 +357,7 @@ export default function RotaScreen() {
                   ) : (
                     p.bombonas.map((b) => (
                       <Text key={b.formula_id} style={styles.itemDetail}>
-                        {b.formula_name} · {b.db_sacks} sacos
+                        {b.formula_name} · {sacos(b.db_sacks)}
                       </Text>
                     ))
                   )}
@@ -405,7 +406,7 @@ export default function RotaScreen() {
                   <View style={styles.currentRow}>
                     <Text style={styles.currentLabel}>Estoque atual na bombona:</Text>
                     <Text style={styles.currentValue}>
-                      {delivering.currentDbSacks + delivering.manualAdjust} sacos
+                      {sacos(delivering.currentDbSacks + delivering.manualAdjust)}
                       {delivering.manualAdjust !== 0 && (
                         <Text style={styles.currentAdj}>
                           {' '}({delivering.manualAdjust > 0 ? '+' : ''}{delivering.manualAdjust})
@@ -451,7 +452,10 @@ export default function RotaScreen() {
 
                   <Text style={styles.formLabel}>Sacos que vou deixar agora</Text>
                   <Text style={styles.formHint}>
-                    Restam {loads.find((l) => l.formula_id === delivering.formulaId)?.remaining ?? 0} sacos no trator
+                    {(() => {
+                      const rem = loads.find((l) => l.formula_id === delivering.formulaId)?.remaining ?? 0;
+                      return rem === 1 ? `Resta ${sacos(rem)} no trator` : `Restam ${sacos(rem)} no trator`;
+                    })()}
                   </Text>
                   <SliderInput
                     value={delivering.toDeliver}
@@ -468,7 +472,7 @@ export default function RotaScreen() {
                   <View style={styles.formTotal}>
                     <Text style={styles.formTotalLabel}>Total na bombona após:</Text>
                     <Text style={styles.formTotalValue}>
-                      {delivering.currentDbSacks + delivering.manualAdjust + delivering.toDeliver} sacos
+                      {sacos(delivering.currentDbSacks + delivering.manualAdjust + delivering.toDeliver)}
                     </Text>
                   </View>
 
@@ -484,14 +488,18 @@ export default function RotaScreen() {
 
         <Card style={{ marginTop: 12 }}>
           <Text style={styles.progressText}>
-            {totalRemaining} sacos restam no trator → voltam à sede
+            {totalRemaining === 1
+              ? `${sacos(totalRemaining)} resta no trator → volta à sede`
+              : `${sacos(totalRemaining)} restam no trator → voltam à sede`}
           </Text>
         </Card>
       </ScrollView>
 
       <SafeAreaView edges={['bottom']} style={styles.stickyFooter}>
         <Button
-          title={`Encerrar rota · ${totalRemaining} sacos voltam`}
+          title={totalRemaining === 1
+            ? `Encerrar rota · ${sacos(totalRemaining)} volta`
+            : `Encerrar rota · ${sacos(totalRemaining)} voltam`}
           onPress={() => router.replace(`/reabastecimento/resumo?routeId=${routeId}`)}
         />
       </SafeAreaView>

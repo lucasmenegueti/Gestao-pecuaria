@@ -153,3 +153,33 @@ export function calculateStockingRate(heads: number, hectares: number): number {
 export function calculateForageAverage(m1: number, m2: number, m3: number): number {
   return Number(((m1 + m2 + m3) / 3).toFixed(1));
 }
+
+// PT-BR plural helper. Retorna `singular` quando |n| === 1, senão `plural`.
+// Valores NaN/Infinity caem pra plural (0 cabeças, 0 sacos, etc.).
+export function plural(n: number, singular: string, pluralForm: string): string {
+  const abs = Math.abs(Number.isFinite(n) ? n : 0);
+  return abs === 1 ? singular : pluralForm;
+}
+
+// Açúcares pros casos mais comuns no app — mantém "1 saco" vs "2 sacos" certo
+// sem repetir o par singular/plural em cada call site.
+export function sacos(n: number): string {
+  return `${n} ${plural(n, 'saco', 'sacos')}`;
+}
+
+export function cabecas(n: number): string {
+  // "cabeça" é feminino e mantém sem acento plural diferente: 1 cabeça / 2 cabeças.
+  return `${n} ${plural(n, 'cabeça', 'cabeças')}`;
+}
+
+export function dias(n: number): string {
+  return `${n} ${plural(n, 'dia', 'dias')}`;
+}
+
+export function bombonas(n: number): string {
+  return `${n} ${plural(n, 'bombona', 'bombonas')}`;
+}
+
+export function piquetes(n: number): string {
+  return `${n} ${plural(n, 'piquete', 'piquetes')}`;
+}
