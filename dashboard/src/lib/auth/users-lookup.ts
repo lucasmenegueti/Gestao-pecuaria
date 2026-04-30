@@ -47,8 +47,10 @@ export async function verifyCredentials(
     return null;
   }
 
-  // 2. Sign in via Supabase Auth.
+  // 2. Sign in via Supabase Auth. Guarda access_token pra ler profile com a
+  //    identidade do user (RLS permite "own profile", anon key não).
   let userId: string;
+  let accessToken: string;
   try {
     const authRes = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
       method: 'POST',
@@ -61,30 +63,40 @@ export async function verifyCredentials(
     });
     if (!authRes.ok) return null;
     const tok = await authRes.json();
-    if (!tok?.user?.id) return null;
+    if (!tok?.user?.id || !tok?.access_token) return null;
     userId = tok.user.id;
+    accessToken = tok.access_token;
   } catch (e) {
     console.error('[auth] signin failed:', e);
     return null;
   }
 
-  // 3. Lookup profile. Só admin entra no dashboard.
+  // 3. Lookup profile com JWT do user (RLS na profiles bloqueia anon).
   try {
     const profRes = await fetch(
       `${SUPABASE_URL}/rest/v1/profiles?select=username,role&id=eq.${userId}&limit=1`,
       {
         headers: {
           apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Authorization: `Bearer ${accessToken}`,
         },
         cache: 'no-store',
       },
     );
-    if (!profRes.ok) return null;
+    if (!profRes.ok) {
+      console.error('[auth] profile fetch failed:', profRes.status, await profRes.text().catch(() => ''));
+      return null;
+    }
     const rows = (await profRes.json()) as Array<{ username: string | null; role: string }>;
     const profile = rows[0];
-    if (!profile) return null;
-    if (profile.role !== 'admin') return null; // peão não acessa dashboard
+    if (!profile) {
+      console.error('[auth] profile not found for user', userId);
+      return null;
+    }
+    if (profile.role !== 'admin') {
+      console.error('[auth] non-admin role rejected:', profile.role);
+      return null; // peão não acessa dashboard
+    }
     return { username: profile.username ?? u, role: 'owner' };
   } catch (e) {
     console.error('[auth] profile lookup failed:', e);
