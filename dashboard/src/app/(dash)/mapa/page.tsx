@@ -1,6 +1,6 @@
 import { DashHeader } from '@/components/dash-header';
 import { FarmMapWithDetail, type PaddockMapDetail } from '@/components/farm-map-with-detail';
-import type { MapPaddock } from '@/components/farm-map';
+import type { MapPaddock, Status } from '@/components/farm-map';
 import { Card, EmptyState } from '@/components/ui-primitives';
 import { loadDashboardData } from '@/lib/queries';
 import { parsePeriodFromSearchParams } from '@/lib/period';
@@ -20,19 +20,24 @@ const DEFAULT_WEIGHT: Record<string, number> = {
   'VACA PARIDA': 450, 'VACA PRENHA': 470, 'VACA SOLTEIRA': 440,
 };
 
+/** Status do mapa, espelhando a lógica do app (types.ts/stylePaddock mode='ronda'):
+ *   sem gado            → empty   (cinza)
+ *   com gado, com ronda → active  (verde)
+ *   com gado, sem ronda → pending (vermelho) */
+function statusOf(totalHeads: number, hasRonda: boolean): Status {
+  if (totalHeads === 0) return 'empty';
+  return hasRonda ? 'active' : 'pending';
+}
+
 export default async function MapaPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const period = parsePeriodFromSearchParams(params);
   const session = await getSessionOrRedirect();
   const data = await loadDashboardData(period, session.accessToken);
 
-  const k = data.kpis;
-
-  // Mapeia ronda_id → paddock_id pra resolver alertas e evals.
+  // Mapeia ronda_id → paddock_id pra resolver evals.
   const rondaToPaddock = new Map<number, number>();
   for (const r of data.rondas) rondaToPaddock.set(r.id, r.paddock_id);
-  const paddockNameById = new Map(data.paddocks.map((p) => [p.id, p.name]));
-  const formulaById = new Map(data.formulas.map((f) => [f.id, f]));
 
   // Por talhão, agrupa rondas + evals com summaries inline.
   const evalsByPaddockRonda: Record<number, Record<number, Array<{ kind: SectionKind; label: string; color: string; summary: string }>>> = {};
@@ -92,27 +97,30 @@ export default async function MapaPage({ searchParams }: PageProps) {
     };
   }
 
-  // Alertas por talhão (resolve paddockId via ronda quando ausente).
+  // Alertas por talhão.
   const alertsByPaddock: Record<number, Array<{ severity: 'danger' | 'warning'; detail: string; time: string }>> = {};
   for (const a of data.alerts) {
-    let pid = a.paddockId;
-    // alguns alerts foram derivados sem paddockId (água/cerca/sanidade) — tenta resolver
-    if (pid == null) continue;
-    (alertsByPaddock[pid] ??= []).push({ severity: a.severity, detail: a.detail, time: a.time });
+    if (a.paddockId == null) continue;
+    (alertsByPaddock[a.paddockId] ??= []).push({ severity: a.severity, detail: a.detail, time: a.time });
   }
 
-  // Monta MapPaddock[] e details.
-  const mapPaddocks: MapPaddock[] = data.paddocksEnriched.map((e) => ({
-    id: e.paddock.id,
-    name: e.paddock.name,
-    status: e.status,
-    geometry: e.paddock.geometry as unknown,
-    centerLat: e.paddock.center_lat,
-    centerLng: e.paddock.center_lng,
-  }));
+  // Monta MapPaddock[] e details com novo schema de status (active/empty/pending).
+  const mapPaddocks: MapPaddock[] = data.paddocksEnriched.map((e) => {
+    const status = statusOf(e.totalHeads, e.rondasInPeriod.length > 0);
+    return {
+      id: e.paddock.id,
+      name: e.paddock.name,
+      status,
+      totalHeads: e.totalHeads,
+      geometry: e.paddock.geometry as unknown,
+      centerLat: e.paddock.center_lat,
+      centerLng: e.paddock.center_lng,
+    };
+  });
 
   const details: Record<number, PaddockMapDetail> = {};
   for (const e of data.paddocksEnriched) {
+    const status = statusOf(e.totalHeads, e.rondasInPeriod.length > 0);
     const evalsByRonda = evalsByPaddockRonda[e.paddock.id] ?? {};
     const rondas = e.rondasInPeriod.map((r) => ({
       user: r.user?.name ?? '—',
@@ -124,7 +132,7 @@ export default async function MapaPage({ searchParams }: PageProps) {
     details[e.paddock.id] = {
       id: e.paddock.id,
       name: e.paddock.name,
-      status: e.status,
+      status,
       area: e.paddock.area_hectares,
       totalHeads: e.totalHeads,
       stockingRate: e.stockingRate,
@@ -134,18 +142,25 @@ export default async function MapaPage({ searchParams }: PageProps) {
     };
   }
 
+  // Contagens por status pra legend.
+  const counts = {
+    active: mapPaddocks.filter((p) => p.status === 'active').length,
+    pending: mapPaddocks.filter((p) => p.status === 'pending').length,
+    empty: mapPaddocks.filter((p) => p.status === 'empty').length,
+  };
+
   return (
     <main className="px-4 py-6 md:px-8 md:py-8">
       <DashHeader
-        eyebrow={`Pecuária · 18.400 hectares · ${k.totalPaddocks} talhões`}
+        eyebrow={`Pecuária · 18.400 hectares · ${data.kpis.totalPaddocks} talhões`}
         title="Mapa da fazenda"
         period={period}
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-4">
-        <Legend color="#2e8c4f" label="Cobertura completa" count={k.paddocksGreen} />
-        <Legend color="#b88217" label="Ronda parcial"      count={k.paddocksYellow} />
-        <Legend color="#c0392b" label="Sem ronda"          count={k.paddocksRed} />
+        <Legend color="#22c55e" label="Com gado · ronda feita" count={counts.active} />
+        <Legend color="#ef4444" label="Com gado · sem ronda"   count={counts.pending} />
+        <Legend color="#9ca3af" label="Sem gado"                count={counts.empty} />
       </div>
 
       {data.paddocksEnriched.length === 0 ? (
@@ -162,7 +177,7 @@ export default async function MapaPage({ searchParams }: PageProps) {
 function Legend({ color, label, count }: { color: string; label: string; count: number }) {
   return (
     <div className="flex items-center gap-1.5 text-[12px] text-fg-muted">
-      <span className="h-2.5 w-2.5 rounded-full" style={{ background: color, opacity: 0.55 }} />
+      <span className="h-2.5 w-2.5 rounded-full" style={{ background: color, opacity: 0.7 }} />
       <span>{label}</span>
       <span className="tabular font-semibold text-fg">{count}</span>
     </div>
@@ -171,8 +186,6 @@ function Legend({ color, label, count }: { color: string; label: string; count: 
 
 function extractTime(iso: string | null | undefined): string | null {
   if (!iso) return null;
-  // local_updated_at vem como "YYYY-MM-DD HH:MM:SS" (sqlite localtime).
-  // Pegamos só HH:MM.
   const m = /(\d{2}:\d{2})/.exec(iso);
   return m ? m[1]! : null;
 }

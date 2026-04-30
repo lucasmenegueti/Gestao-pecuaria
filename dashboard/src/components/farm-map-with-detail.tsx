@@ -1,14 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { CheckCircle2, AlertCircle, XCircle, X, AlertTriangle } from 'lucide-react';
-import { FarmMap, type MapPaddock } from './farm-map';
-import { SECTION_LABELS, SECTION_COLORS, type SectionKind } from '@/lib/supabase/types';
+import { CheckCircle2, Circle, XCircle, X, AlertTriangle } from 'lucide-react';
+import { FarmMap, type MapPaddock, type Status } from './farm-map';
+import type { SectionKind } from '@/lib/supabase/types';
 
 export interface PaddockMapDetail {
   id: number;
   name: string;
-  status: 'green' | 'yellow' | 'red';
+  status: Status;
   area: number;
   totalHeads: number;
   stockingRate: number;
@@ -68,9 +68,9 @@ function EmptyDetail() {
         Clique em um polígono no mapa para ver quem fez a ronda, quais seções foram avaliadas, alertas ativos e o estoque da bombona.
       </p>
       <div className="mt-5 flex flex-wrap justify-center gap-3 text-[11px] text-fg-muted">
-        <Legend color="#2e8c4f" label="Cobertura completa" />
-        <Legend color="#b88217" label="Ronda parcial" />
-        <Legend color="#c0392b" label="Sem ronda" />
+        <Legend color="#22c55e" label="Com gado · ronda feita" />
+        <Legend color="#ef4444" label="Com gado · sem ronda" />
+        <Legend color="#9ca3af" label="Sem gado" />
       </div>
     </div>
   );
@@ -87,9 +87,9 @@ function Legend({ color, label }: { color: string; label: string }) {
 
 function PaddockDetailPanel({ detail, onClose }: { detail: PaddockMapDetail; onClose: () => void }) {
   const palette = {
-    green:  { bg: 'bg-success-bg', fg: 'text-[#1f5d36]', Ic: CheckCircle2, label: 'Cobertura completa' },
-    yellow: { bg: 'bg-warning-bg', fg: 'text-[#7a550f]', Ic: AlertCircle,  label: 'Ronda parcial' },
-    red:    { bg: 'bg-danger-bg',  fg: 'text-[#7d2519]', Ic: XCircle,      label: 'Sem ronda' },
+    active:  { bg: 'bg-success-bg', fg: 'text-[#1f5d36]', Ic: CheckCircle2, label: 'Com gado · ronda feita' },
+    pending: { bg: 'bg-danger-bg',  fg: 'text-[#7d2519]', Ic: XCircle,      label: 'Com gado · sem ronda' },
+    empty:   { bg: 'bg-grey-100',   fg: 'text-grey-600',  Ic: Circle,       label: 'Sem gado' },
   }[detail.status];
   const Ic = palette.Ic;
 
