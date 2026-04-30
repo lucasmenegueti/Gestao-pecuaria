@@ -12,6 +12,9 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 export interface AuthedUser {
   username: string;
   role: 'owner' | 'gestor';
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number;
 }
 
 export async function verifyCredentials(
@@ -51,6 +54,8 @@ export async function verifyCredentials(
   //    identidade do user (RLS permite "own profile", anon key não).
   let userId: string;
   let accessToken: string;
+  let refreshToken: string;
+  let expiresAt: number;
   try {
     const authRes = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
       method: 'POST',
@@ -66,6 +71,10 @@ export async function verifyCredentials(
     if (!tok?.user?.id || !tok?.access_token) return null;
     userId = tok.user.id;
     accessToken = tok.access_token;
+    refreshToken = tok.refresh_token ?? '';
+    // expires_in vem em segundos
+    const expiresIn = typeof tok.expires_in === 'number' ? tok.expires_in : 3600;
+    expiresAt = Date.now() + expiresIn * 1000;
   } catch (e) {
     console.error('[auth] signin failed:', e);
     return null;
@@ -97,7 +106,13 @@ export async function verifyCredentials(
       console.error('[auth] non-admin role rejected:', profile.role);
       return null; // peão não acessa dashboard
     }
-    return { username: profile.username ?? u, role: 'owner' };
+    return {
+      username: profile.username ?? u,
+      role: 'owner',
+      accessToken,
+      refreshToken,
+      expiresAt,
+    };
   } catch (e) {
     console.error('[auth] profile lookup failed:', e);
     return null;

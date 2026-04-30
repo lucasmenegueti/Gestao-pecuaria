@@ -2,6 +2,7 @@ import { DashHeader } from '@/components/dash-header';
 import { Card, EmptyState, KPICard, StatusPill } from '@/components/ui-primitives';
 import { loadDashboardData } from '@/lib/queries';
 import { parsePeriodFromSearchParams } from '@/lib/period';
+import { getSessionOrRedirect } from '@/lib/auth/session-server';
 import { ArrowRight, Inbox } from 'lucide-react';
 
 interface PageProps {
@@ -13,7 +14,8 @@ export const dynamic = 'force-dynamic';
 export default async function RebanhoPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const period = parsePeriodFromSearchParams(params);
-  const data = await loadDashboardData(period);
+  const session = await getSessionOrRedirect();
+  const data = await loadDashboardData(period, session.accessToken);
 
   // Distribuição por categoria
   const byCat: Record<string, { category: string; heads: number; paddocks: Set<number> }> = {};

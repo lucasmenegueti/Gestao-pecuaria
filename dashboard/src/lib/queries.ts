@@ -118,33 +118,34 @@ const EVAL_TABLES: Record<SectionKind, string> = {
   washing: 'washing_evals',
 };
 
-export async function loadDashboardData(period: Period): Promise<DashboardData> {
+export async function loadDashboardData(period: Period, accessToken?: string): Promise<DashboardData> {
   const startIso = `${period.start}T00:00:00`;
   const endIso = `${period.end}T23:59:59`;
+  const auth = { accessToken };
 
   const [
     paddocks, formulas, grass, herd, profiles, inventory, inspections, herdEvents,
     rondas,
     sup, bom, forg, wat, hlth, fnc, wgt, wsh, bio,
   ] = await Promise.all([
-    sbList<Paddock>('paddocks', { filters: { active: 'eq.1' }, order: 'name' }),
-    sbList<Formula>('formulas', { filters: { active: 'eq.1' } }),
-    sbList<GrassType>('grass_types'),
-    sbList<HerdLot>('herd', { filters: { 'head_count': 'gt.0' } }),
-    sbList<Profile>('profiles'),
-    sbList<Inventory>('inventory'),
-    sbList<InspectionRequest>('inspection_requests', { order: 'created_at.desc', limit: 100 }),
-    sbList<HerdEvent>('herd_events', { order: 'created_at.desc', limit: 50 }),
-    sbList<Ronda>('rondas', { filters: { date: `gte.${period.start}`, and: `(date.lte.${period.end})` } }),
-    sbList<SupplementEval>('supplement_evals', { filters: { created_at: `gte.${startIso}`, and: `(created_at.lte.${endIso})` } }),
-    sbList<BombonaEval>('bombona_evals', { filters: { created_at: `gte.${startIso}` } }),
-    sbList<ForageEval>('forage_evals', { filters: { created_at: `gte.${startIso}` } }),
-    sbList<WaterEval>('water_evals', { filters: { created_at: `gte.${startIso}` } }),
-    sbList<HealthEval>('health_evals', { filters: { created_at: `gte.${startIso}` } }),
-    sbList<FenceEval>('fence_evals', { filters: { created_at: `gte.${startIso}` } }),
-    sbList<VisualWeightEval>('visual_weight_evals', { filters: { created_at: `gte.${startIso}` } }),
-    sbList<WashingEval>('washing_evals', { filters: { created_at: `gte.${startIso}` } }),
-    sbList<BiologicalWaterEval>('biological_water_evals', { filters: { created_at: `gte.${startIso}` } }),
+    sbList<Paddock>('paddocks', { ...auth, filters: { active: 'eq.1' }, order: 'name' }),
+    sbList<Formula>('formulas', { ...auth, filters: { active: 'eq.1' } }),
+    sbList<GrassType>('grass_types', { ...auth }),
+    sbList<HerdLot>('herd', { ...auth, filters: { 'head_count': 'gt.0' } }),
+    sbList<Profile>('profiles', { ...auth }),
+    sbList<Inventory>('inventory', { ...auth }),
+    sbList<InspectionRequest>('inspection_requests', { ...auth, order: 'created_at.desc', limit: 100 }),
+    sbList<HerdEvent>('herd_events', { ...auth, order: 'created_at.desc', limit: 50 }),
+    sbList<Ronda>('rondas', { ...auth, filters: { date: `gte.${period.start}`, and: `(date.lte.${period.end})` } }),
+    sbList<SupplementEval>('supplement_evals', { ...auth, filters: { created_at: `gte.${startIso}`, and: `(created_at.lte.${endIso})` } }),
+    sbList<BombonaEval>('bombona_evals', { ...auth, filters: { created_at: `gte.${startIso}` } }),
+    sbList<ForageEval>('forage_evals', { ...auth, filters: { created_at: `gte.${startIso}` } }),
+    sbList<WaterEval>('water_evals', { ...auth, filters: { created_at: `gte.${startIso}` } }),
+    sbList<HealthEval>('health_evals', { ...auth, filters: { created_at: `gte.${startIso}` } }),
+    sbList<FenceEval>('fence_evals', { ...auth, filters: { created_at: `gte.${startIso}` } }),
+    sbList<VisualWeightEval>('visual_weight_evals', { ...auth, filters: { created_at: `gte.${startIso}` } }),
+    sbList<WashingEval>('washing_evals', { ...auth, filters: { created_at: `gte.${startIso}` } }),
+    sbList<BiologicalWaterEval>('biological_water_evals', { ...auth, filters: { created_at: `gte.${startIso}` } }),
   ]);
 
   const evals: AllEvals = {

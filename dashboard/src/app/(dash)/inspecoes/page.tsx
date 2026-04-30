@@ -2,6 +2,7 @@ import { DashHeader } from '@/components/dash-header';
 import { Card, EmptyState, StatusPill } from '@/components/ui-primitives';
 import { loadDashboardData } from '@/lib/queries';
 import { parsePeriodFromSearchParams } from '@/lib/period';
+import { getSessionOrRedirect } from '@/lib/auth/session-server';
 import {
   Box, ClipboardCheck, FlaskConical, Scale, ShowerHead, Sprout, Stethoscope,
   type LucideIcon,
@@ -25,7 +26,8 @@ const KIND_ICONS: Record<string, LucideIcon> = {
 export default async function InspecoesPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const period = parsePeriodFromSearchParams(params);
-  const data = await loadDashboardData(period);
+  const session = await getSessionOrRedirect();
+  const data = await loadDashboardData(period, session.accessToken);
 
   const tab = (params.tab ?? 'pending') as 'pending' | 'completed';
   const pending = data.inspections.filter((i) => i.status === 'pending');

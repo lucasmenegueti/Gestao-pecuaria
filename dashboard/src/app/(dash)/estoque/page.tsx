@@ -2,6 +2,7 @@ import { DashHeader } from '@/components/dash-header';
 import { Card, EmptyState, KPICard, StatusPill } from '@/components/ui-primitives';
 import { loadDashboardData } from '@/lib/queries';
 import { parsePeriodFromSearchParams } from '@/lib/period';
+import { getSessionOrRedirect } from '@/lib/auth/session-server';
 import { Inbox } from 'lucide-react';
 
 interface PageProps {
@@ -19,7 +20,8 @@ const DEFAULT_WEIGHT: Record<string, number> = {
 export default async function EstoquePage({ searchParams }: PageProps) {
   const params = await searchParams;
   const period = parsePeriodFromSearchParams(params);
-  const data = await loadDashboardData(period);
+  const session = await getSessionOrRedirect();
+  const data = await loadDashboardData(period, session.accessToken);
 
   // Bombonas com cálculo de dias até zerar
   const bombonas = data.inventoryBombonas.map((b) => {

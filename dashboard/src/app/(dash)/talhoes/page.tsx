@@ -4,6 +4,7 @@ import { EmptyState } from '@/components/ui-primitives';
 import { Inbox } from 'lucide-react';
 import { loadDashboardData } from '@/lib/queries';
 import { parsePeriodFromSearchParams } from '@/lib/period';
+import { getSessionOrRedirect } from '@/lib/auth/session-server';
 
 interface PageProps {
   searchParams: Promise<{ periodo?: string; inicio?: string; fim?: string; status?: string }>;
@@ -14,7 +15,8 @@ export const dynamic = 'force-dynamic';
 export default async function TalhoesPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const period = parsePeriodFromSearchParams(params);
-  const data = await loadDashboardData(period);
+  const session = await getSessionOrRedirect();
+  const data = await loadDashboardData(period, session.accessToken);
   const filter = (params.status ?? 'all') as 'all' | 'green' | 'yellow' | 'red';
 
   // Ordem solicitada pelo Lucas: cobertura completa → parcial → sem ronda.

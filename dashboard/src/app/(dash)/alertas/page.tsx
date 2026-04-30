@@ -2,6 +2,7 @@ import { DashHeader } from '@/components/dash-header';
 import { AlertCard, Card, EmptyState } from '@/components/ui-primitives';
 import { loadDashboardData } from '@/lib/queries';
 import { parsePeriodFromSearchParams } from '@/lib/period';
+import { getSessionOrRedirect } from '@/lib/auth/session-server';
 import { CheckCircle2 } from 'lucide-react';
 
 interface PageProps {
@@ -13,7 +14,8 @@ export const dynamic = 'force-dynamic';
 export default async function AlertasPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const period = parsePeriodFromSearchParams(params);
-  const data = await loadDashboardData(period);
+  const session = await getSessionOrRedirect();
+  const data = await loadDashboardData(period, session.accessToken);
 
   const sevFilter = (params.severity ?? 'all') as 'all' | 'danger' | 'warning';
   const kindFilter = params.tipo ?? 'all';

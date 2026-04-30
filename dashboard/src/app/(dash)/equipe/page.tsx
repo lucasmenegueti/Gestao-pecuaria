@@ -2,6 +2,7 @@ import { DashHeader } from '@/components/dash-header';
 import { Card, EmptyState, Avatar, SectionPill, initialsOf } from '@/components/ui-primitives';
 import { loadDashboardData } from '@/lib/queries';
 import { parsePeriodFromSearchParams } from '@/lib/period';
+import { getSessionOrRedirect } from '@/lib/auth/session-server';
 import { SECTION_LABELS, SECTION_COLORS, REQUIRED_SECTIONS, type SectionKind } from '@/lib/supabase/types';
 import { Users } from 'lucide-react';
 
@@ -14,7 +15,8 @@ export const dynamic = 'force-dynamic';
 export default async function EquipePage({ searchParams }: PageProps) {
   const params = await searchParams;
   const period = parsePeriodFromSearchParams(params);
-  const data = await loadDashboardData(period);
+  const session = await getSessionOrRedirect();
+  const data = await loadDashboardData(period, session.accessToken);
 
   // Agrega por user_id (peões = quem fez ronda no período)
   const peoes: Array<{

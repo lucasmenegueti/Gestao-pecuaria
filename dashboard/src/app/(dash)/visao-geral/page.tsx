@@ -7,6 +7,7 @@ import {
 import { loadDashboardData } from '@/lib/queries';
 import { parsePeriodFromSearchParams } from '@/lib/period';
 import { SECTION_LABELS, SECTION_COLORS, type SectionKind } from '@/lib/supabase/types';
+import { getSessionOrRedirect } from '@/lib/auth/session-server';
 
 interface PageProps {
   searchParams: Promise<{ periodo?: string; inicio?: string; fim?: string }>;
@@ -17,7 +18,8 @@ export const dynamic = 'force-dynamic';
 export default async function VisaoGeralPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const period = parsePeriodFromSearchParams(params);
-  const data = await loadDashboardData(period);
+  const session = await getSessionOrRedirect();
+  const data = await loadDashboardData(period, session.accessToken);
 
   const k = data.kpis;
   const userOf = (id: string) => data.profiles.find((p) => p.id === id);

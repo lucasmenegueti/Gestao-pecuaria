@@ -3,6 +3,7 @@ import { FarmMap } from '@/components/farm-map';
 import { Card, EmptyState } from '@/components/ui-primitives';
 import { loadDashboardData } from '@/lib/queries';
 import { parsePeriodFromSearchParams } from '@/lib/period';
+import { getSessionOrRedirect } from '@/lib/auth/session-server';
 import { Map as MapIc } from 'lucide-react';
 
 interface PageProps {
@@ -14,7 +15,8 @@ export const dynamic = 'force-dynamic';
 export default async function MapaPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const period = parsePeriodFromSearchParams(params);
-  const data = await loadDashboardData(period);
+  const session = await getSessionOrRedirect();
+  const data = await loadDashboardData(period, session.accessToken);
 
   const k = data.kpis;
 

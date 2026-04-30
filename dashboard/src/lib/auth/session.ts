@@ -7,6 +7,13 @@ export interface SessionData {
   role?: 'owner' | 'gestor';
   /** Timestamp (ms) de quando foi criada — pra debug/telemetria futura */
   loggedAt?: number;
+  /** JWT de acesso do Supabase Auth — usado nas queries do dashboard
+   *  porque RLS bloqueia anon. Expira em ~1h (default). */
+  accessToken?: string;
+  /** Refresh token pra renovar accessToken sem novo login. */
+  refreshToken?: string;
+  /** Unix timestamp (ms) em que o accessToken expira. */
+  expiresAt?: number;
 }
 
 const DAY = 60 * 60 * 24;

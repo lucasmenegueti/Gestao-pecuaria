@@ -36,6 +36,9 @@ export async function loginAction(
   session.username = user.username;
   session.role = user.role;
   session.loggedAt = Date.now();
+  session.accessToken = user.accessToken;
+  session.refreshToken = user.refreshToken;
+  session.expiresAt = user.expiresAt;
   await session.save();
 
   const target = sanitizeFrom(from) ?? '/visao-geral';

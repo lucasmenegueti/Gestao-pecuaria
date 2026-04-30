@@ -2,12 +2,14 @@ import 'server-only';
 
 // Cliente Supabase server-only via fetch direto (sem SDK).
 // URL aponta pro Worker proxy do app pecuária — ver CLAUDE.md do app pra contexto.
+//
+// IMPORTANTE: queries usam o JWT do user logado (lido da iron-session) porque
+// RLS bloqueia leitura anônima na maioria das tabelas. Sem token, nada vem.
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  // Permite next build sem env (build-time) — falha em runtime se faltar.
   console.warn('[supabase] SUPABASE_URL ou SUPABASE_ANON_KEY ausente. Queries vão falhar.');
 }
 
@@ -16,6 +18,13 @@ interface QueryParams {
   order?: string;
   limit?: number;
   filters?: Record<string, string>;
+  /** JWT de acesso do user (Supabase Auth). Sem isso, RLS bloqueia. */
+  accessToken?: string;
+}
+
+function authHeader(accessToken: string | undefined): string {
+  // PostgREST aceita o JWT no Authorization. apikey precisa do anon (sempre).
+  return accessToken ? `Bearer ${accessToken}` : `Bearer ${SUPABASE_ANON_KEY}`;
 }
 
 /** Lista registros de uma tabela via REST API do Supabase (PostgREST). */
@@ -39,11 +48,11 @@ export async function sbList<T>(
   const res = await fetch(url, {
     headers: {
       apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      Authorization: authHeader(params.accessToken),
       Accept: 'application/json',
     },
-    // Server components: cache curto pra dashboard read-only sem ficar pesado.
-    next: { revalidate: 30 },
+    // Cache zero quando o request é por user — JWT tem TTL próprio.
+    cache: 'no-store',
   });
 
   if (!res.ok) {
@@ -55,7 +64,11 @@ export async function sbList<T>(
 }
 
 /** RPC call ao Supabase. */
-export async function sbRpc<T>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
+export async function sbRpc<T>(
+  fn: string,
+  args: Record<string, unknown> = {},
+  accessToken?: string,
+): Promise<T> {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) throw new Error('Supabase env missing');
 
   const url = `${SUPABASE_URL}/rest/v1/rpc/${fn}`;
@@ -63,11 +76,11 @@ export async function sbRpc<T>(fn: string, args: Record<string, unknown> = {}): 
     method: 'POST',
     headers: {
       apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      Authorization: authHeader(accessToken),
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(args),
-    next: { revalidate: 30 },
+    cache: 'no-store',
   });
 
   if (!res.ok) {
