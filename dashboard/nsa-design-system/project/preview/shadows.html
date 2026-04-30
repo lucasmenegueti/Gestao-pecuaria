@@ -1,0 +1,23 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css"><style>
+.row { display: flex; gap: 20px; }
+.tk { flex: 1; background: #fff; border-radius: 8px; padding: 14px 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.s0 { box-shadow: none; border: 1px solid var(--border); }
+.sxs { box-shadow: 0 1px 0 rgba(15,15,13,0.04), 0 0 0 1px rgba(15,15,13,0.04); }
+.ssm { box-shadow: 0 1px 2px rgba(15,15,13,0.04), 0 0 0 1px rgba(15,15,13,0.05); }
+.smd { box-shadow: 0 2px 6px rgba(15,15,13,0.06), 0 0 0 1px rgba(15,15,13,0.05); }
+.slg { box-shadow: 0 8px 24px rgba(15,15,13,0.08), 0 0 0 1px rgba(15,15,13,0.05); }
+.name { font-family: var(--font-mono); font-size: 10.5px; color: var(--fg); }
+.use { font-size: 11px; color: var(--fg-muted); }
+.label { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-muted); margin-bottom: 12px; }
+.card-wrap { background: var(--grey-50); padding: 20px 16px; border-radius: 6px; }
+</style></head>
+<body><div class="card">
+  <div class="label">Elevation — subtle shadows</div>
+  <div class="card-wrap"><div class="row">
+    <div class="tk s0"><div class="name">shadow-0</div><div class="use">flat · border only</div></div>
+    <div class="tk sxs"><div class="name">shadow-xs</div><div class="use">inline cards</div></div>
+    <div class="tk ssm"><div class="name">shadow-sm</div><div class="use">default card</div></div>
+    <div class="tk smd"><div class="name">shadow-md</div><div class="use">hover · dropdown</div></div>
+    <div class="tk slg"><div class="name">shadow-lg</div><div class="use">modal · popover</div></div>
+  </div></div>
+</div></body></html>

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>NSA · Board Deck — UI Kit</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<style>
+  body { margin: 0; background: #2a2a28; font-family: 'Inter', sans-serif; }
+  .deck-wrap { padding: 32px; display: flex; flex-direction: column; gap: 24px; align-items: center; }
+  .slide {
+    width: 1280px; height: 720px;
+    background: #fcfcfb;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+    color: #1f1f1c;
+    font-family: 'Inter', sans-serif;
+  }
+  .slide.inverse { background: #172514; color: #FFFFE3; }
+
+  /* ---- shared slide chrome ---- */
+  .slide .chrome {
+    position: absolute; left: 64px; right: 64px; top: 48px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: #787873; font-weight: 500;
+  }
+  .slide.inverse .chrome { color: #8ba68c; }
+  .slide .chrome .mark { display: flex; align-items: center; gap: 8px; }
+  .slide .chrome .mark img { height: 22px; width: auto; opacity: 0.9; }
+  .slide .chrome .mark .wm {
+    font-family: 'Lora', Georgia, serif; letter-spacing: 0.16em;
+    font-size: 13px; text-transform: none; color: inherit;
+  }
+  .slide .foot {
+    position: absolute; left: 64px; right: 64px; bottom: 32px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11px; color: #a8a8a2; letter-spacing: 0.04em;
+  }
+  .slide.inverse .foot { color: #8ba68c; opacity: 0.7; }
+
+  /* caption used in a few slides */
+  .eyebrow {
+    font-size: 12px; font-weight: 500; letter-spacing: 0.1em;
+    text-transform: uppercase; color: #787873; margin-bottom: 12px;
+  }
+  .slide.inverse .eyebrow { color: #8ba68c; }
+
+  /* scale down for the page */
+  .slide-scale {
+    transform-origin: top center;
+  }
+</style>
+</head>
+<body>
+  <div class="deck-wrap">
+    <!-- Slides are mounted here -->
+    <div id="slides"></div>
+  </div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="SlideChrome.jsx"></script>
+  <script type="text/babel" src="TitleSlide.jsx"></script>
+  <script type="text/babel" src="SectionSlide.jsx"></script>
+  <script type="text/babel" src="KPISlide.jsx"></script>
+  <script type="text/babel" src="TableSlide.jsx"></script>
+  <script type="text/babel" src="StrategySlide.jsx"></script>
+  <script type="text/babel" src="PhotoSlide.jsx"></script>
+  <script type="text/babel" src="index.jsx"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css"><style>
+.row { display: flex; gap: 16px; align-items: center; }
+.tk { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
+.shape { width: 72px; height: 56px; background: var(--nsa-green-100); border: 1px solid var(--nsa-green-300); }
+.name { font-family: var(--font-mono); font-size: 10.5px; color: var(--fg-muted); }
+.px { font-family: var(--font-mono); font-size: 9.5px; color: var(--fg-subtle); }
+.use { font-size: 11px; color: var(--fg); text-align: center; }
+.label { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-muted); margin-bottom: 12px; }
+</style></head>
+<body><div class="card">
+  <div class="label">Border radius</div>
+  <div class="row">
+    <div class="tk"><div class="shape" style="border-radius:0"></div><div class="name">0</div><div class="use">tables</div></div>
+    <div class="tk"><div class="shape" style="border-radius:4px"></div><div class="name">r-sm · 4</div><div class="use">buttons · pills</div></div>
+    <div class="tk"><div class="shape" style="border-radius:6px"></div><div class="name">r-md · 6</div><div class="use">inputs · default</div></div>
+    <div class="tk"><div class="shape" style="border-radius:8px"></div><div class="name">r-lg · 8</div><div class="use">cards</div></div>
+    <div class="tk"><div class="shape" style="border-radius:12px"></div><div class="name">r-xl · 12</div><div class="use">panels · modals</div></div>
+    <div class="tk"><div class="shape" style="border-radius:999px"></div><div class="name">r-full</div><div class="use">avatars · tags</div></div>
+  </div>
+</div></body></html>

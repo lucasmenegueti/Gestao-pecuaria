@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>NSA · Gestão Pecuária — Redesign</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  body { margin:0; background:#2a2a28; min-height:100vh; font-family:'Inter', sans-serif; color:#e5e5e1; }
+  .wrap { max-width:1920px; margin:0 auto; padding:40px 32px 80px; }
+  .header { margin-bottom:32px; }
+  .header h1 { font-family:'Lora', serif; font-size:34px; font-weight:600; margin:0 0 6px; color:#FFFFE3; letter-spacing:-0.01em; }
+  .header p { margin:0; color:#a8a8a2; font-size:14px; max-width:760px; line-height:1.55; }
+  .header .repo { font-family:ui-monospace, Menlo, monospace; font-size:12px; color:#78786f; margin-top:8px; }
+  .section { margin-bottom:56px; }
+  .section-title { font-size:12px; letter-spacing:0.12em; text-transform:uppercase; color:#78786f; font-weight:500; margin-bottom:22px; padding-bottom:10px; border-bottom:1px solid #3a3a35; }
+  .row { display:flex; gap:28px; flex-wrap:wrap; align-items:flex-start; }
+  .stack { display:flex; flex-direction:column; gap:10px; align-items:center; }
+  .caption { color:#a8a8a2; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; font-weight:500; text-align:center; max-width:390px; }
+  .caption .sub { color:#78786f; text-transform:none; letter-spacing:0; font-size:11px; margin-top:4px; display:block; line-height:1.45; }
+  .notes { background:#1f1f1c; border:1px solid #3a3a35; border-radius:10px; padding:20px 24px; margin-bottom:40px; }
+  .notes h3 { margin:0 0 10px; color:#FFFFE3; font-size:14px; font-weight:600; }
+  .notes ul { margin:0; padding-left:20px; color:#c8c8c2; font-size:13px; line-height:1.75; }
+  .notes ul li strong { color:#FFFFE3; font-weight:500; }
+  .notes ul li code { background:#2a2a28; padding:1px 6px; border-radius:4px; font-size:12px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <h1>Gestão Pecuária · Proposta de Redesign</h1>
+      <p>Redesign do protótipo <em>gestao-pecuaria-nsa</em> alinhado ao sistema NSA. Preserva toda a lógica: 1 login · 1 dashboard · 1 ronda · 1 menu de avaliação · 7 wizards (31 passos) · 3 telas utilitárias (mapa, rebanho, lotação) · estoque central + bombonas · rota de reabastecimento. Troca o vocabulário visual (emojis + verde-azulado claro) pelo verde-cedro profundo + creme, com tipografia Inter/Lora e ícones Lucide 1.75.</p>
+      <p class="repo">Baseado em <code>prototipo_original/01-18</code> · mobile-first 390px · 18 telas representativas</p>
+    </div>
+
+    <div class="notes">
+      <h3>Princípios aplicados neste redesign</h3>
+      <ul>
+        <li><strong>Tokens NSA substituem o CSS do protótipo.</strong> Verde <code>#172514</code> como primário em todos os headers de contexto, creme <code>#FFFFE3</code> em CTAs primários. Paleta semântica padronizada (<code>ok / warn / danger / info</code>) com dot de 5px nas pills.</li>
+        <li><strong>Emojis → Lucide.</strong> 🐂 🔒 📦 viram ícones monocromáticos 1.75 stroke. A identidade continua forte via cor e tipografia, sem a estética "app genérico". Por domínio (avaliação) mantemos uma cor de acento sutil no ícone + tile, não no header.</li>
+        <li><strong>Tipografia.</strong> Números grandes (KPIs, previsão de suprimento, peso, kV) em <strong>Lora</strong> com <code>tabular-nums</code>. Corpo em <strong>Inter</strong>. Codes de piquete (<code>P14</code>, <code>P14A</code>) em mono com baixo contraste — sinaliza "metadado" e não compete com o nome.</li>
+        <li><strong>Hierarquia em português natural.</strong> "PASTO 14" em caixa-alta vira "Pasto 14" com o código mono ao lado — mais respeitoso e moderno, ainda escaneável.</li>
+        <li><strong>Wizards reconstruídos</strong> com header em verde contendo contexto (domain dot + "Suplementação · Pasto 14"), barra de progresso fina, step counter mono e padrão único de <code>ChoiceCard</code> (radio visual grande) + <code>WizardFooter</code> fixo. Stepper de número grande (Lora, 56px) nos sliders de sacos/kg/cm.</li>
+        <li><strong>Dashboard denso.</strong> KPIs 2-col no topo, alertas como linhas escaneáveis (não cartões grandes), progresso de ronda destacado, CTAs claros. Resume o que era uma lista vertical em cartões compactos.</li>
+        <li><strong>Mapa</strong> usa foto real da fazenda como base, com polígonos de status semântico sobre gradiente — substitui o gradiente verde chapado do original.</li>
+        <li><strong>Status left-border 3px</strong> é mantido (era uma boa decisão do original), mas agora com as cores exatas do sistema e hairline de <code>--border</code> em volta. Sem sombras pesadas.</li>
+        <li><strong>Tab bar Lucide</strong> (<code>layout-dashboard · footprints · beef · package · map</code>), indicador apenas por cor+peso, sem fundo ativo — mais discreto que o original.</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-title">01 · Entrada + painel</div>
+      <div class="row">
+        <div class="stack"><div id="login"></div><div class="caption">Login<span class="sub">Fundo creme · wordmark oficial · checkbox "lembrar" inline</span></div></div>
+        <div class="stack"><div id="dashboard"></div><div class="caption">Dashboard<span class="sub">Saudação serif · KPIs · alertas em linhas · progresso da ronda · ações de contexto</span></div></div>
+        <div class="stack"><div id="lotacao"></div><div class="caption">Lotação<span class="sub">Números hero Lora · cab/ha por piquete com cor semântica</span></div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">02 · Ronda de gado</div>
+      <div class="row">
+        <div class="stack"><div id="ronda"></div><div class="caption">Ronda · seleção de piquete<span class="sub">Busca + chips de filtro · cards com código mono + status pill + cocho em 1 linha</span></div></div>
+        <div class="stack"><div id="menu-avaliacao"></div><div class="caption">Menu de avaliação<span class="sub">Contexto do piquete em header verde · 7 tiles de domínio com cor sutil no ícone · rebanho como linha</span></div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">03 · Wizards · suplementação (8 passos — mostrando 3 chaves)</div>
+      <div class="row">
+        <div class="stack"><div id="sup-cocho"></div><div class="caption">Passo 1 · Escore<span class="sub">ChoiceCard tonalizado · radio grande à direita</span></div></div>
+        <div class="stack"><div id="sup-sacos"></div><div class="caption">Passo 4 · Quantidade<span class="sub">Número hero Lora · slider + stepper · cartão da formulação tonalizado</span></div></div>
+        <div class="stack"><div id="sup-resumo"></div><div class="caption">Passo 8 · Resumo<span class="sub">Linhas verticais · card bombona · previsão hero em verde com total</span></div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">04 · Wizards · demais domínios (1 passo chave de cada)</div>
+      <div class="row">
+        <div class="stack"><div id="forragem"></div><div class="caption">Forragem<span class="sub">Altura medida + escolha da faixa</span></div></div>
+        <div class="stack"><div id="aguada"></div><div class="caption">Aguada<span class="sub">Nível + qualidade lado a lado</span></div></div>
+        <div class="stack"><div id="sanidade"></div><div class="caption">Sanidade<span class="sub">Grid de observações multi-seleção · alerta inline</span></div></div>
+        <div class="stack"><div id="cerca"></div><div class="caption">Cerca<span class="sub">Leitura de kV com gauge · escolha de condição</span></div></div>
+        <div class="stack"><div id="peso"></div><div class="caption">Peso visual<span class="sub">Estepper por categoria de lote</span></div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">05 · Dados e operação</div>
+      <div class="row">
+        <div class="stack"><div id="mapa"></div><div class="caption">Mapa<span class="sub">Foto da fazenda como base · polígonos coloridos · GPS marker</span></div></div>
+        <div class="stack"><div id="rebanho"></div><div class="caption">Rebanho<span class="sub">Total hero · KPIs por categoria · breakdown por piquete</span></div></div>
+        <div class="stack"><div id="estoque"></div><div class="caption">Estoque central<span class="sub">Switch Central/Bombonas · cards com quantidade hero + mín + dias · barra de progresso semântica</span></div></div>
+        <div class="stack"><div id="reab-rota"></div><div class="caption">Reabastecimento · rota<span class="sub">Estado "em rota" · trator-bar com −entradas · cards todo/feito · sticky encerrar</span></div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script type="text/babel" src="ios-frame.jsx"></script>
+  <script type="text/babel" src="atoms.jsx"></script>
+  <script type="text/babel" src="screens_core.jsx"></script>
+  <script type="text/babel" src="screens_wizards.jsx"></script>
+  <script type="text/babel" src="screens_util.jsx"></script>
+  <script type="text/babel" src="mount.jsx"></script>
+</body>
+</html>

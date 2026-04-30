@@ -1,0 +1,33 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css"><style>
+.row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.tag { display: inline-flex; align-items: center; gap: 5px; font: 500 11.5px 'Inter', sans-serif; padding: 3px 9px; border-radius: 999px; border: 1px solid transparent; }
+.dot { width: 6px; height: 6px; border-radius: 50%; }
+.t-n { background: #efefec; color: #363632; border-color: #e5e5e1; }
+.t-s { background: #eaf4ec; color: #1f5d36; }
+.t-s .dot { background: #2e8c4f; }
+.t-w { background: #faf1dc; color: #7a550f; }
+.t-w .dot { background: #b88217; }
+.t-d { background: #faeae7; color: #7d2519; }
+.t-d .dot { background: #c0392b; }
+.t-b { background: #172514; color: #FFFFE3; }
+.t-i { background: #eaf0f6; color: #264868; }
+.t-i .dot { background: #3a6ea5; }
+.label { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-muted); margin-bottom: 10px; }
+</style></head>
+<body><div class="card">
+  <div class="label">Badges · status</div>
+  <div class="row">
+    <span class="tag t-s"><span class="dot"></span>Concluído</span>
+    <span class="tag t-w"><span class="dot"></span>Em andamento</span>
+    <span class="tag t-d"><span class="dot"></span>Atrasado</span>
+    <span class="tag t-i"><span class="dot"></span>Agendado</span>
+    <span class="tag t-n"><span class="dot" style="background:#a8a8a2"></span>Rascunho</span>
+  </div>
+  <div class="row">
+    <span class="tag t-b">Safra 2024/5</span>
+    <span class="tag t-n">Agricultura</span>
+    <span class="tag t-n">Pecuária</span>
+    <span class="tag t-n">Capim</span>
+    <span class="tag t-n">Talhão 27</span>
+  </div>
+</div></body></html>

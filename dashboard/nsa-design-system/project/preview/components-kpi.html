@@ -1,0 +1,31 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css"><style>
+.grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.kpi { padding: 16px 16px; border: 1px solid #e5e5e1; border-radius: 8px; background: #fff; }
+.kpi .lbl { font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #787873; margin-bottom: 10px; }
+.kpi .val { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; color: #1f1f1c; font-variant-numeric: tabular-nums; line-height: 1; }
+.kpi .unit { font-size: 13px; color: #787873; font-weight: 400; margin-left: 2px; }
+.kpi .delta { font-size: 12px; color: #2e8c4f; font-weight: 500; margin-top: 6px; display: flex; align-items: center; gap: 3px; }
+.kpi .delta.dn { color: #c0392b; }
+.kpi .cap { font-size: 11px; color: #a8a8a2; font-weight: 400; }
+.label { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-muted); margin-bottom: 10px; }
+</style></head>
+<body><div class="card">
+  <div class="label">KPI cards — dashboard</div>
+  <div class="grid">
+    <div class="kpi">
+      <div class="lbl">Rebanho total</div>
+      <div class="val">3.675<span class="unit"> cab.</span></div>
+      <div class="delta dn">↓ 24,9% vs safra anterior</div>
+    </div>
+    <div class="kpi">
+      <div class="lbl">Produtividade soja</div>
+      <div class="val">65,8<span class="unit"> sc/ha</span></div>
+      <div class="delta">↑ 2,1 sc/ha vs meta</div>
+    </div>
+    <div class="kpi">
+      <div class="lbl">Caixa final · set/25</div>
+      <div class="val">R$ 1,74<span class="unit"> M</span></div>
+      <div class="delta" style="color:#787873">Antes das vendas de capim e gado</div>
+    </div>
+  </div>
+</div></body></html>

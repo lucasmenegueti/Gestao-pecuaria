@@ -1,0 +1,28 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css"><style>
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pair { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; display: flex; }
+.pair .solid { width: 64px; height: 64px; flex-shrink: 0; }
+.pair .soft { flex: 1; padding: 10px 12px; display: flex; flex-direction: column; justify-content: center; font-size: 12px; }
+.pair .soft .name { font-weight: 600; font-size: 12px; color: var(--fg); }
+.pair .soft .hex { font-family: var(--font-mono); font-size: 10.5px; color: var(--fg-muted); }
+.label { margin-bottom: 10px; }
+.cream-row { margin-top: 10px; display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.cream-row .sw { flex: 1; padding: 12px 14px; font-size: 11px; display: flex; flex-direction: column; justify-content: space-between; min-height: 56px; }
+.cream-row .sw .name { font-weight: 600; font-size: 12px; }
+.cream-row .sw .hex { font-family: var(--font-mono); font-size: 10.5px; opacity: 0.75; }
+</style></head>
+<body><div class="card">
+  <div class="label">Semantic — Status</div>
+  <div class="grid">
+    <div class="pair"><div class="solid" style="background:#2e8c4f"></div><div class="soft" style="background:#eaf4ec"><div class="name" style="color:#1f5d36">Sucesso</div><div class="hex">#2E8C4F · #EAF4EC</div></div></div>
+    <div class="pair"><div class="solid" style="background:#b88217"></div><div class="soft" style="background:#faf1dc"><div class="name" style="color:#7a550f">Alerta</div><div class="hex">#B88217 · #FAF1DC</div></div></div>
+    <div class="pair"><div class="solid" style="background:#c0392b"></div><div class="soft" style="background:#faeae7"><div class="name" style="color:#7d2519">Erro</div><div class="hex">#C0392B · #FAEAE7</div></div></div>
+    <div class="pair"><div class="solid" style="background:#3a6ea5"></div><div class="soft" style="background:#eaf0f6"><div class="name" style="color:#264868">Info</div><div class="hex">#3A6EA5 · #EAF0F6</div></div></div>
+  </div>
+  <div class="label" style="margin-top:16px">Brand cream</div>
+  <div class="cream-row">
+    <div class="sw" style="background:#FFFFE3;color:#363632"><span class="name">cream ★</span><span class="hex">#FFFFE3</span></div>
+    <div class="sw" style="background:#fafae0;color:#363632"><span class="name">cream-dim</span><span class="hex">#FAFAE0</span></div>
+    <div class="sw" style="background:#fdfdf4;color:#363632"><span class="name">cream-100</span><span class="hex">#FDFDF4</span></div>
+  </div>
+</div></body></html>
