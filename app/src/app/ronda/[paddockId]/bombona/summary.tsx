@@ -2,14 +2,17 @@ import React, { useState } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
+import { useAuthStore } from '@/stores/authStore';
 import { useDatabase } from '@/lib/db/provider';
 import { WizardFlow, SummaryRow, ResultCard, PhotoButton, Button, Card } from '@/components/ui';
 import { Colors, sacos } from '@/constants';
 import { NSA } from '@/theme/nsa';
+import { completeRequestFor } from '@/lib/inspection-requests';
 
 export default function BombonaSummary() {
   const { paddockId } = useLocalSearchParams();
   const db = useDatabase();
+  const user = useAuthStore((s) => s.user);
   const store = useRondaStore();
   const { bombona } = store;
   const [photo, setPhoto] = useState<string | null>(null);
@@ -57,7 +60,10 @@ export default function BombonaSummary() {
           photo,
         ]
       );
-      router.replace('/(tabs)/ronda');
+      if (user && paddockId) {
+        await completeRequestFor(db, Number(paddockId), 'bombona', user.id);
+      }
+      router.replace(`/ronda/${paddockId}/menu`);
     } catch (err) {
       console.error('[summary-save-error]', { wizard: 'bombona', err });
       Alert.alert('Erro', 'Falha ao salvar avaliação de bombona. Tente novamente.');

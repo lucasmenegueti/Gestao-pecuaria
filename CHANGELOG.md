@@ -6,6 +6,286 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.7.8 — "app_settings sincronizada — alertas valem pra todos os devices" (2026-04-30)
+
+Configurações da tela `/admin/alertas` (ligar/desligar alerta de bombona, central, sanidade, água, cerca, desalocados, biológico — e os thresholds de cada) deixam de ser **locais por device** e passam a sincronizar via Supabase. Antes desse fix, admin desligava no Tab S9 e peões no campo continuavam vendo todos os alertas.
+
+**Causa raiz:** `app_settings` no `app/src/lib/db/schema.ts` era uma tabela puramente local — não tinha colunas SYNC, não estava em `SYNCED_TABLES`, não tinha equivalente no Supabase. Cada device mantinha seu set independente.
+
+**Fix de schema:**
+- Bump `SCHEMA_VERSION 21 → 23` em `app/src/lib/db/provider.tsx`. Migration v22 dropa `app_settings` local; v23 dropa de novo (PK mudou — ver abaixo). Recriada com colunas SYNC. Defaults voltam pelo `INSERT OR IGNORE` no schema, depois pull do Supabase sobrescreve com valores reais do servidor.
+- `app_settings` adicionado a `SYNCED_TABLES` (`appendOnly: false`, sem FKs) e a `MUTABLE_TABLES` (gera trigger `tg_app_settings_mark_dirty` que marca `pending_sync = 1` em UPDATEs locais).
+- **PK mudou de `key` para `id INTEGER AUTOINCREMENT`** (com `key` ainda UNIQUE). O sync engine assume `WHERE id = ?` em todas as tabelas SYNCED — esse era o bug do `Error code 1: no such column: pending_sync` que quebrava o sync inteiro. `settings.ts` continua usando `key` (UNIQUE constraint preserva semântica).
+- `tryHealOrphan` em `app/src/lib/sync/engine.ts` ganha branch pra `app_settings`: quando o INSERT no Supabase volta 409 (UNIQUE em `key`), deleta a row local órfã e reseta `last_pull_at` pra trazer a versão do servidor com `supabase_id`. Padrão alinhado com `grass_types`/`formulas`.
+
+**Fix de produção:**
+- Nova tabela `public.app_settings` no Supabase via `app/supabase/migrations/2026-04-30_app_settings_sync.sql`: `id UUID PK`, `key TEXT UNIQUE`, `value TEXT`, `created_by`, `updated_at` auto via trigger.
+- RLS: `SELECT` livre pra qualquer authenticated (peões precisam ler thresholds pra avaliar), `INSERT/UPDATE/DELETE` só pra admins (via `is_admin()`).
+- `INSERT OR IGNORE` dos 21 defaults — idempotente. Se um admin já configurou antes do flip, valor preservado.
+
+**Como aplicar:** rodar a migration SQL no SQL Editor do Supabase. Devices puxam na próxima sync. `setSetting()` no `app/src/lib/settings.ts` continua igual (UPSERT por key); o trigger novo dispara e propaga.
+
+**Conflict resolution:** last-write-wins via `updated_at`, padrão do engine. Se 2 admins editarem ao mesmo tempo (raríssimo), o último ganha.
+
+**Risco:** baixo. Tabela isolada, sem FK pra outras. Migration idempotente.
+
+**Fallback:** `git checkout v0.7.7` + drop da tabela `app_settings` no Supabase se precisar reverter.
+
+---
+
+## v0.7.7 — "Padronização de nomenclatura de piquetes (Txx - Pxx) + T12 + admin rename" (2026-04-29)
+
+Re-organização da nomenclatura de todos os piquetes para o padrão `Txx - Pxx`, adição do talhão T12 (20 piquetes novos) e nova tela admin pra renomear piquetes diretamente do app.
+
+**Decisões de produto (Lucas):**
+- Remover o prefixo `NSA I` / `NSA II` de todos os 125 piquetes existentes — não é mais necessário.
+- Os 71 com talhão (T27/T32/T34/T35) viram `Txx - Pxx`.
+- T27 e T34 foram **renumerados** conforme planilha do coordenador da pecuária (`kml/MUDANÇA DE PASTO SISTEMA DO LUCAS.xlsx`). Ex: `NSA II P28B - T27` → `T27 - P01`.
+- T32 e T35 mantiveram a numeração original — apenas perderam o prefixo. Ex: `NSA I P05 T35` → `T35 - P05`.
+- Os 54 sem talhão também perdem o prefixo, mas continuam sem `Txx`. Ex: `NSA I P11A` → `P11A`. Caso especial: `NSA I P08 - P32` (typo que não foi corrigido na origem) virou `P08`.
+- T12: 20 piquetes novos do KMZ `kml/T12 - pastos.kmz`. Normalizei espaçamento (KMZ misturava `T12-P01` e `T12 - P03`) e corrigi typo do KMZ (`P12 - T06` → `T12 - P06`).
+
+**Tela admin nova — `/admin/piquetes`:**
+- Lista todos os piquetes ativos com busca por nome.
+- Tap abre modal pra editar o `name` (apenas — area/geometry vêm do KML).
+- Bloqueia duplicata local, salva via `UPDATE paddocks SET name = ?`. Trigger `tg_paddocks_mark_dirty` (já existente, paddocks em `MUTABLE_TABLES` desde antes do v0.7.5) marca `pending_sync = 1` → push automático ao Supabase no próximo ciclo.
+- Acesso: bloqueado pra `peao` via `app/src/app/admin/_layout.tsx` (role gate já existente).
+
+**Pipeline de seed:**
+- `kml-to-seed.mjs` agora não pré-pendea o "Retiro" no nome (era de onde vinha "NSA I"/"NSA II"). Com isso, o `<name>` do KML mestre é fonte da verdade direta.
+- KML mestre (`kml/Fazenda NSA - Pastos v5.kmz`) atualizado com os 145 placemarks (125 renomeados + 20 T12 novos). Backup em `Fazenda NSA - Pastos v5.kmz.bak`.
+- `app/src/lib/db/seed-map.ts` regenerado — fresh installs já saem com os nomes novos.
+
+**Migration SQL gerada (não aplicada ainda):**
+- `app/supabase/migrations/2026-04-29_padronizar_piquetes_v2.sql` — 125 UPDATEs + 20 INSERTs.
+- Aplicação em produção fica **bloqueada até validação local** (Lucas testa a tela admin no Expo Go com 1-2 renames manuais; quando OK, autoriza eu rodar a migration completa via REST/SQL Editor).
+
+**Risco/blast radius:**
+- Sem alteração de schema. `paddocks.name` é text mutável; nenhuma FK depende do nome (todas usam `paddock_id`).
+- Devices em produção não percebem mudança até a migration ser aplicada no Supabase + sync engine puxar.
+- Rondas em andamento durante o flip: o id persiste, só o display name muda — nenhum dado quebra.
+
+**Fallback:** `git checkout v0.7.6` + restaurar `kml/Fazenda NSA - Pastos v5.kmz.bak` se precisar reverter o KML mestre.
+
+---
+
+## v0.7.6 — "Bugs encontrados na primeira semana de produção" (2026-04-29)
+
+Auditoria a partir do uso real do Rafael (peão novo, 17 avaliações em ~17 piquetes no dia 29/04). Quatro bugs identificados, três fixes locais (OTA via EAS Update) + um fix de UX:
+
+**1. Race em `initRonda` gerava 2-6 rondas duplicadas no mesmo dia/piquete/peão.**
+- Causa: `useEffect` em `app/src/app/ronda/[paddockId]/menu.tsx` disparava em cascata (dep era objeto `user`, recriado em cada hidratação do authStore). Entre o SELECT "tem ronda hoje?" e o INSERT "criar ronda", a segunda invocação do effect entrava no mesmo branch SELECT-vazio → INSERT/INSERT em paralelo.
+- Sem `UNIQUE INDEX` em `rondas(paddock_id, user_id, date)`, o banco aceitava todas (Rafael acabou com 6 rondas no P75 em 1 dia).
+- Fix: dep mudou pra `user?.id` (string estável) + `useRef` guardando promise da chamada em vôo. Sem mudança de schema (decisão de produto: não fazer cleanup das duplicatas atuais — risco baixo de não fazer; novas duplicatas são bloqueadas).
+
+**2. Suplementação salva 2× na mesma ronda quando peão re-entra no fluxo.**
+- Cenário real do Rafael: às 13:49 e às 14:11 ele finalizou a Suplementação do P50 com valores idênticos (1 saco Probeef Reprodução cada). Mesma ronda, dois `supplement_evals`. Possível double-tap acidental ou volta ao fluxo pra revisar.
+- O caso do "voltei à tarde e reabasteci de novo" é legítimo — 2 reposições reais no mesmo dia. UPSERT cego apagaria histórico real.
+- Fix UX: `app/src/app/ronda/[paddockId]/menu.tsx` agora detecta se já existe eval do tipo X na ronda atual e pede confirmação antes de re-entrar no wizard ("Já avaliada hoje · Fazer nova / Cancelar"). Preserva ambos os caminhos. Usa o helper `confirm` cross-platform existente.
+
+**3. KPI "Rondas hoje" mostrava 0 quando peão fez avaliações reais.**
+- Antiga regra em `app/src/lib/alerts.ts`: ronda só contava com ≥2 tipos diferentes de eval. Rafael fez só Suplementação em 17 piquetes → contador = 0. Mensagem desonesta no painel do admin.
+- Nova regra: separação **completas** vs **incompletas**.
+  - Completa = piquete com Gado teve hoje as 3 obrigatórias avaliadas (Suplementação + Aguada + Cerca).
+  - Incompleta = piquete teve ≥1 obrigatória mas falta alguma. Mostrado em hint separado.
+- Mapa permanece como estava (qualquer ronda existente conta — combinado com o user pra preservar overview rápido).
+- Coluna morta `rondas.completed` no schema continua existindo mas sem uso — evitamos mexer (decisão de produto: risco baixo, futuro PR).
+
+**4. Mapa: tocar fora de polígonos não deselecionava o piquete (só nativo).**
+- O JS do Leaflet em `FarmMap.native.tsx` emitia `{ type: 'select', id: null }` no `map.on('click')`, mas o handler `onMessage` filtrava com `typeof msg.id === 'number'` e descartava o `null`. Web já funcionava (handler dedicado `DeselectOnMapClick`).
+- Fix: aceita `id` numérico OU `null` no `onMessage` da WebView.
+
+**Risco:** baixo. Tudo é JS/TS, sem mudança de schema, sem nova permissão nativa. Mudanças confinadas a 4 arquivos. Triagem via Expo Go (Tab A9) → APK preview → produção (manual, com autorização explícita).
+
+**Fallback:** `git checkout v0.7.5`.
+
+---
+
+## v0.7.5 — "Fix sync de resupply_routes/loads (rota fantasma)" (2026-04-27)
+
+Bug encontrado em produção: rota de reabastecimento finalizada localmente NUNCA era pushada pro Supabase. Sintoma: banner "Rota de reabastecimento em andamento" ressuscitava após cada ciclo de sync.
+
+**Causa raiz auditável:**
+- `resupply_routes` e `resupply_loads` estavam em `SYNCED_TABLES` como `appendOnly: false` (sinalizando que recebem UPDATEs), mas **NÃO** estavam em `MUTABLE_TABLES` no `app/src/lib/db/schema.ts`.
+- `MUTABLE_TABLES` é a fonte usada pra gerar os triggers `CREATE TRIGGER tg_<table>_mark_dirty AFTER UPDATE` que setam `pending_sync = 1` em mudanças locais.
+- Sem trigger: `UPDATE resupply_routes SET status='completed'` em `resumo.tsx` deixava `pending_sync = 0` (default pós-INSERT-sincronizado).
+- Engine de push filtra por `WHERE pending_sync = 1` → mudança nunca saía do device.
+- Pull subsequente trazia versão remota (`status='in_progress'`) — fix de "skip se pending_sync=1" não protegia porque pending_sync era 0 → engine sobrescrevia local com `in_progress` → banner ressuscitava.
+
+**Evidência empírica (Supabase Dashboard, S9 do Lucas):**
+- Rota `08516eba-9176-49fc-8335-958ac895655a` em `in_progress` há 4.41h, dono = Lucas (admin), `created_by = auth.uid()` correto. RLS não rejeitava — app simplesmente nunca tentava o UPDATE no servidor.
+
+**Fix:**
+```diff
+ const MUTABLE_TABLES = [
+   'grass_types', 'formulas', 'paddocks', 'water_tanks', 'farm_boundaries',
+   'herd', 'inventory', 'inspection_requests',
++  'resupply_routes', 'resupply_loads',
+ ];
+```
+
+Triggers passam a ser criados no próximo boot do app via `CREATE TRIGGER IF NOT EXISTS` em `CREATE_TABLES_SQL`. Sem migration de schema (não muda colunas, só adiciona trigger). EAS Update OTA suficiente — sem rebuild.
+
+**Cleanup pra rota fantasma já existente:** SQL manual no Supabase que fecha a rota + devolve sobras ao central + insere `inventory_events` de auditoria. Necessário porque o trigger só captura UPDATEs feitos a partir do boot pós-update — mudanças anteriores ficaram com `pending_sync=0` permanente.
+
+**Regra reforçada (vai pra CLAUDE.md):** sempre que adicionar uma tabela `appendOnly: false` em `SYNCED_TABLES`, **obrigatoriamente** adicionar em `MUTABLE_TABLES` também. Sem isso, a sync de UPDATE é silenciosa-quebrada.
+
+**Fallback:** `git checkout v0.7.4`.
+
+---
+
+## v0.7.4 — "Cloudflare Worker proxy: contorna roteamento Cloudflare zoado" (2026-04-27)
+
+Investigação iterativa via ADB no Galaxy Tab S9 do user identificou causa raiz: certos IPs Cloudflare (range `104.18.x.x` e `1.1.1.1`) têm TCP/443 silenciosamente dropado em algum hop entre device e Cloudflare nessa rede específica ("grupo menegueti", operadora local com CGNAT). Outros IPs Cloudflare (`172.64.x.x`, `172.67.x.x`) funcionam normalmente do mesmo device. Mesmo problema reproduzia: do PC funciona pro 104.18.38.10, do S9 não — sintoma de roteamento anycast/peering BGP que distribui IPs diferentes pro mesmo cliente baseado em fingerprint do device.
+
+Solução: **proxy Cloudflare Worker** (`nsa-supa.lucas-cf1.workers.dev`) entre app e Supabase. Apenas mudança de `.env`:
+
+```diff
+- EXPO_PUBLIC_SUPABASE_URL=https://fxtescythawmbwkthbyb.supabase.co
++ EXPO_PUBLIC_SUPABASE_URL=https://nsa-supa.lucas-cf1.workers.dev
+```
+
+Worker (~10 linhas JS) faz passthrough transparente preservando method/headers/body — auth, REST, RPC, storage, realtime WebSocket. Worker resolve pra IP Cloudflare estável (`172.67.x.x`) que o device alcança, e fala com Supabase via backbone interno Cloudflare sem passar pela CGNAT do operador local.
+
+**Validação empírica (via ADB direto no S9 conectado em "grupo menegueti"):**
+- Antes (Supabase direto, IP `104.18.38.10`): TCP/443 timeout 5s, login app trava 15s exatos.
+- Depois (Worker, IP `172.67.172.202`): TCP/443 conecta em 170ms.
+
+**Custo/limites:**
+- Cloudflare Workers free tier: 100k requests/dia. Folga >>3× pra 30 peões.
+- Latência adicional: +400-600ms por request (do PC, sem CGNAT). Imperceptível em uso real.
+- Mantém SLA do Supabase intacto — Worker falha aberto se Supabase cair.
+
+**Trade-offs aceitos:**
+- Logs de debug ficam centralizados no Cloudflare Dashboard (não no Supabase). Não atrapalha — `/admin/logs` do app continua autoritativo.
+- Worker URL fica acoplada ao subdomínio `*.workers.dev` da conta `lucas-cf1`. Se um dia migrar de conta, atualiza `.env` + rebuild.
+
+**Não é fix de código RN/JS** — `client.ts` e `authStore.ts` permanecem com timeout 25s + retry da v0.7.3, que continua sendo proteção de defesa em profundidade pra outras instabilidades.
+
+**Fallback:** `git checkout v0.7.3` (volta apontar pro Supabase direto). Mantém funcional em redes onde Cloudflare anycast não é problema.
+
+---
+
+## v0.7.3 — "Resiliência de rede + auditoria de login" (2026-04-27)
+
+Investigação ao usuário reportar `Conexão instável. Tenta de novo.` sempre que conectado na rede Wi-Fi "Grupo Menegueti" (~15s exatos antes do erro, request nunca chegava no Supabase). Diagnóstico fechado em **timeout do AbortController** + **firewall/MTU** dropando handshake TLS. Aplicadas 3 mitigações defensivas no cliente:
+
+**Retry automático no `offlineSafeFetch`** (`app/src/lib/supabase/client.ts`):
+- Antes: 1 tentativa, timeout 15s, sem retry. Auth/RPC abortavam silenciosamente em redes com flap de NAT, MTU baixo, ou inspeção SNI.
+- Agora: até 2 tentativas com 1.5s de backoff entre elas. Auth e RPCs do Supabase são idempotentes — sem risco de mutação dupla.
+- Timeout subiu de **15s → 25s** por tentativa. Total: até 50s + 1.5s de backoff antes de devolver 503.
+- Resposta sintética 503 ganhou body diagnóstico: `{ error, message, name, duration_ms, url }`.
+
+**Log mais detalhado em `auth:login_timeout`/`login_failed`** (`app/src/stores/authStore.ts`):
+- Antes: só `{ username, error: msg }`.
+- Agora: `{ username, error, name, status, duration_ms }`. Permite distinguir nos logs:
+  - **`duration_ms ≈ 25000-26500`** + `name: AbortError|AuthRetryableFetchError` → handshake travado, suspeita firewall/MTU.
+  - **`duration_ms < 3000`** + `error: Network request failed` → DNS não resolveu ou conexão recusada.
+  - **`duration_ms < 5000`** + `status: 4xx/5xx` → servidor respondeu mas com erro real.
+
+**Mensagem de erro mais útil** (mesma localização):
+- Antes: `"Conexão instável. Tenta de novo."`
+- Agora: `"Conexão instável. Essa rede pode estar bloqueando o servidor. Tente outra rede (4G) ou fale com TI."`
+
+**Não é fix da causa raiz** — o problema continua sendo do roteador da rede em questão (firewall, MTU, ou DNS interno). Mitigações reduzem incidência (retry pega flap), aumentam tempo útil (timeout maior), e tornam diagnóstico futuro auditável (log granular). Próxima ocorrência do erro vai ter dados suficientes em `/admin/logs` pra fechar A vs C sem ping manual.
+
+**Fallback:** `git checkout v0.7.2`.
+
+---
+
+## v0.7.2 — "QA E2E pré-produção: 4 fixes" (2026-04-26)
+
+Auditoria E2E completa via Playwright (Ronda + Rebanho + Estoque + Reabastecimento) antes de subir pra Google Play / App Store. Conta de inventário fechou (1154 → 1176, net +22 das operações administrativas). Sync OK em todas as tabelas. 4 bugs encontrados, todos corrigidos:
+
+**Fix 1 — Data quebrada nos tiles do menu do piquete** (`app/src/app/ronda/[paddockId]/menu.tsx:111`)
+- Sintoma: tile mostrava `"Últ. 26 22:54:05/04"` em vez de `"Últ. 26/04"`.
+- Causa: `created_at.split('T')[0] ?? created_at.split(' ')[0]` — o operador `??` nunca caía no fallback porque `split('T')` SEMPRE retorna array não-null. Quando `created_at` vem como `"2026-04-26 22:54:05"` (formato SQLite local), o split por T retorna a string inteira, e o split por `-` produz a parte com tempo agarrado.
+- Fix: `created_at.split(/[T ]/)[0]` — pega só a data em qualquer formato.
+
+**Fix 2 — Double-submit em ajuste manual de estoque** (`app/src/app/estoque/ajuste.tsx`)
+- Sintoma (sério, corrupção): clicar 2× rápido em "Registrar perda · 4 sacos" decrementava 8 sacos e criava 2 inventory_events.
+- Causa: `setSaving` é restaurado a `false` no finally (pré-Alert OK), permitindo segundo clique. `Alert.alert` no web é não-bloqueante.
+- Fix: `submittingRef = useRef(false)` checado no início, igual ao pattern já existente em `entrada.tsx`.
+
+**Fix 3 — Cancelar rota não funcionava no web** (`app/src/app/reabastecimento/rota.tsx` + novo helper `app/src/lib/confirm.ts`)
+- Sintoma: clicar "Cancelar rota" no header não abria modal; `cancelActiveRoute` nunca era chamado.
+- Causa: `Alert.alert` com array de buttons não renderiza modal no `react-native-web@0.21`. Bug encadeado (Alert dentro de onPress de Alert) deixava admin web travado com sacos no trator.
+- Fix: novo helper `confirm()` que detecta `Platform.OS === 'web'` e usa `window.confirm` no web (Alert.alert no nativo). Aplicado nos 2 níveis de confirmação. Funciona em ambos os runtimes.
+
+**Fix 4 — Bombona oculta fórmula desativada com saldo** (`app/src/app/ronda/[paddockId]/bombona/step2.tsx`)
+- Sintoma: piquete com produto desativado armazenado na bombona ficava sem opção pra registrar avaliação.
+- Causa: `WHERE active = 1` filtrava fora qualquer fórmula descontinuada, mesmo com saldo positivo em `inventory`.
+- Fix: `WHERE active = 1 OR id IN (SELECT formula_id FROM inventory WHERE quantity_sacks > 0)`.
+
+**Fixes adicionais (cosmético):**
+- Removido emoji `✓` do summary de Lavagem (`washing/summary.tsx`) — quebrava regra do design system NSA "proibido emoji em UI navegável".
+- `SliderInput` ganhou prop `unitSingular` opcional. `supplement/step4.tsx` e `bombona/step3.tsx` passam `unitSingular="saco"` — corrige "1 sacos" → "1 saco" no display do slider.
+
+**Migration de reset estendida** (`2026-04-26_reset_pra_producao.sql`):
+- Limpa fórmulas de teste E2E (`name LIKE 'E2E TEST%'`) e seus inventories antes de zerar o resto. Idempotente.
+
+**Test summary (E2E):**
+- ✅ Ronda completa (9 seções) num piquete: cada Finalizar volta pro menu, tile atualiza pra "Últ. DD/MM" (após fix 1), 0 erros de console, 0 falhas de sync.
+- ✅ Rebanho: mover gado, alocar/desalocar, nascimento, morte, venda, evolução, lotação. Total preservado em todas as operações.
+- ✅ Estoque + Reabastecimento 3 fases: entrada → ajuste → carregar → distribuir → resumo → cancelar. Conta fecha em todas as transições.
+- 0 erros de sync (RLS, push_failed) durante todo o teste.
+
+**Fallback:** `git checkout v0.7.1`.
+
+---
+
+## v0.7.1 — "Multi-select piquetes + voltar pro menu + reset pra produção" (2026-04-26)
+
+Iteração rápida sobre v0.7.0. Foco: ajustes de UX no fluxo de solicitações + preparar a base pra subir em produção.
+
+**Multi-select de piquetes em solicitações** (`app/src/app/admin/solicitacoes.tsx`):
+- `selectedPaddockId: number | null` virou `selectedPaddockIds: Set<number>`. Cada chip de piquete é um toggle independente. Loop de save: N piquetes × N tipos. `createRequest` segue idempotente em pending — repetir a mesma combinação não duplica. Atalho "Marcar todos / Limpar" respeitando o filtro de busca.
+
+**Botão voltar do menu do piquete** (`app/src/app/ronda/[paddockId]/menu.tsx`):
+- `onBack` do `BrandHeader` agora faz `router.replace('/(tabs)/ronda')` direto. Resolve o histórico inconsistente que sobrava após o `router.replace` do summary pro menu (a stack ficava com steps do wizard pendurados — back podia levar pra step6 em vez da lista). Agora é determinístico: menu → lista de piquetes → Painel (pelo padrão da tab nav).
+
+**Reset pra produção** (`app/supabase/migrations/2026-04-26_reset_pra_producao.sql` + bump local v21):
+- Migration Supabase zera `inspection_requests`, `resupply_*`, todos os `*_evals`, `rondas`, `inventory_events`, `herd_events`. Reseta `herd` pros valores iniciais documentados em `seed.ts` (lookup de `paddock_id` por `name`, snapshot 2026-04-17). Reseta `inventory` central pros valores iniciais (734 sacos Topmost Golden + 400 Reprodução, demais zeradas) e apaga todas as bombonas. Idempotente.
+- **Mantém intactos:** `profiles`, `paddocks`, `water_tanks`, `farm_boundaries`, `grass_types`, `formulas` (catálogos).
+- App local: `SCHEMA_VERSION` 20 → 21, dropa tabelas de movimento + `herd`/`inventory`/`sync_state`. Quando o app reabrir, faz pull completo do Supabase já resetado.
+- **Como aplicar:** rodar a migration no SQL Editor do Supabase **antes** de subir o build. Aparelhos com app aberto vão receber o repull no próximo ciclo de sync ou no próximo login.
+
+**Fallback:** `git checkout v0.7.0`.
+
+---
+
+## v0.7.0 — "Camadas de usuário + solicitações sob demanda" (2026-04-26)
+
+Modelo de papéis ganha uso real na UI. Fluxo de ronda passa a permitir emendar avaliações no mesmo piquete sem voltar pra lista. Avaliações categorizadas em **Obrigatórios** (Suplementação, Aguada, Cerca) e **Sob demanda** (Bombona, Forragem, Biológico, Sanidade, Peso visual, Lavagem). Admin pode delegar quais piquetes precisam de inspeção sob demanda; peão vê tudo destacado no Painel + tile do piquete; conclusão é automática quando o peão preenche aquela seção.
+
+**Schema v20** (`app/src/lib/db/schema.ts` + `supabase/migrations/2026-04-26_inspection_requests.sql`):
+- Nova tabela `inspection_requests` (paddock_id, eval_kind, requested_by, notes, status, completed_at, completed_by + colunas de sync). Adicionada a `SYNCED_TABLES`. RLS no Supabase: leitura livre p/ autenticados, INSERT só admin, UPDATE qualquer autenticado (peão completa), DELETE só admin. **Precisa rodar a migration manualmente no Supabase SQL Editor.**
+
+**Camadas de usuário** (`app/src/app/(tabs)/_layout.tsx` + `(tabs)/index.tsx` + `admin/_layout.tsx`):
+- `peao` vê tabs: Painel, Ronda, Estoque, Mapa. Rebanho e Relatório ocultos via `tabBarButton: () => null` + `href: null`.
+- `admin` vê todas as 6 tabs (sem mudança).
+- Painel pra peão: ícone Settings (engrenagem) escondido + seção REBANHO escondida.
+- `/admin/*` redireciona pra `/(tabs)` se `user.role !== 'admin'` — evita acesso por deep-link.
+- Sem mudança no enum `'admin' | 'peao'` — apenas gateamos UI por role.
+
+**Volta pro menu do piquete pós-finalizar** (11 telas summary/finalização em `app/src/app/ronda/[paddockId]/**`):
+- `router.replace('/(tabs)/ronda')` → `router.replace(\`/ronda/${paddockId}/menu\`)`. Permite emendar mais uma avaliação no mesmo piquete sem buscar de novo.
+
+**Categorização Obrigatórios/Sob demanda** (`ronda/[paddockId]/menu.tsx`):
+- `EVAL_ITEMS` ganha campo `category`. Renderiza duas seções (`OBRIGATÓRIOS` / `SOB DEMANDA`) com mesmo grid 2-col.
+
+**Fluxo de delegação** (admin → peão):
+- `app/src/lib/inspection-requests.ts`: helpers `listPendingRequests`, `countPendingRequests`, `listPendingTop`, `createRequest` (idempotente em pending), `cancelRequest` (soft via status), `completeRequestFor` (auto-complete pelo peão).
+- `app/src/app/admin/solicitacoes.tsx`: lista pending agrupada por piquete + modal de criação (picker de piquete com search, multi-choice de inspeção, notas opcional). Tap em item pendente → confirma cancelamento.
+- `app/src/app/admin/index.tsx`: nova entrada "Solicitações" no topo do menu de admin.
+- `ronda/[paddockId]/menu.tsx`: tile com pending request ganha borda warn + badge "SOLICITADO" + texto "Pedido pelo admin".
+- 6 summaries sob demanda (bombona/forage/biological/health/weight/washing): após INSERT, chamam `completeRequestFor(db, paddockId, evalKind, user.id)` — auto-completa qualquer pending pra aquela combinação.
+- Painel: nova seção "SOLICITADO" (visível pra todos) listando até 5 pending mais antigas, tap abre menu do piquete. Header só clicável pra admin (vai pra tela de gestão).
+
+**Fallback:** `git checkout v0.6.1`.
+
+---
+
 ## v0.6.1 — "Auditoria E2E + 10+ bug fixes críticos" (2026-04-22)
 
 Auditoria completa via Playwright MCP com login do admin real. Descoberta + correção de bugs críticos de integridade de estoque, sync e UX. Migration Supabase aplicada pra destravar UPDATE de rotas. Testado no web; APK preview necessário pra validar runtime nativo.

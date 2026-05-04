@@ -49,7 +49,7 @@ export default function SupplementSummary() {
           photo,
         ]
       );
-      router.replace('/(tabs)/ronda');
+      router.replace(`/ronda/${paddockId}/menu`);
     } catch (err) {
       Alert.alert('Erro', 'Falha ao salvar avaliação');
     }

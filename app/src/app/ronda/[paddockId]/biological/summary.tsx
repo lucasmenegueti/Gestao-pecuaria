@@ -2,14 +2,17 @@ import React, { useState } from 'react';
 import { StyleSheet, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
+import { useAuthStore } from '@/stores/authStore';
 import { useDatabase } from '@/lib/db/provider';
 import { WizardFlow, SummaryRow, ResultCard, Button, Card, PhotoButton } from '@/components/ui';
 import { Colors } from '@/constants';
 import { NSA } from '@/theme/nsa';
+import { completeRequestFor } from '@/lib/inspection-requests';
 
 export default function BiologicalSummary() {
   const { paddockId } = useLocalSearchParams();
   const db = useDatabase();
+  const user = useAuthStore((s) => s.user);
   const store = useRondaStore();
   const { biologicalWater } = store;
   const [saving, setSaving] = useState(false);
@@ -34,7 +37,10 @@ export default function BiologicalSummary() {
           biologicalWater.photoUri,
         ]
       );
-      router.replace('/(tabs)/ronda');
+      if (user && paddockId) {
+        await completeRequestFor(db, Number(paddockId), 'biologico', user.id);
+      }
+      router.replace(`/ronda/${paddockId}/menu`);
     } catch (err) {
       Alert.alert('Erro', 'Falha ao salvar');
     }

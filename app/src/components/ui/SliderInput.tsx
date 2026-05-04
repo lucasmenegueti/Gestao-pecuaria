@@ -9,11 +9,13 @@ interface SliderInputProps {
   max: number;
   step?: number;
   unit?: string;
+  /** Se passado, usa esse rótulo no singular quando value === 1. */
+  unitSingular?: string;
   label?: string;
   color?: string;
 }
 
-export function SliderInput({ value, onValueChange, min, max, step = 1, unit = '', label, color = NSA.green800 }: SliderInputProps) {
+export function SliderInput({ value, onValueChange, min, max, step = 1, unit = '', unitSingular, label, color = NSA.green800 }: SliderInputProps) {
   const trackRef = useRef<View>(null);
   const layoutRef = useRef<{ pageX: number; width: number }>({ pageX: 0, width: 0 });
   const [editing, setEditing] = useState(false);
@@ -88,6 +90,8 @@ export function SliderInput({ value, onValueChange, min, max, step = 1, unit = '
   }
 
   const displayValue = step < 1 ? value.toFixed(1) : Math.round(value).toLocaleString('pt-BR');
+  // Singularização opcional: usa unitSingular quando value=1 e foi configurado.
+  const valueUnit = unitSingular && Math.round(value) === 1 ? unitSingular : unit;
 
   return (
     <View style={styles.container}>
@@ -118,7 +122,7 @@ export function SliderInput({ value, onValueChange, min, max, step = 1, unit = '
             style={styles.valueWrap}
           >
             <Text style={[styles.value, { color }]}>{displayValue}</Text>
-            {unit ? <Text style={[styles.unit, { color }]}>{unit}</Text> : null}
+            {valueUnit ? <Text style={[styles.unit, { color }]}>{valueUnit}</Text> : null}
           </TouchableOpacity>
         )}
 

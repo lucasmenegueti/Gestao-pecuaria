@@ -39,7 +39,7 @@ export default function WaterSummary() {
         'INSERT INTO water_evals (ronda_id, available, quality, photo_uri) VALUES (?, ?, ?, ?)',
         [store.currentRondaId, availableInt, qualitySafe, photo]
       );
-      router.replace('/(tabs)/ronda');
+      router.replace(`/ronda/${paddockId}/menu`);
     } catch (err) {
       console.error('[summary-save-error]', { wizard: 'water', err });
       Alert.alert('Erro', 'Falha ao salvar avaliação de aguada. Tente novamente.');

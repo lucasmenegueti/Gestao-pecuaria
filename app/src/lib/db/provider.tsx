@@ -6,7 +6,7 @@ import { setLogDb, logInfo, logWarn } from '@/lib/log';
 // Deixar seed local criaria duplicatas / conflitos ao sincronizar.
 
 const DB_NAME = 'gestao_pecuaria.db';
-const SCHEMA_VERSION = 19;
+const SCHEMA_VERSION = 23;
 
 const DatabaseContext = createContext<SQLite.SQLiteDatabase | null>(null);
 
@@ -207,6 +207,54 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         if (currentVersion < 19) {
           // v19: biological_water_evals pra registrar aplicação de biológico na água.
           // CREATE_TABLES_SQL cria — nada a dropar.
+        }
+        if (currentVersion < 20) {
+          // v20: inspection_requests — admin delega quais piquetes precisam de
+          // inspeção "sob demanda". CREATE_TABLES_SQL cria — nada a dropar.
+        }
+        if (currentVersion < 22) {
+          // v22: app_settings vira tabela sincronizada. Ganha colunas SYNC
+          // (supabase_id, local_updated_at, deleted_at, pending_sync, sync_rev).
+          // Drop + re-create — defaults voltam via INSERT OR IGNORE no schema.ts,
+          // depois pull do Supabase sobrescreve com valores do servidor.
+          await database.execAsync('DROP TABLE IF EXISTS app_settings;');
+        }
+        if (currentVersion < 23) {
+          // v23: app_settings PK muda de `key` para `id INTEGER AUTOINCREMENT`
+          // pra alinhar com o sync engine (que faz WHERE id = ? em toda tabela
+          // SYNCED). `key` continua UNIQUE — settings.ts não muda.
+          // DBs que boot-aram em v22 com a PK antiga (key) precisam dropar.
+          await database.execAsync('DROP TABLE IF EXISTS app_settings;');
+        }
+        if (currentVersion < 21) {
+          // v21: Reset pra produção — Supabase foi limpo (migration
+          // 2026-04-26_reset_pra_producao.sql). Localmente, dropa tabelas de
+          // movimento + herd/inventory + sync_state pra forçar repull completo
+          // do estado limpo. Catálogos (paddocks/water_tanks/farm_boundaries/
+          // grass_types/formulas) não precisam dropar — vão ser atualizados
+          // pelo delta sync se mudaram. Mas dropamos sync_state pra reiniciar
+          // o cursor de pull (last_pull_at = NULL → pull tudo).
+          await database.execAsync(`
+            DROP TABLE IF EXISTS rondas;
+            DROP TABLE IF EXISTS supplement_evals;
+            DROP TABLE IF EXISTS bombona_evals;
+            DROP TABLE IF EXISTS forage_evals;
+            DROP TABLE IF EXISTS water_evals;
+            DROP TABLE IF EXISTS biological_water_evals;
+            DROP TABLE IF EXISTS health_evals;
+            DROP TABLE IF EXISTS fence_evals;
+            DROP TABLE IF EXISTS visual_weight_evals;
+            DROP TABLE IF EXISTS washing_evals;
+            DROP TABLE IF EXISTS inspection_requests;
+            DROP TABLE IF EXISTS resupply_routes;
+            DROP TABLE IF EXISTS resupply_loads;
+            DROP TABLE IF EXISTS resupply_deliveries;
+            DROP TABLE IF EXISTS inventory_events;
+            DROP TABLE IF EXISTS herd_events;
+            DROP TABLE IF EXISTS herd;
+            DROP TABLE IF EXISTS inventory;
+            DROP TABLE IF EXISTS sync_state;
+          `);
         }
         if (currentVersion < 16) {
           // v16: sync_state ganha last_sync_at (timestamp de última sincronização

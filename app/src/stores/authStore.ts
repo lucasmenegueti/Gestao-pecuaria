@@ -139,6 +139,7 @@ export const useAuthStore = create<AuthState>()(
         }
 
         // Tem rede: tenta Supabase
+        const startedAt = Date.now();
         try {
           const email = await emailForUsername(usernameClean);
           const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -167,12 +168,26 @@ export const useAuthStore = create<AuthState>()(
               : null,
           });
         } catch (err: any) {
+          const durationMs = Date.now() - startedAt;
+          // Detalhe técnico salvo no log pra auditoria — name, status do response
+          // sintético, body com URL/duration que veio do offlineSafeFetch.
+          // Sem isso, a mensagem genérica "AuthRetryableFetchError" não dizia
+          // qual fetch falhou nem quanto tempo levou.
+          const detail = {
+            username: usernameClean,
+            error: String(err?.message ?? err),
+            name: String(err?.name ?? ''),
+            status: err?.status ?? err?.cause?.status,
+            duration_ms: durationMs,
+          };
           // Timeout/abort: rede existe (NetInfo ok) mas chamada travou. NÃO cai
           // em offlineMode silencioso — user precisa saber que foi instabilidade
           // e não credencial errada. Mostra erro claro pra tentar de novo.
           if (isTimeoutError(err)) {
-            logError('auth', 'login_timeout', { username: usernameClean, error: err?.message });
-            throw new Error('Conexão instável. Tenta de novo.');
+            logError('auth', 'login_timeout', detail);
+            throw new Error(
+              'Conexão instável. Essa rede pode estar bloqueando o servidor. Tente outra rede (4G) ou fale com TI.',
+            );
           }
           // Erro de rede "hard" (NetInfo desatualizado, DNS morto): fallback cache.
           if (isNetworkError(err)) {
@@ -180,7 +195,7 @@ export const useAuthStore = create<AuthState>()(
             if (ok) return;
             throw new Error('Conexão instável. Credenciais não conferem com o último acesso online neste aparelho.');
           }
-          logError('auth', 'login_failed', { username: usernameClean, error: err?.message });
+          logError('auth', 'login_failed', detail);
           throw err;
         }
       },

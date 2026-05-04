@@ -16,10 +16,17 @@ const SYNC = `
   pending_sync INTEGER NOT NULL DEFAULT 1,
   sync_rev INTEGER NOT NULL DEFAULT 0`;
 
-// Tabelas mutáveis que ganham trigger de "dirty-on-update".
+// Tabelas mutáveis que ganham trigger de "dirty-on-update". Toda tabela
+// `appendOnly: false` em SYNCED_TABLES PRECISA estar aqui — sem isso, UPDATEs
+// locais não disparam pending_sync=1 e o engine de push nunca envia a mudança.
+// Bug observado em produção (2026-04-27): rotas de reabastecimento finalizadas
+// localmente nunca chegavam ao servidor; pull subsequente sobrescrevia local
+// com status='in_progress' do servidor → banner "rota em andamento" ressuscitava.
 const MUTABLE_TABLES = [
   'grass_types', 'formulas', 'paddocks', 'water_tanks', 'farm_boundaries',
-  'herd', 'inventory',
+  'herd', 'inventory', 'inspection_requests',
+  'resupply_routes', 'resupply_loads',
+  'app_settings',
 ];
 
 const DIRTY_TRIGGERS = MUTABLE_TABLES.map((t) => `
@@ -311,13 +318,37 @@ CREATE TABLE IF NOT EXISTS inventory_events (
 CREATE INDEX IF NOT EXISTS idx_inventory_events_formula ON inventory_events(formula_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_inventory_events_paddock ON inventory_events(paddock_id, created_at);
 
+-- inspection_requests: admin delega ao peão quais piquetes precisam de inspeção
+-- "sob demanda" (bombona, forragem, biológico, sanidade, peso visual, lavagem).
+-- Solicitações são genéricas (qualquer peão resolve). Auto-completam quando o
+-- peão preenche aquela seção da ronda no piquete.
+CREATE TABLE IF NOT EXISTS inspection_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  paddock_id INTEGER NOT NULL,
+  eval_kind TEXT NOT NULL,
+  requested_by TEXT NOT NULL,
+  notes TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  completed_at TEXT,
+  completed_by TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),${SYNC},
+  FOREIGN KEY (paddock_id) REFERENCES paddocks(id)
+);
+CREATE INDEX IF NOT EXISTS idx_insp_req_paddock_status ON inspection_requests(paddock_id, status);
+CREATE INDEX IF NOT EXISTS idx_insp_req_status ON inspection_requests(status);
+
 -- app_settings: chave-valor pra configurações (voltagens de cerca, limiares de alertas).
 -- Todos os values são TEXT; caller faz JSON.parse ou Number() conforme o tipo.
 -- Defaults populados via INSERT OR IGNORE — só entram na primeira criação da tabela.
+-- Sincronizada via Supabase desde v0.7.8 — admin liga/desliga alerta e propaga
+-- pra todos os devices. RLS no servidor restringe write a admins; read é universal.
+-- PK é id (não key) pra alinhar com o sync engine, que assume WHERE id = ?
+-- em todas as tabelas SYNCED. key fica UNIQUE — settings.ts continua usando ele.
 CREATE TABLE IF NOT EXISTS app_settings (
-  key TEXT PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  key TEXT UNIQUE NOT NULL,
   value TEXT NOT NULL,
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),${SYNC}
 );
 
 INSERT OR IGNORE INTO app_settings (key, value) VALUES
@@ -415,6 +446,8 @@ export const SYNCED_TABLES = [
     { col: 'paddock_id', table: 'paddocks' },
     { col: 'formula_id', table: 'formulas' },
   ] },
+  { name: 'inspection_requests', appendOnly: false, fkCols: [{ col: 'paddock_id', table: 'paddocks' }] },
+  { name: 'app_settings', appendOnly: false, fkCols: [] },
 ] as const;
 
 export type SyncedTableName = (typeof SYNCED_TABLES)[number]['name'];

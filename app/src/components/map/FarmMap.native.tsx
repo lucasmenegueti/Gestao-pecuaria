@@ -319,7 +319,11 @@ export function FarmMap({ paddocks, waterTanks, selectedId, onSelect, mode = 'ga
           onMessage={(e) => {
             try {
               const msg = JSON.parse(e.nativeEvent.data);
-              if (msg.type === 'select' && typeof msg.id === 'number') onSelect?.(msg.id);
+              // type='select' com id numérico = clique em polígono.
+              // type='select' com id=null = clique no mapa fora dos piquetes (deseleciona).
+              if (msg.type === 'select') {
+                onSelect?.(typeof msg.id === 'number' ? msg.id : null);
+              }
             } catch {}
           }}
         />

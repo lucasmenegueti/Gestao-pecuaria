@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, TextInput, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { AlertTriangle, Plus, Minus } from 'lucide-react-native';
@@ -27,6 +27,10 @@ export default function AjusteEstoqueScreen() {
   const [quantity, setQuantity] = useState(1);
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
+  // Guarda contra double-submit: no web, Alert.alert é não-bloqueante e o
+  // setSaving(false) do finally ocorre antes do user clicar OK do alert,
+  // permitindo segundo clique disparar duplicado. Pattern copiado do entrada.tsx.
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     loadItems();
@@ -67,6 +71,7 @@ export default function AjusteEstoqueScreen() {
   }, [selectedId, mode, effectiveMax]);
 
   async function handleSave() {
+    if (submittingRef.current) return;
     if (!selected) {
       Alert.alert('Erro', 'Selecione um produto');
       return;
@@ -79,6 +84,7 @@ export default function AjusteEstoqueScreen() {
       Alert.alert('Erro', `Só ${sacos(selected.qty)} ${selected.qty === 1 ? 'disponível' : 'disponíveis'}. Reduza a quantidade.`);
       return;
     }
+    submittingRef.current = true;
     setSaving(true);
     try {
       const delta = mode === 'add' ? quantity : -quantity;
@@ -109,8 +115,10 @@ export default function AjusteEstoqueScreen() {
       Alert.alert('Registrado', msg, [{ text: 'OK', onPress: () => router.replace('/(tabs)/estoque') }]);
     } catch (err) {
       Alert.alert('Erro', 'Falha ao registrar ajuste');
+    } finally {
+      submittingRef.current = false;
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   const isAdd = mode === 'add';

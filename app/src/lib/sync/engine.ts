@@ -358,6 +358,25 @@ async function tryHealOrphan(
     return false;
   }
 
+  // app_settings: UNIQUE em key. Cada device popula localmente via INSERT OR
+  // IGNORE (defaults) com pending_sync=1; quando push tenta INSERT no Supabase,
+  // bate com a row já existente lá. Reconciliação: deleta a órfã local, reseta
+  // cursor de pull → próximo pull traz a versão do servidor com supabase_id.
+  if (table.name === 'app_settings' && localRow.key) {
+    const { data } = await supabase
+      .from('app_settings')
+      .select('id')
+      .eq('key', localRow.key)
+      .maybeSingle();
+    if (data) {
+      await db.runAsync('DELETE FROM app_settings WHERE id = ?', [localRow.id]);
+      await db.runAsync('UPDATE sync_state SET last_pull_at = NULL WHERE id = 1');
+      logInfo('sync', 'orphan_removed', { table: 'app_settings', localId: localRow.id, key: localRow.key });
+      return true;
+    }
+    return false;
+  }
+
   // herd: UNIQUE (paddock_id, category) quando alocado; UNIQUE (category) no pool
   if (table.name === 'herd' && localRow.category) {
     const remotePaddockId = localRow.paddock_id

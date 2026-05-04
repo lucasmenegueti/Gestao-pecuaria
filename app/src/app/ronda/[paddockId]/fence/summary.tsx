@@ -63,7 +63,7 @@ export default function FenceSummary() {
         'INSERT INTO fence_evals (ronda_id, voltage, is_electric, prevents_mixing, classification, photo_uri) VALUES (?, ?, ?, ?, ?, ?)',
         [store.currentRondaId, voltageSafe, isElectricInt, preventsMixingInt, classificationSafe, photo]
       );
-      router.replace('/(tabs)/ronda');
+      router.replace(`/ronda/${paddockId}/menu`);
     } catch (err) {
       console.error('[summary-save-error]', { wizard: 'fence', err });
       Alert.alert('Erro', 'Falha ao salvar avaliação de cerca. Tente novamente.');

@@ -16,6 +16,7 @@ import {
   Footprints,
   FlaskConical,
   Truck,
+  ClipboardCheck,
 } from 'lucide-react-native';
 import { useDatabase } from '@/lib/db/provider';
 import { useAuthStore } from '@/stores/authStore';
@@ -25,21 +26,25 @@ import { loadAlerts, AlertsData } from '@/lib/alerts';
 import { getSyncStatus } from '@/lib/sync/engine';
 import { forceSync, isOnline } from '@/lib/sync/daemon';
 import { getActiveRoute, type ActiveRoute } from '@/lib/reabastecimento/active-route';
+import { listPendingTop, EVAL_KIND_LABELS, type InspectionRequest } from '@/lib/inspection-requests';
 import { sacos, dias } from '@/constants';
 
 export default function DashboardScreen() {
   const db = useDatabase();
   const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === 'admin';
   const offlineMode = useAuthStore((s) => s.offlineMode);
   const [alerts, setAlerts] = useState<AlertsData | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<{ pending: number; last_sync_at: string | null } | null>(null);
   const [activeRoute, setActiveRoute] = useState<ActiveRoute | null>(null);
+  const [requests, setRequests] = useState<InspectionRequest[]>([]);
 
   const refresh = useCallback(() => {
     loadAlerts(db).then(setAlerts).catch(() => setAlerts(null));
     getSyncStatus(db).then(setSyncStatus).catch(() => setSyncStatus(null));
     getActiveRoute(db).then(setActiveRoute).catch(() => setActiveRoute(null));
+    listPendingTop(db, 5).then(setRequests).catch(() => setRequests([]));
   }, [db]);
 
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
@@ -84,17 +89,26 @@ export default function DashboardScreen() {
     return 'Boa noite';
   };
 
-  const rondasToday = alerts?.rondasToday ?? 0;
+  const rondasCompletas = alerts?.rondasCompletas ?? 0;
+  const rondasIncompletas = alerts?.rondasIncompletas ?? 0;
   const totalPaddocks = alerts?.paddocksWithCattle ?? 0;
-  const progressPct = totalPaddocks > 0 ? (rondasToday / totalPaddocks) * 100 : 0;
+  // Progresso = só completas (3 obrigatórias). Incompletas mostram em hint separado.
+  const progressPct = totalPaddocks > 0 ? (rondasCompletas / totalPaddocks) * 100 : 0;
   const firstName = user?.name?.split(' ')[0] ?? 'Peão';
   const today = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '');
+  const rondaHint = (() => {
+    if (totalPaddocks === 0) return 'Sem piquetes com gado';
+    if (rondasIncompletas === 0) return `${Math.round(progressPct)}% completas`;
+    return `${rondasIncompletas} ${rondasIncompletas === 1 ? 'incompleta' : 'incompletas'} · ${Math.round(progressPct)}% completas`;
+  })();
 
   const headerActions = (
     <View style={styles.headerActions}>
-      <TouchableOpacity onPress={() => router.push('/admin')} hitSlop={8} style={styles.iconBtn}>
-        <Settings size={20} color={NSA.cream} strokeWidth={1.75} />
-      </TouchableOpacity>
+      {isAdmin && (
+        <TouchableOpacity onPress={() => router.push('/admin')} hitSlop={8} style={styles.iconBtn}>
+          <Settings size={20} color={NSA.cream} strokeWidth={1.75} />
+        </TouchableOpacity>
+      )}
       <TouchableOpacity
         onPress={() => {
           useAuthStore.getState().logout();
@@ -145,15 +159,30 @@ export default function DashboardScreen() {
         )}
 
         <KPI
-          label="Rondas hoje"
-          value={`${rondasToday}`}
+          label="Rondas completas hoje"
+          value={`${rondasCompletas}`}
           unit={`/ ${totalPaddocks}`}
-          hint={totalPaddocks > 0 ? `${Math.round(progressPct)}% do plantel com gado` : 'Sem piquetes com gado'}
+          hint={rondaHint}
           tone={progressPct >= 70 ? 'ok' : progressPct >= 30 ? 'warn' : 'default'}
         />
         <View style={styles.progressWrap}>
           <ProgressBar pct={progressPct} tone={progressPct >= 70 ? 'ok' : progressPct >= 30 ? 'warn' : 'default'} />
         </View>
+
+        {/* Solicitações sob demanda — admin delega, peão executa */}
+        <Section
+          title="SOLICITADO"
+          Icon={ClipboardCheck}
+          emptyMsg="Sem solicitações pendentes"
+          onHeaderPress={isAdmin ? () => router.push('/admin/solicitacoes') : undefined}
+          items={requests.map((r) => ({
+            kind: 'warn' as const,
+            left: r.paddock_name,
+            right: EVAL_KIND_LABELS[r.eval_kind] + (r.notes ? ` · ${r.notes}` : ''),
+            Icon: ClipboardCheck,
+            onPress: () => router.push(`/ronda/${r.paddock_id}/menu`),
+          }))}
+        />
 
         {/* Ronda alerts — inclui bombonas em risco (resolve-se por reabastecimento/ronda) */}
         <Section
@@ -182,26 +211,28 @@ export default function DashboardScreen() {
           ]}
         />
 
-        {/* Rebanho alerts */}
-        <Section
-          title="REBANHO"
-          Icon={Beef}
-          emptyMsg="Todo o gado alocado"
-          onHeaderPress={() => router.push('/(tabs)/rebanho')}
-          items={
-            alerts && alerts.desalocatedTotal > 0
-              ? [
-                  {
-                    kind: 'warn' as const,
-                    left: `${alerts.desalocatedTotal} cab desalocadas`,
-                    right: alerts.desalocated.map((d) => `${d.heads} ${d.category}`).join(' · '),
-                    Icon: Beef,
-                    onPress: () => router.push('/admin/alocar'),
-                  },
-                ]
-              : []
-          }
-        />
+        {/* Rebanho alerts — só admin (peão não vê tab Rebanho) */}
+        {isAdmin && (
+          <Section
+            title="REBANHO"
+            Icon={Beef}
+            emptyMsg="Todo o gado alocado"
+            onHeaderPress={() => router.push('/(tabs)/rebanho')}
+            items={
+              alerts && alerts.desalocatedTotal > 0
+                ? [
+                    {
+                      kind: 'warn' as const,
+                      left: `${alerts.desalocatedTotal} cab desalocadas`,
+                      right: alerts.desalocated.map((d) => `${d.heads} ${d.category}`).join(' · '),
+                      Icon: Beef,
+                      onPress: () => router.push('/admin/alocar'),
+                    },
+                  ]
+                : []
+            }
+          />
+        )}
 
         {/* Estoque alerts — bombonas por piquete ficam na Ronda (é onde se resolve) */}
         <Section

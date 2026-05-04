@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>NSA · Dashboard Pecuária</title>
+<link rel="stylesheet" href="../nsa-design-system/project/colors_and_type.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  html, body { margin: 0; height: 100%; background: #fcfcfb; overflow: hidden; }
+  #app { height: 100vh; }
+  * { box-sizing: border-box; }
+  button { font-family: inherit; }
+</style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+
+  <!-- Mock data must load first -->
+  <script src="mock-data.js"></script>
+
+  <!-- Shared components -->
+  <script type="text/babel" src="components/primitives.jsx"></script>
+  <script type="text/babel" src="components/Sidebar.jsx"></script>
+  <script type="text/babel" src="components/TopBar.jsx"></script>
+  <script type="text/babel" src="components/PaddockCard.jsx"></script>
+  <script type="text/babel" src="components/Heatmap.jsx"></script>
+  <script type="text/babel" src="components/FarmMap.jsx"></script>
+
+  <!-- Views -->
+  <script type="text/babel" src="views/Login.jsx"></script>
+  <script type="text/babel" src="views/Overview.jsx"></script>
+  <script type="text/babel" src="views/Paddocks.jsx"></script>
+  <script type="text/babel" src="views/Map.jsx"></script>
+  <script type="text/babel" src="views/Herd.jsx"></script>
+  <script type="text/babel" src="views/Inventory.jsx"></script>
+  <script type="text/babel" src="views/Team.jsx"></script>
+  <script type="text/babel" src="views/Alerts.jsx"></script>
+  <script type="text/babel" src="views/Inspections.jsx"></script>
+
+  <!-- App -->
+  <script type="text/babel" src="app.jsx"></script>
+</body>
+</html>

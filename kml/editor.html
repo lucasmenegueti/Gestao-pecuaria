@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Editor de KML — Fazenda NSA</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+<script src="https://unpkg.com/fflate@0.8.2/umd/index.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #222; }
+  body { display: flex; flex-direction: column; height: 100vh; }
+
+  header {
+    background: #1a6b54; color: #fff; padding: 10px 16px;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  header h1 { margin: 0; font-size: 16px; font-weight: 800; }
+  .btn {
+    background: #fff; color: #1a6b54; border: none; border-radius: 6px;
+    padding: 6px 12px; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  .btn:hover { background: #e8f4ef; }
+  .btn.danger { background: #e74c3c; color: #fff; }
+  .btn.danger:hover { background: #c0392b; }
+  .btn.warn { background: #f39c12; color: #fff; }
+  .btn.ghost { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,0.4); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .status { margin-left: auto; font-size: 12px; opacity: 0.9; }
+
+  .container { flex: 1; display: flex; min-height: 0; }
+
+  aside {
+    width: 260px; background: #f7f7f7; border-right: 1px solid #ddd;
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  aside .search { padding: 8px; border-bottom: 1px solid #e5e5e5; }
+  aside .search input {
+    width: 100%; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px;
+    font-size: 13px;
+  }
+  aside .list { flex: 1; overflow-y: auto; }
+  .row {
+    padding: 8px 10px; border-bottom: 1px solid #eee; cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .row:hover { background: #eef7f3; }
+  .row.active { background: #d9f0e6; }
+  .row .name { flex: 1; font-size: 13px; font-weight: 600; color: #1a6b54; }
+  .row .area { font-size: 11px; color: #666; }
+  .row .del { color: #c0392b; font-weight: 900; font-size: 14px; padding: 0 4px; }
+  .row .del:hover { color: #e74c3c; }
+
+  #map { flex: 1; }
+
+  .hint {
+    position: absolute; bottom: 10px; left: 270px; z-index: 500;
+    background: rgba(0,0,0,0.75); color: #fff; padding: 6px 10px;
+    border-radius: 6px; font-size: 12px; max-width: 500px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🌿 Editor KML · Fazenda NSA</h1>
+  <input type="file" id="fileInput" accept=".kml,.kmz" style="display:none" />
+  <button class="btn" onclick="document.getElementById('fileInput').click()">Carregar KML/KMZ</button>
+  <button class="btn" id="saveBtn" disabled onclick="saveKml()">Baixar KML</button>
+  <button class="btn warn" id="renameBtn" disabled onclick="renameSelected()">Renomear selecionado</button>
+  <button class="btn danger" id="deleteBtn" disabled onclick="deleteSelected()">Apagar selecionado</button>
+  <button class="btn ghost" onclick="openSentinelDialog()">Sentinel-2…</button>
+  <span class="status" id="status">Nenhum arquivo carregado</span>
+</header>
+
+<dialog id="sentinelDialog" style="border:1px solid #ccc;border-radius:8px;padding:16px;max-width:520px;font-family:inherit">
+  <h3 style="margin:0 0 8px 0;color:#1a6b54">Sentinel-2 (Copernicus, grátis)</h3>
+  <p style="font-size:13px;color:#444;margin:0 0 12px 0;line-height:1.5">
+    1. Crie conta grátis em
+    <a href="https://dataspace.copernicus.eu/" target="_blank">dataspace.copernicus.eu</a><br/>
+    2. Acesse o <a href="https://shapps.dataspace.copernicus.eu/dashboard/" target="_blank">Sentinel Hub Dashboard</a> →
+    Configurations → "Create new" → escolha "Copernicus Sentinel-2 L2A" (template). <br/>
+    3. Copie o <b>Instance ID</b> (UUID) da configuração e cole abaixo.<br/>
+    4. Escolha um intervalo de datas onde a fazenda esteja sem nuvens.
+  </p>
+  <div style="display:grid;grid-template-columns:130px 1fr;gap:8px;align-items:center;font-size:13px">
+    <label>Instance ID</label>
+    <input id="shId" placeholder="ex: 9d559abc-1234-..." style="padding:6px;border:1px solid #ccc;border-radius:4px"/>
+    <label>Layer</label>
+    <select id="shLayer" style="padding:6px;border:1px solid #ccc;border-radius:4px">
+      <option value="AGRICULTURE">AGRICULTURE — divisões de pasto saltam (recomendado)</option>
+      <option value="TRUE_COLOR">TRUE_COLOR — RGB natural</option>
+      <option value="COLOR_INFRARED">COLOR_INFRARED — vegetação em vermelho, terra exposta clara</option>
+      <option value="VEGETATION_INDEX">VEGETATION_INDEX (NDVI)</option>
+      <option value="MOISTURE_INDEX">MOISTURE_INDEX</option>
+      <option value="SWIR">SWIR</option>
+      <option value="ATMOSPHERIC_PENETRATION">ATMOSPHERIC_PENETRATION</option>
+      <option value="GEOLOGY">GEOLOGY</option>
+      <option value="BATHYMETRIC">BATHYMETRIC</option>
+      <option value="COLOR_INFRARED__URBAN_">COLOR_INFRARED (URBAN)</option>
+    </select>
+    <label>Data início</label>
+    <input id="shDateFrom" type="date" style="padding:6px;border:1px solid #ccc;border-radius:4px"/>
+    <label>Data fim</label>
+    <input id="shDateTo" type="date" style="padding:6px;border:1px solid #ccc;border-radius:4px"/>
+    <label>Cobertura nuvens máx</label>
+    <input id="shMaxCC" type="number" min="0" max="100" value="20" style="padding:6px;border:1px solid #ccc;border-radius:4px"/>
+  </div>
+  <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+    <button class="btn ghost" style="color:#1a6b54;border-color:#1a6b54" onclick="document.getElementById('sentinelDialog').close()">Cancelar</button>
+    <button class="btn" onclick="connectSentinel()">Conectar</button>
+  </div>
+</dialog>
+
+<div class="container">
+  <aside>
+    <div class="search"><input id="search" placeholder="Buscar piquete…" /></div>
+    <div class="list" id="list"></div>
+  </aside>
+  <div id="map"></div>
+</div>
+
+<div class="hint">
+  Desenhe piquete: use a barra de ferramentas à esquerda do mapa.
+  Editar vértices: botão lápis.
+  Clicar em piquete seleciona-o.
+</div>
+
+<script>
+// ----------- Estado -----------
+var map = L.map('map').setView([-15.25, -45.40], 12);
+
+// ----------- Basemaps -----------
+// Cada provedor tem datas de captura diferentes pra mesma região.
+// Em zona rural de MG, comparar 2-4 fontes ajuda a encontrar a mais recente.
+// Para imagem Sentinel-2 atualizada (a cada 5 dias), criar config grátis em
+// https://apps.sentinel-hub.com/dashboard/ e descomentar o bloco no fim daqui.
+
+var esriWorldImagery = L.tileLayer(
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  { maxZoom: 19, attribution: 'Esri · Maxar · Earthstar' }
+);
+
+var esriClarity = L.tileLayer(
+  'https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  { maxZoom: 19, attribution: 'Esri Clarity · Maxar' }
+);
+
+var googleSat = L.tileLayer(
+  'https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+  { maxZoom: 20, subdomains: ['0', '1', '2', '3'], attribution: 'Google Satellite' }
+);
+
+var googleHybrid = L.tileLayer(
+  'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+  { maxZoom: 20, subdomains: ['0', '1', '2', '3'], attribution: 'Google Hybrid' }
+);
+
+var osm = L.tileLayer(
+  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  { maxZoom: 19, attribution: '© OpenStreetMap' }
+);
+
+// Esri é o default — preserva comportamento original ao abrir
+esriWorldImagery.addTo(map);
+
+var baseLayers = {
+  'Esri (Maxar) — atual': esriWorldImagery,
+  'Esri Clarity — às vezes mais novo': esriClarity,
+  'Google Satellite': googleSat,
+  'Google Híbrido (sat + ruas)': googleHybrid,
+  'OpenStreetMap (ruas/cercas)': osm
+};
+
+var layersControl = L.control.layers(
+  baseLayers, null, { collapsed: false, position: 'topright' }
+).addTo(map);
+
+// ----------- Sentinel-2 (Copernicus Data Space Ecosystem) -----------
+var sentinelLayer = null;
+
+function openSentinelDialog() {
+  var saved = JSON.parse(localStorage.getItem('sh_config') || '{}');
+  document.getElementById('shId').value = saved.id || '';
+  document.getElementById('shLayer').value = saved.layer || 'AGRICULTURE';
+  var today = new Date();
+  var monthAgo = new Date(today.getTime() - 30 * 24 * 3600 * 1000);
+  document.getElementById('shDateFrom').value = saved.from || monthAgo.toISOString().slice(0, 10);
+  document.getElementById('shDateTo').value = saved.to || today.toISOString().slice(0, 10);
+  document.getElementById('shMaxCC').value = saved.maxCC || 20;
+  document.getElementById('sentinelDialog').showModal();
+}
+
+function connectSentinel() {
+  var id = document.getElementById('shId').value.trim();
+  var layer = document.getElementById('shLayer').value.trim();
+  var from = document.getElementById('shDateFrom').value;
+  var to = document.getElementById('shDateTo').value;
+  var maxCC = document.getElementById('shMaxCC').value;
+  if (!id) { alert('Cole o Instance ID primeiro.'); return; }
+
+  localStorage.setItem('sh_config', JSON.stringify({ id: id, layer: layer, from: from, to: to, maxCC: maxCC }));
+
+  if (sentinelLayer) {
+    layersControl.removeLayer(sentinelLayer);
+    if (map.hasLayer(sentinelLayer)) map.removeLayer(sentinelLayer);
+  }
+
+  sentinelLayer = L.tileLayer.wms(
+    'https://sh.dataspace.copernicus.eu/ogc/wms/' + id,
+    {
+      layers: layer,
+      format: 'image/png',
+      transparent: false,
+      maxZoom: 18,
+      tileSize: 512,
+      time: from + '/' + to,
+      maxcc: maxCC,
+      upsampling: 'BICUBIC',
+      downsampling: 'BICUBIC',
+      attribution: 'Sentinel-2 © Copernicus / CDSE'
+    }
+  );
+
+  layersControl.addBaseLayer(sentinelLayer, 'Sentinel-2 (' + from + ' → ' + to + ')');
+  sentinelLayer.addTo(map);
+  document.getElementById('sentinelDialog').close();
+}
+
+var drawnItems = new L.FeatureGroup().addTo(map);
+var drawControl = new L.Control.Draw({
+  edit: { featureGroup: drawnItems, remove: false }, // remover só via botão topo
+  draw: {
+    polygon: { allowIntersection: false, shapeOptions: { color: '#1a6b54', fillColor: '#1a6b54', fillOpacity: 0.3 } },
+    marker: false, circle: false, rectangle: false, polyline: false, circlemarker: false
+  }
+});
+map.addControl(drawControl);
+
+// lista de piquetes: { uid, name, layer, originalDescription? }
+var paddocks = [];
+var selected = null;
+var nextUid = 1;
+
+// ----------- Helpers geometria -----------
+function areaHa(latlngs) {
+  if (latlngs.length < 3) return 0;
+  var lat0 = latlngs.reduce(function (s, p) { return s + p.lat; }, 0) / latlngs.length;
+  var mLat = 110574;
+  var mLng = 111320 * Math.cos(lat0 * Math.PI / 180);
+  var pts = latlngs.map(function (p) { return [p.lng * mLng, p.lat * mLat]; });
+  var a = 0;
+  for (var i = 0; i < pts.length; i++) {
+    var p1 = pts[i], p2 = pts[(i + 1) % pts.length];
+    a += p1[0] * p2[1] - p2[0] * p1[1];
+  }
+  return Math.abs(a / 2) / 10000;
+}
+
+function escapeXml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+}
+
+// ----------- Paddock lifecycle -----------
+function createPaddock(name, layer, originalDescription) {
+  var p = { uid: nextUid++, name: name, layer: layer, originalDescription: originalDescription || null };
+  paddocks.push(p);
+  drawnItems.addLayer(layer);
+  layer.__paddock = p;
+  layer.on('click', function (e) {
+    L.DomEvent.stopPropagation(e);
+    select(p);
+  });
+  layer.bindTooltip(name, { direction: 'center', className: 'p-tooltip' });
+  return p;
+}
+
+function removePaddock(p) {
+  drawnItems.removeLayer(p.layer);
+  paddocks = paddocks.filter(function (x) { return x !== p; });
+  if (selected === p) selected = null;
+}
+
+// ----------- UI -----------
+function renderList() {
+  var q = (document.getElementById('search').value || '').toLowerCase().trim();
+  var list = document.getElementById('list');
+  list.innerHTML = '';
+  var sorted = paddocks.slice().sort(function (a, b) {
+    return a.name.localeCompare(b.name, 'pt-BR');
+  });
+  sorted.forEach(function (p) {
+    if (q && p.name.toLowerCase().indexOf(q) === -1) return;
+    var row = document.createElement('div');
+    row.className = 'row' + (p === selected ? ' active' : '');
+    var ll = p.layer.getLatLngs()[0] || [];
+    var ha = areaHa(ll);
+    row.innerHTML =
+      '<div class="name">' + escapeXml(p.name) + '</div>' +
+      '<div class="area">' + ha.toFixed(1) + ' ha</div>' +
+      '<div class="del" title="Apagar">×</div>';
+    row.onclick = function (e) {
+      if (e.target.className === 'del') {
+        if (confirm('Apagar "' + p.name + '"?')) { removePaddock(p); refresh(); }
+        return;
+      }
+      select(p);
+      if (p.layer.getBounds) map.flyToBounds(p.layer.getBounds(), { padding: [40, 40], duration: 0.6 });
+    };
+    row.ondblclick = function () { renamePaddock(p); };
+    list.appendChild(row);
+  });
+}
+
+function updateStatus() {
+  var total = paddocks.reduce(function (s, p) {
+    return s + areaHa(p.layer.getLatLngs()[0] || []);
+  }, 0);
+  document.getElementById('status').textContent =
+    paddocks.length + ' piquete(s) · ' + total.toFixed(1) + ' ha';
+  var hasSelection = !!selected;
+  var hasAny = paddocks.length > 0;
+  document.getElementById('saveBtn').disabled = !hasAny;
+  document.getElementById('renameBtn').disabled = !hasSelection;
+  document.getElementById('deleteBtn').disabled = !hasSelection;
+}
+
+function select(p) {
+  if (selected && selected.layer) {
+    selected.layer.setStyle({ color: '#1a6b54', weight: 3, fillOpacity: 0.3 });
+  }
+  selected = p;
+  if (p && p.layer) {
+    p.layer.setStyle({ color: '#f39c12', weight: 4, fillOpacity: 0.4 });
+    p.layer.bringToFront();
+  }
+  renderList();
+  updateStatus();
+}
+
+function renamePaddock(p) {
+  var nv = prompt('Novo nome:', p.name);
+  if (nv == null) return;
+  p.name = nv.trim() || p.name;
+  if (p.layer.getTooltip()) p.layer.setTooltipContent(p.name);
+  renderList();
+}
+
+function renameSelected() { if (selected) renamePaddock(selected); }
+
+function deleteSelected() {
+  if (!selected) return;
+  if (!confirm('Apagar "' + selected.name + '"?')) return;
+  removePaddock(selected);
+  refresh();
+}
+
+function refresh() { renderList(); updateStatus(); }
+
+// ----------- Leaflet.draw eventos -----------
+map.on(L.Draw.Event.CREATED, function (e) {
+  var layer = e.layer;
+  var name = prompt('Nome do novo piquete:', 'Novo Piquete');
+  if (!name) return;
+  var p = createPaddock(name.trim(), layer);
+  select(p);
+  refresh();
+});
+
+map.on(L.Draw.Event.EDITED, function () { refresh(); });
+
+map.on('click', function () {
+  // deseleciona ao clicar fora
+  if (selected) select(null);
+});
+
+document.getElementById('search').addEventListener('input', renderList);
+
+// ----------- KML parse -----------
+// Pega o <name> DIRETAMENTE filho do Placemark (não um nested)
+function directChildByTag(parent, tag) {
+  for (var i = 0; i < parent.children.length; i++) {
+    if (parent.children[i].tagName === tag || parent.children[i].localName === tag) {
+      return parent.children[i];
+    }
+  }
+  return null;
+}
+
+function parseCoords(raw) {
+  return raw.trim().split(/\s+/)
+    .map(function (s) {
+      var parts = s.split(',');
+      var lng = parseFloat(parts[0]);
+      var lat = parseFloat(parts[1]);
+      return [lat, lng];
+    })
+    .filter(function (c) { return isFinite(c[0]) && isFinite(c[1]); });
+}
+
+function sanitizeXml(text) {
+  // O KML v5 da fazenda tem <ns1:link>...</ns1:link> sem declarar xmlns:ns1,
+  // o que o DOMParser rejeita. Remove qualquer tag com prefixo ns\d+ não declarado.
+  return text.replace(/<\/?ns\d+:[^>]*>/g, '');
+}
+
+function parseKml(xmlText) {
+  var cleaned = sanitizeXml(xmlText);
+  var parser = new DOMParser();
+  var xml = parser.parseFromString(cleaned, 'application/xml');
+  var err = xml.getElementsByTagName('parsererror')[0];
+  if (err) throw new Error('XML inválido: ' + err.textContent);
+  var placemarks = xml.getElementsByTagName('Placemark');
+  drawnItems.clearLayers();
+  paddocks = [];
+  selected = null;
+  var loaded = 0;
+  var skipped = [];
+  var found = placemarks.length;
+  for (var i = 0; i < placemarks.length; i++) {
+    var pm = placemarks[i];
+    var nameEl = directChildByTag(pm, 'name');
+    var name = nameEl ? nameEl.textContent.trim() : 'Placemark ' + (i + 1);
+    var descEl = directChildByTag(pm, 'description');
+    var desc = descEl ? descEl.textContent : null;
+    // Captura TODOS os Polygons dentro do Placemark (MultiGeometry pode ter mais de 1)
+    var polys = pm.getElementsByTagName('Polygon');
+    if (polys.length === 0) {
+      skipped.push(name + ' (sem polígono)');
+      continue;
+    }
+    for (var j = 0; j < polys.length; j++) {
+      var coordsEls = polys[j].getElementsByTagName('coordinates');
+      if (coordsEls.length === 0) {
+        skipped.push(name + ' (sem coordenadas)');
+        continue;
+      }
+      var ring = parseCoords(coordsEls[0].textContent);
+      if (ring.length < 3) {
+        skipped.push(name + ' (ring com <3 pontos)');
+        continue;
+      }
+      var pName = polys.length > 1 ? name + ' #' + (j + 1) : name;
+      var layer = L.polygon(ring, { color: '#1a6b54', weight: 3, fillColor: '#1a6b54', fillOpacity: 0.3 });
+      createPaddock(pName, layer, desc);
+      loaded++;
+    }
+  }
+  if (loaded > 0) map.fitBounds(drawnItems.getBounds(), { padding: [30, 30] });
+  console.log('[Editor KML]', { encontrados: found, carregados: loaded, pulados: skipped.length, pulados_detalhe: skipped });
+  return { loaded: loaded, found: found, skipped: skipped };
+}
+
+// ----------- KML serialize -----------
+function buildKml() {
+  var placemarks = paddocks.map(function (p) {
+    var ll = p.layer.getLatLngs()[0] || [];
+    var coords = ll.map(function (c) {
+      return c.lng.toFixed(7) + ',' + c.lat.toFixed(7) + ',0';
+    }).join(' ');
+    // Fecha o anel se não estiver fechado
+    if (ll.length && (ll[0].lat !== ll[ll.length - 1].lat || ll[0].lng !== ll[ll.length - 1].lng)) {
+      coords += ' ' + ll[0].lng.toFixed(7) + ',' + ll[0].lat.toFixed(7) + ',0';
+    }
+    // Centroide p/ o Point (compatível c/ MultiGeometry do v5)
+    var lat0 = ll.reduce(function (s, c) { return s + c.lat; }, 0) / ll.length;
+    var lng0 = ll.reduce(function (s, c) { return s + c.lng; }, 0) / ll.length;
+    var desc = p.originalDescription
+      ? '    <description><![CDATA[' + p.originalDescription + ']]></description>\n'
+      : '';
+    return '  <Placemark>\n' +
+      '    <name>' + escapeXml(p.name) + '</name>\n' +
+      desc +
+      '    <MultiGeometry>\n' +
+      '      <Polygon>\n' +
+      '        <tessellate>1</tessellate>\n' +
+      '        <outerBoundaryIs>\n' +
+      '          <LinearRing>\n' +
+      '            <coordinates>' + coords + '</coordinates>\n' +
+      '          </LinearRing>\n' +
+      '        </outerBoundaryIs>\n' +
+      '      </Polygon>\n' +
+      '      <Point>\n' +
+      '        <coordinates>' + lng0.toFixed(7) + ',' + lat0.toFixed(7) + ',0</coordinates>\n' +
+      '      </Point>\n' +
+      '    </MultiGeometry>\n' +
+      '  </Placemark>';
+  }).join('\n');
+
+  return '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<kml xmlns="http://www.opengis.net/kml/2.2">\n' +
+    '<Document>\n' +
+    '  <name>Fazenda NSA - Pastos (editado)</name>\n' +
+    placemarks + '\n' +
+    '</Document>\n' +
+    '</kml>\n';
+}
+
+function saveKml() {
+  if (paddocks.length === 0) {
+    alert('Nenhum piquete para salvar. Carregue um KML/KMZ primeiro.');
+    return;
+  }
+  var kml = buildKml();
+  var blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  var ts = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = 'Fazenda NSA - Pastos ' + ts + '.kml';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  console.log('[Editor KML] Salvou ' + paddocks.length + ' piquete(s)');
+  alert('KML salvo com ' + paddocks.length + ' piquete(s).');
+}
+
+function summary(r) {
+  var msg = r.loaded + ' de ' + r.found + ' placemarks carregados';
+  if (r.skipped.length) msg += '\n\nPulados (' + r.skipped.length + '):\n- ' + r.skipped.slice(0, 20).join('\n- ');
+  if (r.skipped.length > 20) msg += '\n... e mais ' + (r.skipped.length - 20) + ' (ver console)';
+  return msg;
+}
+
+// ----------- File input -----------
+document.getElementById('fileInput').addEventListener('change', function (e) {
+  var f = e.target.files[0];
+  if (!f) return;
+  var reader = new FileReader();
+  if (f.name.toLowerCase().endsWith('.kmz')) {
+    reader.onload = function () {
+      try {
+        var arr = new Uint8Array(reader.result);
+        var entries = fflate.unzipSync(arr);
+        var kmlKey = Object.keys(entries).find(function (k) { return k.toLowerCase().endsWith('.kml'); });
+        if (!kmlKey) throw new Error('KMZ sem arquivo .kml dentro');
+        var text = fflate.strFromU8(entries[kmlKey]);
+        var r = parseKml(text);
+        refresh();
+        alert(summary(r));
+      } catch (err) { alert('Erro: ' + err.message); }
+    };
+    reader.readAsArrayBuffer(f);
+  } else {
+    reader.onload = function () {
+      try {
+        var r = parseKml(reader.result);
+        refresh();
+        alert(summary(r));
+      } catch (err) { alert('Erro: ' + err.message); }
+    };
+    reader.readAsText(f);
+  }
+  // Reset p/ permitir recarregar o mesmo arquivo
+  e.target.value = '';
+});
+
+updateStatus();
+</script>
+</body>
+</html>

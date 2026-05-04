@@ -173,10 +173,10 @@ function asGeoJSON(coords) {
   return JSON.stringify({ type: 'Polygon', coordinates: [coords] });
 }
 
-// Nome exibido inclui retiro quando há mais de um (desambigua "P11" em NSA I vs NSA II)
-const hasMultiRetiro = new Set(deduped.map((p) => p.retiro).filter(Boolean)).size > 1;
-const displayName = (p) =>
-  hasMultiRetiro && p.retiro ? `${p.retiro} ${p.name}` : p.name;
+// Nome do KML é fonte da verdade (depois do v0.7.7, todos os piquetes seguem
+// "Txx - Pxx" ou "Pxx" — sem prefixo NSA I/II). O Retiro do CDATA é preservado
+// no banco como metadado, mas não entra mais no display name.
+const displayName = (p) => p.name;
 
 const paddockInserts = deduped.map((p, i) =>
   `  (${i + 1}, ${sqlStr(displayName(p))}, ${p.area_ha}, 1, 1, ${p.center_lat}, ${p.center_lon}, ${sqlStr(asGeoJSON(p.coords))})`

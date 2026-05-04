@@ -48,6 +48,22 @@ function offlineShortCircuit(url: string): Response | null {
   return offlineResponse('offline', 'Sem conexão');
 }
 
+const FETCH_TIMEOUT_MS = 25_000;
+const FETCH_RETRY_DELAY_MS = 1_500;
+
+/** Faz uma tentativa com timeout via AbortController. Retorna a Response ou
+ *  throws com erro estruturado (incluindo duration). */
+async function fetchOnce(input: RequestInfo | URL, init: RequestInit | undefined, signal: AbortSignal, started: number): Promise<Response> {
+  try {
+    return await fetch(input, { ...init, signal });
+  } catch (e) {
+    const err = e as Error;
+    // Anota duração no error pra log diagnóstico no authStore.
+    (err as any).durationMs = Date.now() - started;
+    throw err;
+  }
+}
+
 const offlineSafeFetch: typeof fetch = async (input, init) => {
   const url =
     typeof input === 'string'
@@ -57,21 +73,45 @@ const offlineSafeFetch: typeof fetch = async (input, init) => {
         : (input as Request).url;
   const short = offlineShortCircuit(url);
   if (short) return short;
-  // Timeout — Wi-Fi conectado mas sem internet trava fetch ~30s (TCP connect).
-  // 15s dá margem pra Android via Wi-Fi de sítio (DNS+TLS+auth endpoint pode
-  // levar 3-8s na primeira chamada, varia com sinal). 10s era apertado demais
-  // e abortava chamadas válidas — caía em offlineMode silencioso. 30s era
-  // exagero e amplificava perceptivelmente falhas reais.
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15_000);
-  try {
-    return await fetch(input, { ...init, signal: controller.signal });
-  } catch (e) {
-    // Rede caiu ou timeout. Mapeamos pra 503 pra não vazar TypeError pro auth-js.
-    return offlineResponse('network', (e as Error)?.message ?? 'Network request failed');
-  } finally {
-    clearTimeout(timer);
+
+  // Timeout 25s — redes corporativas/captive portal seguram TCP/TLS handshake
+  // por mais tempo. 15s era apertado: redes "ruins mas funcionais" (firewall
+  // com SNI inspection, MTU baixo) abortavam antes do handshake completar.
+  //
+  // Retry: 1 retentativa após 1.5s pra cobrir flap de NAT, MTU mismatch,
+  // SYN-ACK perdido. Auth e RPC são idempotentes; supabase-js não envia
+  // mutações via fetch antes de ter sessão válida.
+  async function attempt(retriesLeft: number): Promise<Response> {
+    const controller = new AbortController();
+    const started = Date.now();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+      return await fetchOnce(input, init, controller.signal, started);
+    } catch (e) {
+      if (retriesLeft > 0) {
+        if (__DEV__) console.warn('[supabase fetch] retry após erro:', (e as Error)?.message);
+        await new Promise((r) => setTimeout(r, FETCH_RETRY_DELAY_MS));
+        return attempt(retriesLeft - 1);
+      }
+      const err = e as Error;
+      const durationMs = (err as any).durationMs ?? Date.now() - started;
+      // 503 sintética: body com info diagnóstica pro authStore extrair detalhe.
+      return new Response(
+        JSON.stringify({
+          error: 'network',
+          message: err?.message ?? 'Network request failed',
+          name: err?.name ?? 'Error',
+          duration_ms: durationMs,
+          url: url.split('?')[0],
+        }),
+        { status: 503, headers: { 'Content-Type': 'application/json' } },
+      );
+    } finally {
+      clearTimeout(timer);
+    }
   }
+
+  return attempt(1);
 };
 
 export const supabase = createClient(SUPABASE_URL ?? '', SUPABASE_ANON_KEY ?? '', {

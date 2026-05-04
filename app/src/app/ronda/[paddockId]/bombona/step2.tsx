@@ -14,8 +14,14 @@ export default function BombonaStep2() {
   const [formulas, setFormulas] = useState<Array<{ id: number; name: string; kg: number }>>([]);
 
   useEffect(() => {
+    // Inclui também fórmulas inativas que ainda têm saldo em qualquer inventory —
+    // se o admin desativou um produto que ainda está nas bombonas, o peão precisa
+    // poder selecioná-lo pra registrar a avaliação. Sem isso, ronda Bombona ficava
+    // travada em piquetes que tinham produto descontinuado armazenado.
     db.getAllAsync<{ id: number; name: string; kg_per_sack: number }>(
-      'SELECT * FROM formulas WHERE active = 1'
+      `SELECT * FROM formulas WHERE active = 1
+       OR id IN (SELECT formula_id FROM inventory WHERE quantity_sacks > 0)
+       ORDER BY name`
     ).then((rows) => setFormulas(rows.map((r) => ({ id: r.id, name: r.name, kg: r.kg_per_sack }))));
   }, []);
 

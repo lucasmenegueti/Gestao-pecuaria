@@ -8,6 +8,7 @@ import { Card, Button, SliderInput, BrandHeader } from '@/components/ui';
 import { useAuthStore } from '@/stores/authStore';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 import { cancelActiveRoute } from '@/lib/reabastecimento/active-route';
+import { confirm } from '@/lib/confirm';
 import { sacos } from '@/constants';
 
 interface LoadInfo {
@@ -242,43 +243,36 @@ export default function RotaScreen() {
     }
   }
 
-  function handleCancelRoute() {
+  async function handleCancelRoute() {
     const total = loads.reduce((s, l) => s + l.remaining, 0);
-    Alert.alert(
-      'Cancelar rota?',
-      total > 0
+    // Usa confirm() cross-platform — Alert.alert com array de buttons não
+    // renderiza no web (react-native-web 0.21), o que travava cancelamento
+    // pelo admin desktop. Mantém os 2 níveis de confirmação como nativo tinha.
+    const ok1 = await confirm({
+      title: 'Cancelar rota?',
+      message: total > 0
         ? `${sacos(total)} voltam ao estoque central. As entregas já feitas nas bombonas continuam.`
         : 'Não há sacos no trator. A rota será finalizada como cancelada.',
-      [
-        { text: 'Voltar', style: 'cancel' },
-        {
-          text: 'Cancelar rota',
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              'Confirmar',
-              'Tem certeza? Os sacos voltam à central e essa rota não pode mais ser retomada.',
-              [
-                { text: 'Não', style: 'cancel' },
-                {
-                  text: 'Sim, cancelar',
-                  style: 'destructive',
-                  onPress: async () => {
-                    try {
-                      await cancelActiveRoute(db, Number(routeId), user?.id ?? null);
-                      router.replace('/(tabs)/estoque');
-                    } catch (err) {
-                      if (__DEV__) console.error('[rota] cancelar falhou', err);
-                      Alert.alert('Erro', 'Falha ao cancelar rota.');
-                    }
-                  },
-                },
-              ]
-            );
-          },
-        },
-      ]
-    );
+      confirmLabel: 'Cancelar rota',
+      cancelLabel: 'Voltar',
+      destructive: true,
+    });
+    if (!ok1) return;
+    const ok2 = await confirm({
+      title: 'Confirmar',
+      message: 'Tem certeza? Os sacos voltam à central e essa rota não pode mais ser retomada.',
+      confirmLabel: 'Sim, cancelar',
+      cancelLabel: 'Não',
+      destructive: true,
+    });
+    if (!ok2) return;
+    try {
+      await cancelActiveRoute(db, Number(routeId), user?.id ?? null);
+      router.replace('/(tabs)/estoque');
+    } catch (err) {
+      if (__DEV__) console.error('[rota] cancelar falhou', err);
+      Alert.alert('Erro', 'Falha ao cancelar rota.');
+    }
   }
 
   const totalRemaining = loads.reduce((s, l) => s + l.remaining, 0);

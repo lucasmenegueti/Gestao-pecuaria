@@ -1,5 +1,5 @@
-# Claude Code local settings
-.claude/settings.local.json
+# Claude Code local settings + caches
+.claude/
 
 # Node
 node_modules/
@@ -32,3 +32,30 @@ kml/v5_extracted/
 
 # Memória do Claude (por usuário, não do projeto)
 memory/
+
+# Screenshots de E2E e bug reports (locais, ruído pro contexto)
+e2e-screenshots/
+bugs app/
+.playwright-mcp/
+erros/
+prints/
+prints-UI-old/
+tmp/
+
+# Apple App Store Connect API key — NUNCA commitar
+applekey/
+*.p8
+
+# Builds Android (>100MB excedem limite GitHub)
+versoes release/
+*.aab
+*.apk
+
+# Backups locais
+*.bak
+
+# Screenshots de debug na raiz
+relatorio-*.png
+
+# Cópia local do NSA Design System (usar repo separado: lucasmenegueti/nsa-design-system)
+nsa-design-system/

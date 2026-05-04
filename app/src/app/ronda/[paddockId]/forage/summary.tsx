@@ -2,14 +2,17 @@ import React, { useState } from 'react';
 import { Text, View, StyleSheet, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
+import { useAuthStore } from '@/stores/authStore';
 import { useDatabase } from '@/lib/db/provider';
 import { WizardFlow, SummaryRow, ResultCard, PhotoButton, Button, Card } from '@/components/ui';
 import { Colors, calculateForageAverage } from '@/constants';
 import { NSA } from '@/theme/nsa';
+import { completeRequestFor } from '@/lib/inspection-requests';
 
 export default function ForageSummary() {
   const { paddockId } = useLocalSearchParams();
   const db = useDatabase();
+  const user = useAuthStore((s) => s.user);
   const store = useRondaStore();
   const { forage } = store;
   const [photo, setPhoto] = useState<string | null>(null);
@@ -51,7 +54,10 @@ export default function ForageSummary() {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [store.currentRondaId, measurementType, m1, m2, m3, avgSafe, quality, photo]
       );
-      router.replace('/(tabs)/ronda');
+      if (user && paddockId) {
+        await completeRequestFor(db, Number(paddockId), 'forragem', user.id);
+      }
+      router.replace(`/ronda/${paddockId}/menu`);
     } catch (err) {
       console.error('[summary-save-error]', { wizard: 'forage', err });
       Alert.alert('Erro', 'Falha ao salvar avaliação de forragem. Tente novamente.');

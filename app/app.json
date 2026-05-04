@@ -2,7 +2,7 @@
   "expo": {
     "name": "Gestão Pecuária NSA",
     "slug": "gestao-pecuaria-nsa",
-    "version": "1.0.3",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -15,7 +15,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.nsa.gestaopecuaria"
+      "bundleIdentifier": "com.fazendansa.gestaopecuaria",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "buildNumber": "2"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,17 +27,14 @@
         "backgroundColor": "#1a6b54"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.nsa.gestaopecuaria",
+      "package": "com.fazendansa.gestaopecuaria",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.CAMERA",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.RECORD_AUDIO"
-      ]
+      ],
+      "versionCode": 3
     },
     "web": {
       "favicon": "./assets/favicon.png",

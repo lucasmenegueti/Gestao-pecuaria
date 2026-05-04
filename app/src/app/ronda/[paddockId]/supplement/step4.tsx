@@ -29,6 +29,7 @@ export default function SupplementStep4() {
         max={10}
         step={1}
         unit="sacos"
+        unitSingular="saco"
         color={Colors.suplementacao}
       />
       <View style={styles.calcCard}>

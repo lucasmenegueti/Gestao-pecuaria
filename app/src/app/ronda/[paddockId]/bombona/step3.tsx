@@ -29,6 +29,7 @@ export default function BombonaStep3() {
         max={10}
         step={1}
         unit="sacos"
+        unitSingular="saco"
         color={Colors.bombona}
       />
       <View style={styles.calcCard}>

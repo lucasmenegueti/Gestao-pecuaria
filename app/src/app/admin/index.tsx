@@ -9,6 +9,8 @@ import {
   Bell,
   FileText,
   ChevronRight,
+  ClipboardCheck,
+  Map,
 } from 'lucide-react-native';
 import { BrandHeader } from '@/components/ui';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
@@ -23,6 +25,8 @@ interface SettingItem {
 }
 
 const ITEMS: SettingItem[] = [
+  { title: 'Solicitações', subtitle: 'Delegar inspeções sob demanda em piquetes', Icon: ClipboardCheck, route: '/admin/solicitacoes' },
+  { title: 'Piquetes', subtitle: 'Renomear identificadores dos piquetes', Icon: Map, route: '/admin/piquetes' },
   { title: 'Formulações', subtitle: 'Produtos de suplementação e estoque mínimo', Icon: Package, route: '/admin/formulas' },
   { title: 'Tipos de capim', subtitle: 'Alturas de entrada e saída por variedade', Icon: Sprout, route: '/admin/grass-types' },
   { title: 'Cerca', subtitle: 'Voltagens que definem cada classificação', Icon: Zap, route: '/admin/cerca' },

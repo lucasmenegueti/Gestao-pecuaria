@@ -35,7 +35,12 @@ export interface CentralLowEntry {
 }
 
 export interface AlertsData {
+  /** Piquetes com gado que receberam ≥1 avaliação hoje (completa OU incompleta). */
   rondasToday: number;
+  /** Piquetes com gado que cobriram TODAS as 3 obrigatórias hoje (Suplementação + Aguada + Cerca). */
+  rondasCompletas: number;
+  /** Piquetes com gado com ≥1 avaliação mas faltando alguma obrigatória. = rondasToday − rondasCompletas. */
+  rondasIncompletas: number;
   paddocksWithCattle: number;
   ronda: RondaIssue[];
   desalocated: DesalocatedEntry[];
@@ -94,30 +99,39 @@ export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData>
   const today = todayIsoDate();
   const settings = await loadSettings(db);
 
-  // Regra: uma ronda só conta como "feita hoje" quando tem >= 2 tipos diferentes
-  // de avaliação registrados (suplementação, bombona, forragem, aguada, sanidade,
-  // cerca, peso visual, lavagem). Abrir o piquete + preencher só um item não conta.
-  // DISTINCT em cada subselect garante 1 linha/tabela/ronda; UNION ALL evita
-  // o dedup global (mais barato que UNION e semanticamente equivalente aqui).
-  const rondasTodayRow = await db.getFirstAsync<{ count: number }>(
-    `SELECT COUNT(DISTINCT r.paddock_id) as count
+  // Regra: piquetes "ronda completa" = TODAS as 3 obrigatórias avaliadas hoje
+  // (Suplementação + Aguada + Cerca, alinhadas com EVAL_ITEMS.category=obrigatorio
+  // em app/src/app/ronda/[paddockId]/menu.tsx). Sob-demanda (bombona, forragem,
+  // biológico, sanidade, peso visual, lavagem) NÃO contam pra completude — são
+  // resolvidas só quando o admin solicita ou o peão julga necessário.
+  //
+  // "Incompleta" = piquete com gado tocou pelo menos 1 das obrigatórias mas não
+  // cobriu as 3. Mostrado separado pra ficar honesto: 17 incompletas é melhor
+  // sinal que "0 rondas hoje" quando o peão fez a manhã toda só de Suplementação.
+  //
+  // Considera DISTINCT por (ronda_id, tipo) — múltiplas rows da mesma seção numa
+  // ronda (ex: Rafael salvando 2x suplementação no P50) contam como 1.
+  const rondaProgress = await db.getAllAsync<{ paddock_id: number; covered: number }>(
+    `SELECT r.paddock_id, COUNT(DISTINCT t) as covered
        FROM rondas r
+       JOIN (
+         SELECT DISTINCT ronda_id, 'supplement' AS t FROM supplement_evals WHERE deleted_at IS NULL
+         UNION ALL SELECT DISTINCT ronda_id, 'water' FROM water_evals WHERE deleted_at IS NULL
+         UNION ALL SELECT DISTINCT ronda_id, 'fence' FROM fence_evals WHERE deleted_at IS NULL
+       ) e ON e.ronda_id = r.id
       WHERE r.date = ?
-        AND r.id IN (
-          SELECT ronda_id FROM (
-            SELECT DISTINCT ronda_id, 'supplement' AS t FROM supplement_evals
-            UNION ALL SELECT DISTINCT ronda_id, 'bombona' FROM bombona_evals
-            UNION ALL SELECT DISTINCT ronda_id, 'forage' FROM forage_evals
-            UNION ALL SELECT DISTINCT ronda_id, 'water' FROM water_evals
-            UNION ALL SELECT DISTINCT ronda_id, 'biological' FROM biological_water_evals
-            UNION ALL SELECT DISTINCT ronda_id, 'health' FROM health_evals
-            UNION ALL SELECT DISTINCT ronda_id, 'fence' FROM fence_evals
-            UNION ALL SELECT DISTINCT ronda_id, 'visual_weight' FROM visual_weight_evals
-            UNION ALL SELECT DISTINCT ronda_id, 'washing' FROM washing_evals
-          ) GROUP BY ronda_id HAVING COUNT(*) >= 2
-        )`,
+      GROUP BY r.paddock_id`,
     [today]
   );
+  const completasSet = new Set<number>();
+  const todaySet = new Set<number>();
+  for (const row of rondaProgress) {
+    todaySet.add(row.paddock_id);
+    if (row.covered >= 3) completasSet.add(row.paddock_id);
+  }
+  const rondasToday = todaySet.size;
+  const rondasCompletas = completasSet.size;
+  const rondasIncompletas = rondasToday - rondasCompletas;
   const paddocksWithCattleRow = await db.getFirstAsync<{ count: number }>(`
     SELECT COUNT(DISTINCT p.id) as count
     FROM paddocks p
@@ -365,7 +379,9 @@ export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData>
   }
 
   return {
-    rondasToday: rondasTodayRow?.count ?? 0,
+    rondasToday,
+    rondasCompletas,
+    rondasIncompletas,
     paddocksWithCattle: paddocksWithCattleRow?.count ?? 0,
     ronda,
     desalocated,

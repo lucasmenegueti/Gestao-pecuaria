@@ -2,14 +2,17 @@ import React, { useState } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
+import { useAuthStore } from '@/stores/authStore';
 import { useDatabase } from '@/lib/db/provider';
 import { WizardFlow, SummaryRow, ResultCard, PhotoButton, Button, Card } from '@/components/ui';
 import { Colors } from '@/constants';
 import { NSA } from '@/theme/nsa';
+import { completeRequestFor } from '@/lib/inspection-requests';
 
 export default function WeightSummary() {
   const { paddockId } = useLocalSearchParams();
   const db = useDatabase();
+  const user = useAuthStore((s) => s.user);
   const store = useRondaStore();
   const { visualWeight } = store;
   const [photo, setPhoto] = useState<string | null>(null);
@@ -56,7 +59,10 @@ export default function WeightSummary() {
         'UPDATE herd SET avg_weight_kg = ? WHERE paddock_id = ? AND category = ?',
         [estimatedSafe, Number(paddockId), categorySafe]
       );
-      router.replace('/(tabs)/ronda');
+      if (user && paddockId) {
+        await completeRequestFor(db, Number(paddockId), 'peso_visual', user.id);
+      }
+      router.replace(`/ronda/${paddockId}/menu`);
     } catch (err) {
       console.error('[summary-save-error]', { wizard: 'weight', err });
       Alert.alert('Erro', 'Falha ao salvar avaliação de peso visual. Tente novamente.');

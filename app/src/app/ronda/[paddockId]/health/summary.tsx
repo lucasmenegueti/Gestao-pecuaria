@@ -2,14 +2,17 @@ import React, { useState } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
+import { useAuthStore } from '@/stores/authStore';
 import { useDatabase } from '@/lib/db/provider';
 import { WizardFlow, SummaryRow, ResultCard, Button, Card } from '@/components/ui';
 import { Colors, cabecas } from '@/constants';
 import { NSA } from '@/theme/nsa';
+import { completeRequestFor } from '@/lib/inspection-requests';
 
 export default function HealthSummary() {
   const { paddockId } = useLocalSearchParams();
   const db = useDatabase();
+  const user = useAuthStore((s) => s.user);
   const store = useRondaStore();
   const { health } = store;
   const [saving, setSaving] = useState(false);
@@ -40,7 +43,10 @@ export default function HealthSummary() {
         'INSERT INTO health_evals (ronda_id, parasite_free, affected_pct, observations, photo_uri) VALUES (?, ?, ?, ?, ?)',
         [store.currentRondaId, parasiteFreeInt, affectedPctSafe, observationsSafe, health.photoUri]
       );
-      router.replace('/(tabs)/ronda');
+      if (user && paddockId) {
+        await completeRequestFor(db, Number(paddockId), 'sanidade', user.id);
+      }
+      router.replace(`/ronda/${paddockId}/menu`);
     } catch (err) {
       console.error('[summary-save-error]', { wizard: 'health', err });
       Alert.alert('Erro', 'Falha ao salvar avaliação de sanidade. Tente novamente.');

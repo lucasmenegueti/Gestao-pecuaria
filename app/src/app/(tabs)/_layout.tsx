@@ -4,6 +4,7 @@ import { StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LayoutDashboard, Footprints, Beef, Package, Map as MapIcon, ClipboardList } from 'lucide-react-native';
 import { NSA, Fonts } from '@/theme/nsa';
+import { useAuthStore } from '@/stores/authStore';
 
 const ICON_BY_NAME = {
   painel: LayoutDashboard,
@@ -21,6 +22,11 @@ function Icon({ name, focused }: { name: keyof typeof ICON_BY_NAME; focused: boo
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
+  // Peão: vê Painel/Ronda/Estoque/Mapa. Rebanho e Relatório só pra admin.
+  const isAdmin = useAuthStore((s) => s.user?.role === 'admin');
+  // expo-router: apenas href:null esconde a tab. Combinar com tabBarButton dispara
+  // runtime error "Cannot use href and tabBarButton together" no Android — derruba app.
+  const hidden = { href: null as any };
   return (
     <Tabs
       screenOptions={{
@@ -51,10 +57,10 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="rebanho"
-        options={{
+        options={isAdmin ? {
           title: 'Rebanho',
           tabBarIcon: ({ focused }) => <Icon name="rebanho" focused={focused} />,
-        }}
+        } : hidden}
       />
       <Tabs.Screen
         name="estoque"
@@ -72,10 +78,10 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="relatorio"
-        options={{
+        options={isAdmin ? {
           title: 'Relatório',
           tabBarIcon: ({ focused }) => <Icon name="relatorio" focused={focused} />,
-        }}
+        } : hidden}
       />
     </Tabs>
   );
