@@ -1,6 +1,6 @@
-// Helpers de período. URL ?periodo=hoje|7d|semana-passada|custom&inicio=YYYY-MM-DD&fim=YYYY-MM-DD
+// Helpers de período. URL ?periodo=hoje|ontem|7d|semana-passada|custom&inicio=YYYY-MM-DD&fim=YYYY-MM-DD
 
-export type PeriodKind = 'hoje' | '7d' | 'semana-passada' | 'custom';
+export type PeriodKind = 'hoje' | 'ontem' | '7d' | 'semana-passada' | 'custom';
 
 export interface Period {
   kind: PeriodKind;
@@ -32,6 +32,7 @@ function lastMonday(d: Date): Date {
 
 function periodLabel(kind: PeriodKind, start: string, end: string): string {
   if (kind === 'hoje') return 'Hoje';
+  if (kind === 'ontem') return 'Ontem';
   if (kind === '7d') return 'Últimos 7 dias';
   if (kind === 'semana-passada') return 'Semana passada';
   return `${formatBR(start)} – ${formatBR(end)}`;
@@ -49,6 +50,10 @@ export function parsePeriodFromSearchParams(params: { periodo?: string; inicio?:
   if (kind === 'hoje') {
     const t = fmt(today);
     return { kind, start: t, end: t, label: 'Hoje' };
+  }
+  if (kind === 'ontem') {
+    const y = fmt(addDays(today, -1));
+    return { kind, start: y, end: y, label: 'Ontem' };
   }
   if (kind === '7d') {
     const start = fmt(addDays(today, -6));
