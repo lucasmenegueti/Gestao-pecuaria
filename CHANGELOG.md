@@ -6,6 +6,24 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.7.9 — "fix: heal de órfãs em app_settings também em RLS error (peões)" (2026-05-06)
+
+Bug de UX descoberto na fazenda: peões viam "21 pra subir · toque pra sincronizar" no Painel e o contador **nunca caía pra 0**, mesmo com sync rodando e empurrando rondas/evals normalmente. Investigação E2E com Rafael: contador travado, log do device com 21 `push_insert_rls` em loop em `app_settings` (localId 1..21).
+
+**Causa raiz:** v0.7.8 fez `app_settings` virar tabela sincronizada e adicionou `tryHealOrphan` pra cobrir o caso "admin pré-populou no Supabase, peão tem cópia local com `INSERT OR IGNORE`". O heal só disparava em `error.code === '23505'` (UNIQUE violation). Mas a política `app_settings_ins` no Supabase é `with check (is_admin())` — pra peão, o INSERT é rejeitado **antes** de chegar no UNIQUE, com erro RLS (`42501`). Heal nunca rodava → 21 rows ficavam presas em `pending_sync=1` indefinidamente. Admins (lucas, alex, gabriel) não viam o bug porque `is_admin()` passa, INSERT chega no UNIQUE check, heal funciona.
+
+**Sintoma para o usuário:** contador "X pra subir" travado em 21+ permanentemente para qualquer peão. Outras tabelas (rondas, evals, herd_events, etc.) sincronizavam normais — o engine itera por tabela em `pushPending` e não bloqueia. Só o ruído visual no Painel.
+
+**Fix:** `app/src/lib/sync/engine.ts` no caminho de INSERT — quando o erro é RLS **e** a tabela é `app_settings`, também tenta `tryHealOrphan`. O heal já valida via SELECT que a row existe no servidor (peão tem `app_settings_read` autorizado: `using (auth.role() = 'authenticated')`), então é seguro deletar a órfã local. Próximo pull traz a versão do servidor com `supabase_id` e `pending_sync=0`.
+
+**Como aplicar:** OTA via `eas update --branch production` + `--branch preview`. Devices baixam na próxima abertura do app. Primeiro ciclo pós-update: peão limpa as 21 órfãs (~10s, 21 round-trips), contador zera. Ciclos seguintes: zero round-trips em app_settings (rows não estão mais com `pending_sync=1`).
+
+**Risco:** baixo. Mudança cirúrgica de ~5 linhas no engine, segue padrão existente do branch UNIQUE. Sem migração de schema, sem mudança de RLS no servidor.
+
+**Fallback:** `git checkout v0.7.8` se precisar reverter; órfãs voltam mas sync de rondas continua ok.
+
+---
+
 ## v0.7.8 — "app_settings sincronizada — alertas valem pra todos os devices" (2026-04-30)
 
 Configurações da tela `/admin/alertas` (ligar/desligar alerta de bombona, central, sanidade, água, cerca, desalocados, biológico — e os thresholds de cada) deixam de ser **locais por device** e passam a sincronizar via Supabase. Antes desse fix, admin desligava no Tab S9 e peões no campo continuavam vendo todos os alertas.

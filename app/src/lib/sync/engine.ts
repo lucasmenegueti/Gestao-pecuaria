@@ -503,7 +503,14 @@ async function pushOne(
         if (error) {
           // UNIQUE violation = linha órfã local duplicando uma do servidor
           const isDup = error.code === '23505' || /duplicate key/i.test(error.message);
-          if (isDup) {
+          const isRls = /row-level security|policy/i.test(error.message);
+          // app_settings RLS: peão tenta inserir os 21 defaults do seed.ts que já
+          // foram pré-populados no Supabase pela migration 2026-04-30. Política
+          // app_settings_ins exige is_admin(), então peão sempre cai em RLS antes
+          // de chegar no UNIQUE check. Heal aqui também — a row JÁ existe no servidor
+          // por construção, basta deletar a órfã local e puxar a versão remota.
+          const isAppSettingsRls = isRls && table.name === 'app_settings';
+          if (isDup || isAppSettingsRls) {
             const healed = await tryHealOrphan(db, table, row);
             if (healed) {
               stats.updated++;
@@ -512,7 +519,6 @@ async function pushOne(
           }
           stats.failed++;
           const n = markPushFail(table.name, row.id);
-          const isRls = /row-level security|policy/i.test(error.message);
           if (isRls) {
             logError('sync', 'push_insert_rls', { table: table.name, localId: row.id, error: error.message, attempts: n });
           } else {
