@@ -6,6 +6,33 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.7.10 — "fix crítico: heal de herd não soma mais head_counts (gado fantasma)" (2026-05-11)
+
+Bug **crítico de integridade de dados** detectado em produção pelo Gabriel: contagem de gado aumentou "sozinha" em P19A. Auditoria confirmou: P19A GARROTE = 214 cab, mas o log de `herd_events` só tinha **uma** transferência de 107 cab pra aquele piquete. Exatamente **DOBRO**. +107 cab fantasmas.
+
+**Causa raiz:** `tryHealOrphan` em `app/src/lib/sync/engine.ts:391` (introduzido na v0.7.8) somava `head_count` local + remoto quando dois INSERTs do mesmo `(paddock_id, category)` chegavam ao Supabase (UNIQUE violation). Cenário disparado quando a mesma operação roda em 2 devices offline (ou em retry pós-falha): cada device cria localmente uma row com `head_count=qty` e empurra. 1º push cria a row com qty. 2º push bate em UNIQUE → heal somava `qty + qty = 2×qty`. Sem barulho, sem dedup, gado dobrado.
+
+Os comentários em `alocar.tsx:126` e `desalocar.tsx:125` já mencionavam a duplicação como conhecida ("não deletar rows com head_count=0 — sync faz INSERT e duplica via heal"), mas o caso de mover-rebanho criando piquete novo não era coberto por essa mitigação.
+
+**Sintoma:** rows em `herd` aparecem com head_count maior que a soma dos eventos. Evidência de operação duplicada visível no log de `herd_events` (2 rows idênticas com mesmo timestamp) quando o caminho de UPDATE protegeu a tabela, mas não no caso de INSERT em row nova.
+
+**Fix:** o heal para `herd` deixa de somar e passa a tratar a row local órfã como REDUNDANTE — deleta local, reseta `last_pull_at`, próximo pull baixa a versão canônica do servidor. Idempotente. Logs ganham nível `warn` com contagens local/remoto pra investigação manual quando divergir (cenário raro de 2 peões realmente alocando em paralelo).
+
+**Limpeza em produção:** UPDATE manual via script `app/scripts/fix-p19a-ghost.mjs`: P19A GARROTE 214 → 107. Total geral cai de 4.192 → 4.085 cab. Audit revisa snapshot pós-fix.
+
+**Scripts novos (mantidos no repo pra auditoria futura):**
+- `app/scripts/history-herd.mjs <user> <pass> [yyyy-mm-dd]` — extrai histórico de herd_events + rows modificadas em XLSX
+- `app/scripts/probe-paddock.mjs <user> <pass> <names csv>` — investiga discrepância simulando saldo dos eventos
+- `app/scripts/fix-p19a-ghost.mjs <user> <pass>` — correção pontual (idempotente, aborta se já corrigido)
+
+**Como aplicar:** OTA via `eas update --branch production` + `--branch preview`. Devices baixam na próxima abertura.
+
+**Risco:** baixo. Mudança cirúrgica (~10 linhas no heal de herd). Cenário de "perda de dado por delete" exigiria 2 peões alocando paralelamente o mesmo (piquete, categoria) — caso raro e que produz log warn audível.
+
+**Fallback:** `git checkout v0.7.9` (mas isso traz de volta o bug do gado fantasma).
+
+---
+
 ## v0.7.9 — "fix: heal de órfãs em app_settings também em RLS error (peões)" (2026-05-06)
 
 Bug de UX descoberto na fazenda: peões viam "21 pra subir · toque pra sincronizar" no Painel e o contador **nunca caía pra 0**, mesmo com sync rodando e empurrando rondas/evals normalmente. Investigação E2E com Rafael: contador travado, log do device com 21 `push_insert_rls` em loop em `app_settings` (localId 1..21).

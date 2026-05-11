@@ -377,32 +377,34 @@ async function tryHealOrphan(
     return false;
   }
 
-  // herd: UNIQUE (paddock_id, category) quando alocado; UNIQUE (category) no pool
+  // herd: UNIQUE (paddock_id, category) quando alocado; UNIQUE (category) no pool.
+  //
+  // ATÉ v0.7.x: somava head_count local + remoto. Causou bug "gado aumentou sozinho"
+  // (2026-05-08): P19A GARROTE = 214 quando deveria ser 107 — operação rodou em 2
+  // devices (ou em retry) e o heal somou. Detectado 2026-05-11.
+  //
+  // AGORA: a row local órfã é tratada como REDUNDANTE (mesma operação aplicada em
+  // outro device). Deleta local, reseta cursor de pull → próximo pull baixa a versão
+  // canônica do servidor. Comportamento idempotente — único correto pra esse fluxo.
+  //
+  // Se as duas mudanças forem genuinamente distintas (ex: 2 peões alocando ao mesmo
+  // (piquete, categoria) offline), a diferença ficará visível como discrepância e
+  // admin pode registrar AJUSTE manual. É preferível a duplicar gado silenciosamente.
   if (table.name === 'herd' && localRow.category) {
     const remotePaddockId = localRow.paddock_id
       ? await new IdMap(db).supabaseIdFor('paddocks', localRow.paddock_id)
       : null;
-    // Busca a linha conflitante no servidor
     let query = supabase.from('herd').select('id, head_count').eq('category', localRow.category).is('deleted_at', null);
     query = remotePaddockId ? query.eq('paddock_id', remotePaddockId) : query.is('paddock_id', null);
     const { data } = await query.maybeSingle();
     if (data) {
-      // Merge: soma head_count local no remoto, depois deleta local.
-      const newCount = Number(data.head_count) + Number(localRow.head_count);
-      const { error: upErr } = await supabase
-        .from('herd')
-        .update({ head_count: newCount })
-        .eq('id', data.id);
-      if (upErr) {
-        logWarn('sync', 'heal_herd_merge_failed', { error: upErr.message });
-        return false;
-      }
       await db.runAsync('DELETE FROM herd WHERE id = ?', [localRow.id]);
       await db.runAsync('UPDATE sync_state SET last_pull_at = NULL WHERE id = 1');
-      logInfo('sync', 'heal_herd_merged', {
+      logWarn('sync', 'heal_herd_orphan_dropped', {
         localId: localRow.id, remoteId: data.id,
         category: localRow.category, paddock: remotePaddockId ?? 'pool',
-        addedCount: localRow.head_count, newTotal: newCount,
+        localCount: localRow.head_count, remoteCount: data.head_count,
+        note: 'rows divergentes — local descartada, servidor é fonte da verdade',
       });
       return true;
     }
