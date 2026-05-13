@@ -119,8 +119,8 @@ const EVAL_TABLES: Record<SectionKind, string> = {
 };
 
 export async function loadDashboardData(period: Period, accessToken?: string): Promise<DashboardData> {
-  const startIso = `${period.start}T00:00:00`;
-  const endIso = `${period.end}T23:59:59`;
+  const startIso = `${period.start}T00:00:00-03:00`;
+  const endIso = `${period.end}T23:59:59-03:00`;
   const auth = { accessToken };
 
   const [
