@@ -63,7 +63,7 @@ export default function EstoqueScreen() {
     const central = await db.getAllAsync<FormulaTotal>(`
       SELECT f.name as formula_name, SUM(i.quantity_sacks) as total
       FROM inventory i JOIN formulas f ON f.id = i.formula_id
-      WHERE i.location = 'central'
+      WHERE i.location = 'central' AND f.active = 1
       GROUP BY f.id
       ORDER BY f.name
     `);
@@ -75,7 +75,7 @@ export default function EstoqueScreen() {
       FROM inventory i
       JOIN formulas f ON f.id = i.formula_id
       JOIN paddocks p ON p.id = i.paddock_id
-      WHERE i.location = 'bombona'
+      WHERE i.location = 'bombona' AND f.active = 1
       ORDER BY i.quantity_sacks ASC
     `);
     setBombonaItems(bombonas);
@@ -83,7 +83,7 @@ export default function EstoqueScreen() {
     const bombTotals = await db.getAllAsync<FormulaTotal>(`
       SELECT f.name as formula_name, SUM(i.quantity_sacks) as total
       FROM inventory i JOIN formulas f ON f.id = i.formula_id
-      WHERE i.location = 'bombona'
+      WHERE i.location = 'bombona' AND f.active = 1
       GROUP BY f.id
       ORDER BY f.name
     `);

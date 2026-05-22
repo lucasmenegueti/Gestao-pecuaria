@@ -6,6 +6,38 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.7.12 — "estoque: filtrar formulações inativas + tab bar não cola na nav do Android" (2026-05-22)
+
+Dois ajustes user-visible reportados pelo Lucas com base em uso real no Tab A9:
+
+**1) Estoque oculta formulações desativadas.** `(tabs)/estoque.tsx` listava qualquer formulação que tivesse linha em `inventory` (mesmo com `formulas.active=0`), poluindo a aba Central com itens descontinuados. Adicionado `AND f.active = 1` nas 3 queries (centralTotals, bombonaItems, bombonaTotals). Aba Admin → Formulações segue mostrando inativas pra permitir reativar.
+
+**2) Labels da tab bar colando na barra do Android.** `(tabs)/_layout.tsx` usava `paddingBottom: 8 + insets.bottom`, mas em alguns Androids com edge-to-edge + 3-button nav o `insets.bottom` retorna 0 — labels ficavam a 8px do system nav. Floor com `Math.max(insets.bottom, 16)` garante mínimo de respiro mesmo quando o inset não é detectado corretamente.
+
+**Como aplicar:** OTA via `eas update --branch production` + `--branch preview`. Mudança puramente JS/TS.
+
+**Risco:** baixíssimo. Filtro SQL aditivo (não muda dado). Tab bar só ganha padding extra, lógica preservada.
+
+**Fallback:** `git checkout v0.7.11`.
+
+---
+
+## v0.7.11 — "mapa: piquetes rondados sem gado em laranja (anomalia)" (2026-05-14)
+
+Melhoria de visibilidade no modo Ronda do mapa. Lucas reportou: Rafa fez 13 rondas hoje, mas o contador do mapa mostrava só "7 / X hoje". Investigação confirmou que **não é bug** — são definições diferentes: o Relatório conta rows na tabela `rondas` (13), o mapa contava só **piquetes com gado** que tiveram ronda hoje (7). Os 6 que sumiam eram rondas feitas em piquetes sem gado alocado (`total_heads = 0`), filtradas pelo `paddocks.filter(p => p.total_heads > 0 && p.has_ronda_today)` em `mapa.tsx:82`.
+
+Esses 6 piquetes representam **anomalia real**: ou o gado saiu sem registrar a desalocação, ou o peão rondou piquete vazio sem motivo. Antes ficavam cinza (`empty`) e o admin não tinha como notar pelo mapa.
+
+**Mudança:** novo estilo `anomaly` (laranja `#b88217` sobre stroke `#7a550f`, usando tokens `NSA.warn`/`warnFg` do design system) em `PADDOCK_STYLES`. Pintado quando `mode === 'ronda' && !hasCattle && has_ronda_today`. No selected bar do piquete, `StatusPill` adicional com label "Ronda sem gado" (kind warn). Contador "X / Y hoje" continua medindo só piquetes com gado — escopo do contador é cobertura do rebanho, não de rondas brutas.
+
+**Como aplicar:** OTA via `eas update --branch production` + `--branch preview`. Mudança puramente JS/TS, sem impacto nativo.
+
+**Risco:** baixíssimo. Adiciona uma cor; lógica antiga preservada pros estados existentes (`active`, `pending`, `empty`).
+
+**Fallback:** `git checkout v0.7.10`.
+
+---
+
 ## v0.7.10 — "fix crítico: heal de herd não soma mais head_counts (gado fantasma)" (2026-05-11)
 
 Bug **crítico de integridade de dados** detectado em produção pelo Gabriel: contagem de gado aumentou "sozinha" em P19A. Auditoria confirmou: P19A GARROTE = 214 cab, mas o log de `herd_events` só tinha **uma** transferência de 107 cab pra aquele piquete. Exatamente **DOBRO**. +107 cab fantasmas.

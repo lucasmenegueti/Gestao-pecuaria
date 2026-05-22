@@ -27,14 +27,17 @@ export default function TabLayout() {
   // expo-router: apenas href:null esconde a tab. Combinar com tabBarButton dispara
   // runtime error "Cannot use href and tabBarButton together" no Android — derruba app.
   const hidden = { href: null as any };
+  // Android edge-to-edge: alguns devices reportam insets.bottom=0 mesmo com 3-button nav
+  // visível (gesture nav vs 3-button + edge-to-edge inconsistente). Floor de 16px garante
+  // que os labels nunca colem na barra do sistema.
+  const bottomPad = Math.max(insets.bottom, 16);
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarStyle: [
           styles.tabBar,
-          // Android edge-to-edge: adiciona espaço pra nav bar / gesture bar do sistema.
-          { height: 60 + insets.bottom, paddingBottom: 8 + insets.bottom },
+          { height: 60 + bottomPad, paddingBottom: 8 + bottomPad },
         ],
         tabBarActiveTintColor: NSA.green800,
         tabBarInactiveTintColor: NSA.inkMuted,
