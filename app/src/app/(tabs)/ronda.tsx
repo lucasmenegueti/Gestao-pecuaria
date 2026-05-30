@@ -8,6 +8,7 @@ import { useRondaStore } from '@/stores/rondaStore';
 import { StatusPill, BrandHeader } from '@/components/ui';
 import { NSA, Fonts, Radius, tokensForStatus } from '@/theme/nsa';
 import { calculateSupplementDays, dailyConsumptionKg, piquetes } from '@/constants';
+import { formatDayMonth } from '@/lib/dates';
 
 interface PaddockRow {
   id: number;
@@ -123,7 +124,7 @@ export default function RondaScreen() {
                 </Text>
                 <View style={styles.paddockFooter}>
                   <Text style={styles.lastRonda}>
-                    {p.last_ronda ? `Última ronda ${formatDate(p.last_ronda)}` : 'Sem ronda registrada'}
+                    {p.last_ronda ? `Última ronda ${formatDayMonth(p.last_ronda)}` : 'Sem ronda registrada'}
                   </Text>
                   {message ? (
                     <Text style={[styles.statusMsg, { color: status === 'ok' ? NSA.inkSecondary : t.fg }]}>
@@ -139,13 +140,6 @@ export default function RondaScreen() {
       </SafeAreaView>
     </View>
   );
-}
-
-function formatDate(iso: string | null | undefined): string {
-  if (!iso) return '';
-  const parts = iso.split('-');
-  if (parts.length === 3) return `${parts[2]}/${parts[1]}`;
-  return iso;
 }
 
 const styles = StyleSheet.create({

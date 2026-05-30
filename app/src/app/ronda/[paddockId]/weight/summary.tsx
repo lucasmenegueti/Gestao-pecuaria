@@ -37,7 +37,7 @@ export default function WeightSummary() {
     const previousSafe = Number.isFinite(visualWeight.previousWeight as number) ? visualWeight.previousWeight : null;
     const previousDateSafe = visualWeight.previousDate ?? null;
 
-    console.log('[summary-save]', {
+    if (__DEV__) console.log('[summary-save]', {
       wizard: 'weight',
       rondaId: store.currentRondaId,
       paddockId: Number(paddockId),
@@ -64,7 +64,7 @@ export default function WeightSummary() {
       }
       router.replace(`/ronda/${paddockId}/menu`);
     } catch (err) {
-      console.error('[summary-save-error]', { wizard: 'weight', err });
+      if (__DEV__) console.error('[summary-save-error]', { wizard: 'weight', err });
       Alert.alert('Erro', 'Falha ao salvar avaliação de peso visual. Tente novamente.');
     }
     setSaving(false);

@@ -37,7 +37,7 @@ export default function BombonaSummary() {
       ? (Number.isFinite(bombona.sacks) ? bombona.sacks : 0)
       : null;
 
-    console.log('[summary-save]', {
+    if (__DEV__) console.log('[summary-save]', {
       wizard: 'bombona',
       rondaId: store.currentRondaId,
       hasStock: bombona.hasStock,
@@ -65,7 +65,7 @@ export default function BombonaSummary() {
       }
       router.replace(`/ronda/${paddockId}/menu`);
     } catch (err) {
-      console.error('[summary-save-error]', { wizard: 'bombona', err });
+      if (__DEV__) console.error('[summary-save-error]', { wizard: 'bombona', err });
       Alert.alert('Erro', 'Falha ao salvar avaliação de bombona. Tente novamente.');
     }
     setSaving(false);

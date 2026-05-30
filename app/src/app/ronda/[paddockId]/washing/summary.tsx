@@ -27,7 +27,7 @@ export default function WashingSummary() {
     const wasWashedInt = washing.wasWashed ? 1 : 0;
     const photoUriSafe = washing.photoUri ?? null;
 
-    console.log('[summary-save]', {
+    if (__DEV__) console.log('[summary-save]', {
       wizard: 'washing',
       rondaId: store.currentRondaId,
       wasWashed: washing.wasWashed,
@@ -45,7 +45,7 @@ export default function WashingSummary() {
       }
       router.replace(`/ronda/${paddockId}/menu`);
     } catch (err) {
-      console.error('[summary-save-error]', { wizard: 'washing', err });
+      if (__DEV__) console.error('[summary-save-error]', { wizard: 'washing', err });
       Alert.alert('Erro', 'Falha ao salvar registro de lavagem. Tente novamente.');
     }
     setSaving(false);

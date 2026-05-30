@@ -1,69 +1,59 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guia pra Claude Code trabalhar neste repositório.
 
 ## Project Overview
 
-**Gestão Pecuária NSA** — Offline-first mobile app for daily pasture and cattle management at Fazenda Nossa Senhora Aparecida (Chapada Gaúcha / Januária-MG, ~18,400 hectares). PT-BR only. Android + iOS + Web (dev).
+**Gestão Pecuária NSA** — Offline-first mobile app pra gestão diária de pasto/gado na Fazenda NSA (~18,400 ha). PT-BR. Android + iOS + Web (dev).
 
-The app is used by field workers ("peões") on tractors/horses in remote pastures with poor connectivity — offline-first storage and large touch targets are hard constraints.
+Usado por peões em tratores/cavalos em piquetes remotos com conectividade ruim — **offline-first storage e targets grandes são hard constraints**.
+
+## Imports
+
+- @../nsa-design-system/CLAUDE-design.md — regras visuais NSA (aplica via `theme/nsa.ts` em RN)
+- @docs/ARQUITETURA-E-DADOS.md — onde o dado vive (Supabase = fonte de verdade), como o sync funciona, toolchain de scripts, runbooks (adicionar piquetes / mexer no rebanho / migration). **Ler antes de mexer em dados, sync ou schema.**
 
 ## Repository Layout
 
 - `app/` — Expo/React Native app (primary work)
-- `prototipo/` — Historical HTML/CSS prototype (48 files, deployed to GitHub Pages branch `gh-pages` for UX validation). Reference only; don't modify unless doing UX research.
-- `CHANGELOG.md` — **Always update** when making a user-visible change. Each entry includes a **Fallback** line pointing to the previous tag for rollback.
+- `prototipo/` — Historical HTML/CSS prototype (deployado em `gh-pages` pra UX research; ref only)
+- `CHANGELOG.md` — **sempre atualizar** quando fizer mudança user-visible. Cada entry tem **Fallback** apontando pro tag anterior pra rollback.
 
-### Branches & Tags
-
-- `main` — current development branch
-- `claude/nsa-livestock-app-VSLd2` — initial branch, kept as tracking for legacy commits
-- `gh-pages` — static HTML prototype only
-- Version tags: `v0.1.0`..`v0.3.0` (iterações iniciais do app), `v0.5.x` (design system NSA + sync Supabase), `v0.6.0 RC1.4` (release candidate atual). Tags auxiliares: `pre-redesign-v0.5.3`, `pre-e2e-investigation`, `pre-bug-fixes` (checkpoints de rollback). See `CHANGELOG.md`.
-
-To roll back: `git checkout v0.X.0` (read-only) or `git reset --hard v0.X.0` (destructive).
-
-## Dev Commands (run from `app/`)
+## Dev Commands (de `app/`)
 
 ```bash
-npm start           # interactive Metro (QR for Expo Go)
-npm run web         # http://localhost:8081 — requires browser refresh to bundle
-npm run android     # emulator or USB device
-npm run ios         # Mac only
-npx expo start --tunnel  # fallback when LAN/firewall blocks Expo Go
+npm start                    # Metro interativo (QR pro Expo Go)
+npm run web                  # http://localhost:8081
+npm run android              # emulador ou USB
+npm run ios                  # Mac only
+npx expo start --tunnel      # fallback p/ LAN/firewall bloqueando Expo Go
 ```
 
-No tests, no lint script configured yet. Type check via `npx tsc --noEmit` in `app/`.
+Sem testes nem lint script configurados. Type check via `npx tsc --noEmit` em `app/`.
 
 ## Dev / Release Flow (obrigatório)
 
-Toda alteração passa por três estágios, **nessa ordem**. NÃO pular estágio — cada um pega classe diferente de bug.
+Toda alteração passa por 3 estágios, **nessa ordem**. Não pular — cada um pega classe diferente de bug.
 
-1. **Local (Expo Go no Tab A9)** — `npx expo start --tunnel` na máquina do Lucas, Tab A9 escaneia QR no Expo Go (app gratuito na Play Store). Hot reload em segundos. **Pega:** bugs de JS, layout, lógica, rotas, sync, DB, SQL. **Não pega:** tiles empacotados (Expo Go não tem `assets/tiles/` do app), native modules novos (só via prebuild), permissões nativas alteradas em app.json.
-2. **APK preview (EAS Build)** — `eas build --profile preview --platform android --non-interactive --no-wait`. ~15-25 min na cloud. URL do `.apk` no final, Tab A9 baixa pelo Chrome e instala. **Pega:** o que o Expo Go não pega (tiles, native modules, edge-to-edge, permissões). Valida em ambiente igualzinho ao de produção, sem passar pelas lojas.
-3. **Produção (Google Play + App Store — ainda a ser criada)** — `eas build --profile production --platform all` + `eas submit --profile production --platform all`. Review Apple ~24h na primeira build. Peões instalam via Play Store / TestFlight.
+1. **Local (Expo Go no Tab A9)** — `npx expo start --tunnel`, Tab A9 escaneia QR. **Pega:** JS/TSX, layout, lógica, rotas, sync, DB. **Não pega:** tiles empacotados, native modules novos, permissões nativas.
+2. **APK preview (EAS Build)** — `eas build --profile preview --platform android --non-interactive --no-wait`. **Pega:** tiles, native modules, edge-to-edge, permissões. Ambiente igual ao de produção sem passar pelas lojas.
+3. **Produção (Google Play + App Store)** — `eas build --profile production --platform all` + `eas submit`. Review Apple ~24h na primeira build.
 
-**Regra de ouro:** não sobe pro estágio N+1 sem validação OK no estágio N. Se algo quebra no APK preview mas não no Expo Go, investigar antes de empurrar pra loja — comum ser diferença de runtime nativo.
+**Regra de ouro:** não sobe pro estágio N+1 sem validação OK no N. Quebra no APK mas não no Expo Go → investigar antes de empurrar (comum ser diferença de runtime nativo).
 
-### Como iniciar dev local
+### EAS Update vs EAS Build — quando usar cada
 
-```bash
-cd app
-npx expo start --tunnel
-```
+Mudanças de JS/TS/assets/JSON (incluindo `.env` que vira `process.env.EXPO_PUBLIC_*` inlined no bundle) podem ir via OTA: `eas env:update` + `eas update --branch <preview|production>`. Devices baixam na próxima abertura. Mudanças nativas (app.json `permissions`/`plugins`, novas dependências com código nativo, `runtimeVersion` bump) **exigem** `eas build`. Regra: se `npx expo prebuild` geraria `android/`/`ios/` diferentes, é build. Senão, é update.
 
-Deixa rodando. Terminal mostra QR code. Tab A9 abre **Expo Go** → "Scan QR code" → scan → carrega o app do metro. Hot-reload em qualquer edit de JS/TS.
+## Known gotchas
 
-### Known gotchas
-
-- **`expo-sqlite` + Web**: requires `.wasm` as bundled asset. `app/metro.config.js` adds `wasm` to `resolver.assetExts`. Don't remove this — SQLite web worker fails to resolve `wa-sqlite.wasm` otherwise.
-- **Port 8081 stuck**: `netstat -ano | grep :8081` → `taskkill //F //PID <pid>` (Windows bash).
-- **Schema migration**: `app/src/lib/db/provider.tsx` uses `PRAGMA user_version` + `SCHEMA_VERSION` constant. Bump `SCHEMA_VERSION` and list tables to drop in the migration block whenever a table changes shape. Seed tables (users, formulas, grass_types, paddocks, herd) are **not** dropped to preserve fixtures.
-- **Sync de UPDATE: SYNCED_TABLES + MUTABLE_TABLES devem casar**. Se uma tabela está em `app/src/lib/db/schema.ts SYNCED_TABLES` como `appendOnly: false` (= recebe UPDATEs), **PRECISA** estar em `MUTABLE_TABLES` no mesmo arquivo. Sem isso, o trigger `tg_<table>_mark_dirty` não é criado → UPDATEs locais não setam `pending_sync=1` → engine de push filtra por `WHERE pending_sync=1` e nunca envia → pull subsequente sobrescreve local com a versão remota (engine só protege quando `pending_sync=1`). Bug observado v0.7.5: `resupply_routes` e `resupply_loads` ausentes do MUTABLE_TABLES → rota finalizada nunca chegava no servidor, ficava ressuscitando.
-- **Tiles do mapa são empacotados**: `app/assets/tiles/` contém ~2700 PNGs do OSM para o bbox da fazenda (zooms 12–17, ~55 MB). O bundle React Native (APK/IPA) contém todos — o mapa funciona offline a partir do primeiro boot. Para atualizar a base OSM (~1×/mês), rodar `cd app && node scripts/fetch-tiles.mjs` e commitar `assets/tiles/` + `src/components/map/tile-manifest.ts`. O script respeita rate-limit OSM (2 req/s), leva ~35 min. Quando o KML dos piquetes mudar (bbox diferente), roda-se o `fetch-tiles.mjs` também — tiles fora do novo bbox são apagados automaticamente.
-- **Leaflet inline no WebView**: nativo não usa CDN para Leaflet. `scripts/bundle-leaflet-inline.mjs` copia `leaflet.css` + `leaflet.js` de node_modules para strings em `src/components/map/leaflet-inline.ts`, que são injetados no HTML do WebView. Regenerar se a versão do Leaflet mudar em package.json.
-- **App não fala direto com Supabase — passa por Cloudflare Worker proxy**: `EXPO_PUBLIC_SUPABASE_URL` aponta pra `https://nsa-supa.lucas-cf1.workers.dev`, não pra `*.supabase.co`. Investigação 2026-04-27 (via ADB no Galaxy Tab S9 do Lucas em "grupo menegueti") provou que certos IPs Cloudflare (`104.18.x.x`, `1.1.1.1`) têm TCP/443 silenciosamente dropado pra alguns devices em redes com CGNAT da operadora local — DNS retorna esses IPs primeiro, OkHttp tenta, trava 15s exatos no `AbortController`, app dá `Conexão instável`. Outros IPs Cloudflare (`172.64.x.x`, `172.67.x.x`) funcionam normalmente do mesmo device, mesma rede. Worker (10 linhas JS no Cloudflare, free tier 100k req/dia) faz passthrough transparente preservando method/headers/body — auth, REST, RPC, storage, realtime WebSocket. Resolve pra IP estável `172.67.x.x` e fala com Supabase via backbone interno Cloudflare. Código do Worker: `const TARGET_HOST = 'fxtescythawmbwkthbyb.supabase.co'; export default { async fetch(request) { const url = new URL(request.url); url.hostname = TARGET_HOST; return fetch(new Request(url.toString(), request)); } };`. Custo de latência: +400-600ms por request, imperceptível em uso real. Pra alterar projeto Supabase no futuro, atualizar `TARGET_HOST` no Worker — não no app.
-- **EAS Update vs EAS Build — quando usar cada**: mudanças de JS/TS/assets/JSON (incluindo `.env` que vira `process.env.EXPO_PUBLIC_*` inlined no bundle) podem ir via OTA: `eas env:update --environment <preview|production> --name <KEY> --value <V> --visibility plaintext --non-interactive` + `eas update --branch <preview|production> --message "..."`. Leva 1-2 min, devices baixam na próxima abertura. Mudanças nativas (app.json `permissions`, `plugins`, novas dependências com código nativo, `runtimeVersion` bump) **exigem** `eas build`. Regra: se `npx expo prebuild` geraria `android/`/`ios/` diferentes, é build. Senão, é update.
+- **`expo-sqlite` + Web**: requer `.wasm` como bundled asset. `app/metro.config.js` adiciona `wasm` a `resolver.assetExts`. Não remover — SQLite web worker falha em resolver `wa-sqlite.wasm`.
+- **Port 8081 stuck**: `lsof -ti:8081 | xargs kill -9`.
+- **Schema migration**: `app/src/lib/db/provider.tsx` usa `PRAGMA user_version` + `SCHEMA_VERSION`. Bumpar `SCHEMA_VERSION` e listar tabelas a dropar no bloco de migration quando schema muda. Seed tables (users, formulas, grass_types, paddocks, herd) **não** são dropadas — preservam fixtures.
+- **Sync de UPDATE: `SYNCED_TABLES` + `MUTABLE_TABLES` devem casar.** Se uma tabela está em `SYNCED_TABLES` como `appendOnly: false` (= recebe UPDATEs), **PRECISA** estar em `MUTABLE_TABLES` no mesmo arquivo. Sem isso, trigger `tg_<table>_mark_dirty` não é criado → UPDATEs locais não setam `pending_sync=1` → engine de push filtra por `pending_sync=1` e nunca envia → pull subsequente sobrescreve local com versão remota. Bug observado: rota finalizada nunca chegando no servidor.
+- **Tiles do mapa empacotados**: `app/assets/tiles/` contém ~2700 PNGs do OSM pro bbox da fazenda (zooms 12–17, ~55 MB). Mapa funciona offline a partir do primeiro boot. Atualizar OSM: `cd app && node scripts/fetch-tiles.mjs` (respeita rate-limit OSM 2 req/s, ~35 min). Quando KML dos piquetes muda (bbox diferente), rodar `fetch-tiles.mjs` também — tiles fora do novo bbox são apagados automaticamente.
+- **Leaflet inline no WebView**: nativo não usa CDN. `scripts/bundle-leaflet-inline.mjs` copia `leaflet.css` + `leaflet.js` de node_modules pra strings em `src/components/map/leaflet-inline.ts`. Regenerar se versão do Leaflet mudar em `package.json`.
+- **App passa por Cloudflare Worker proxy, não fala direto com Supabase**: `EXPO_PUBLIC_SUPABASE_URL` aponta pro Worker (free tier). Necessário porque certos IPs Cloudflare (`104.18.x.x`, `1.1.1.1`) têm TCP/443 silenciosamente dropado em devices em redes com CGNAT da operadora local. Outros IPs (`172.64.x.x`, `172.67.x.x`) funcionam normalmente. Worker faz passthrough preservando method/headers/body. Resolve pra IP estável `172.67.x.x` via backbone Cloudflare. Custo: +400-600ms por request, imperceptível. Trocar projeto Supabase: atualizar `TARGET_HOST` no Worker — não no app.
 
 ## Architecture
 
@@ -72,9 +62,9 @@ Deixa rodando. Terminal mostra QR code. Tab A9 abre **Expo Go** → "Scan QR cod
 ```
 app/src/app/
 ├── (auth)/login.tsx              Auth gate (first login online, cached after)
-├── (tabs)/                       6 main tabs: index(Painel)/ronda/rebanho/estoque/mapa/relatorio
+├── (tabs)/                       6 tabs: index(Painel)/ronda/rebanho/estoque/mapa/relatorio
 ├── ronda/[paddockId]/
-│   ├── menu.tsx                  Menu de Avaliação — uses <BottomNav/> for persistent nav
+│   ├── menu.tsx                  Menu de Avaliação — usa <BottomNav/>
 │   └── {supplement,bombona,forage,water,biological,health,fence,weight,washing}/
 │       └── step1..N.tsx + summary.tsx
 ├── admin/                        Formulações, tipos de capim, lotação, mover rebanho
@@ -82,107 +72,70 @@ app/src/app/
 └── reabastecimento/              3-phase: carregar → rota → resumo
 ```
 
-Wizards route sequentially (each `step` calls `router.push` to next). `summary.tsx` saves to SQLite and `router.replace`s to `/(tabs)/ronda` (a listagem de piquetes). **Don't** add `<BottomNav/>` inside wizard steps — it breaks flow integrity. Only main screens and the evaluation menu carry the bottom nav.
+Wizards routam sequencialmente. `summary.tsx` salva em SQLite e `router.replace`s. **Não** adicionar `<BottomNav/>` dentro de wizard steps — quebra integridade de fluxo. Só telas principais e menu de avaliação carregam bottom nav.
 
 ### State — Zustand (`app/src/stores/`)
 
-- `authStore` — current user, login/logout
-- `rondaStore` — wizard state per ronda section (supplement/bombona/forage/water/biologicalWater/health/fence/visualWeight/washing). Each section has its own slice + `updateX`/`resetX` actions. `resetAll` clears everything between rondas.
-- `syncStore` — estado do daemon de sync (status, pending counts, last sync). Engine real em `app/src/lib/sync/engine.ts` + `daemon.ts`.
+- `authStore` — usuário, login/logout
+- `rondaStore` — wizard state por ronda section. Cada section tem slice + `updateX`/`resetX`. `resetAll` limpa entre rondas.
+- `syncStore` — estado do daemon de sync. Engine real em `app/src/lib/sync/engine.ts` + `daemon.ts`.
 
-Wizard pattern: step1 calls `resetX()` in `useEffect`, each step calls `updateX({ field })`, summary reads slice and issues INSERT.
+Pattern: step1 chama `resetX()` em `useEffect`, cada step chama `updateX({ field })`, summary lê slice e dá INSERT.
 
 ### DB (`app/src/lib/db/`)
 
-- `schema.ts` — single `CREATE_TABLES_SQL` string with all `CREATE TABLE IF NOT EXISTS`
-- `seed.ts` — single `SEED_SQL` string (users, grass types, formulas, etc.). Seed runs only when `users` table is empty.
-- `provider.tsx` — `DatabaseProvider` React context + `useDatabase()` hook. Handles WAL mode, FK enforcement, schema versioning, seed bootstrap.
+- `schema.ts` — `CREATE_TABLES_SQL` único + `SEED_SQL`. Seed roda só quando `users` está vazia.
+- `provider.tsx` — `DatabaseProvider` + `useDatabase()` hook. WAL mode, FK enforcement, versioning, seed bootstrap.
 
-Each ronda section has its own `*_evals` table FK'd to `rondas.id` (`supplement_evals`, `bombona_evals`, `forage_evals`, `water_evals`, `biological_water_evals`, `health_evals`, `fence_evals`, `visual_weight_evals`, `washing_evals`). Menu screen queries each for the last `created_at` to show "Últ: DATA" per card.
+Cada ronda section tem `*_evals` table FK pra `rondas.id`. Menu screen busca cada uma pra mostrar "Últ: DATA" por card.
 
 ### UI Components (`app/src/components/ui/`)
 
-Reusable primitives — treat as the design system. Don't introduce new button/input styles; extend existing ones:
-
-- `WizardFlow` — standard wizard container (header, step indicator, VOLTAR/AVANCAR)
-- `BinaryChoice` — large SIM/NAO buttons
-- `MultiChoice` — radio-list with description and optional icon
-- `SliderInput` — numeric with min/max/step/unit
-- `PhotoButton` — optional photo capture (never required)
-- `ResultCard`, `SummaryRow`, `Badge`, `Card`, `Button` — layout helpers
-- `BottomNav` — 6-tab persistent bar (use only on main screens + ronda menu)
+Primitivos reusáveis = design system. Não introduzir novos estilos de botão/input — estender existentes: `WizardFlow`, `BinaryChoice`, `MultiChoice`, `SliderInput`, `PhotoButton`, `ResultCard`, `SummaryRow`, `Badge`, `Card`, `Button`, `BottomNav`.
 
 ## Domain
 
-- **Piquete (Paddock)**: fenced pasture with grass type, area (ha), assigned herd
-- **Ronda**: daily field inspection. Core workflow; the app is largely a UI over ronda wizards.
-- **Bombona**: per-paddock supplement storage. **Separate from Suplementação** — each has its own item in the evaluation menu and its own eval table (`bombona_evals`).
-- **Reabastecimento**: 3-phase tractor route — Load at sede → Distribute to bombonas → Return leftover
-- **Lotação**: cab/ha (heads per hectare), per paddock and overall
-- **Categorias de gado**: BEZERRO MAMANDO, BEZERRA MAMANDO, BEZERRO, BEZERRA, GARROTE, NOVILHA, NOVILHA PRENHA, BOI, VACA SOLTEIRA, VACA PRENHA, VACA PARIDA (11 categorias; definidas em `constants/index.ts CATTLE_CATEGORIES`, ordem por evolução etária). Lote de pares = VACA PARIDA + BEZERRO/A MAMANDO no mesmo piquete (`PAIR_CATEGORIES`).
-- **Formulações**: supplement formulas (CRUD) — `kg_per_sack`, `target_consumption_g_per_day`
-- **Tipos de Capim**: grass types (CRUD) with entry/exit height targets (cm)
+- **Piquete (Paddock)**: cercado com tipo de capim, área (ha), lote atribuído.
+- **Ronda**: inspeção diária. Core workflow.
+- **Bombona**: estoque de suplemento por piquete. **Separada de Suplementação** — cada uma tem seu item no menu e sua `*_evals` table.
+- **Reabastecimento**: 3-phase tractor route (Load na sede → Distribute → Return leftover).
+- **Lotação**: cab/ha por piquete.
+- **Categorias de gado** (11 em `constants/index.ts CATTLE_CATEGORIES`, ordem etária): BEZERRO MAMANDO, BEZERRA MAMANDO, BEZERRO, BEZERRA, GARROTE, NOVILHA, NOVILHA PRENHA, BOI, VACA SOLTEIRA, VACA PRENHA, VACA PARIDA. Lote de pares = VACA PARIDA + BEZERRO/A MAMANDO (`PAIR_CATEGORIES`).
+- **Formulações**: supplement formulas (CRUD) com `kg_per_sack`, `target_consumption_g_per_day`.
+- **Tipos de Capim**: grass types com entry/exit height targets (cm).
 
 ### Key calculations (`app/src/constants/index.ts`)
 
 - `calculateSupplementDays(sacks, kgPerSack, heads, gPerDay)` → dias até zerar o cocho
 - `calculateStockingRate(heads, ha)` → cab/ha
 - `calculateForageAverage(m1, m2, m3)` → média das 3 medidas de altura
-- `classifyFence(volts)` → `FORTE` ≥4000 / `ADEQUADO` ≥2000 / `FRACO` ≥1 / `SEM CHOQUE` =0
+- `classifyFenceWith(volts, settings.fence)` (em `lib/settings.ts`) → FORTE ≥4000 / ADEQUADO ≥2000 / FRACO ≥1 / SEM CHOQUE =0 — limites configuráveis via `app_settings`
 
-### Ronda sections — current shape
+### Ronda sections
 
-Section order in `menu.tsx`: Suplementação → Bombona → Forragem → Aguada → Biológico → Sanidade → Cerca → Peso visual → Lavagem (9 seções).
+Ordem em `menu.tsx`: Suplementação → Bombona → Forragem → Aguada → Biológico → Sanidade → Cerca → Peso visual → Lavagem.
 
-- **Sanidade** stores **`affected_pct` (REAL, 0–100)**, not a count
-- **Cerca** asks "evita mistura?" first, voltage second
-- **Lavagem** is "did you just wash?" — if no, returns to menu without saving; if yes, 2 screens (photo optional + confirm)
-- **Bombona** separate flow: has_stock? → formula → sacks → summary
+- **Sanidade** armazena `affected_pct` (REAL, 0–100), não count.
+- **Cerca** pergunta "evita mistura?" primeiro, voltagem depois.
+- **Lavagem** = "lavou agora?" — não: volta sem salvar; sim: 2 screens (foto opcional + confirm).
+- **Bombona**: has_stock? → formula → sacks → summary.
 
-## Design system — SOURCE OF TRUTH
+## UX Principles (hard rules — quebrar regride a experiência do peão)
 
-**Todo elemento visual novo ou modificação existente DEVE seguir o NSA Design System em `nsa-design-system/project/`.** Antes de alterar qualquer tela, consultar:
-
-- `nsa-design-system/project/colors_and_type.css` — tokens de cor/tipografia
-- `nsa-design-system/project/pecuaria_redesign/atoms.jsx` — componentes (BrandHeader, Button, StatusPill, KPI, ChoiceCard, etc.)
-- `nsa-design-system/project/pecuaria_redesign/screens_*.jsx` — telas de referência
-
-Regras invioláveis:
-- Tokens: `NSA.green800` (#172514) + `NSA.cream` (#FFFFE3) na brand, semantic via `NSA.ok/warn/danger/info`, paleta completa em `app/src/theme/nsa.ts`.
-- Fonte: **Inter** (400/500/600/700) pro corpo, **Lora 600/700** pra números hero (KPIs) e títulos de BrandHeader. `Fonts.semibold` etc. em `theme/nsa.ts`. Nunca `fontWeight: '700'` direto.
-- Icons: **lucide-react-native** (stroke 1.75). Proibido emoji em UI navegável.
-- Primitivas: `BrandHeader`, `Button`, `Card`, `StatusPill`, `KPI`, `ProgressBar`, `MultiChoice`, `BinaryChoice`, `SliderInput`, `SummaryRow`, `WizardFlow`, `PhotoButton` em `app/src/components/ui/`. Não criar variantes locais — estender o primitivo se faltar.
-- Helpers: `tokensForStatus(kind)` retorna `{edge, bg, fg, label}` pra qualquer estado semântico. Evite ternários `kind === 'danger' ? X : Y`.
-- Copy: **Sentence case** ("Confirmar", não "CONFIRMAR"), separador `·` em vez de `•`, sem emoji em valor/label, motivos de morte/vendas em `herd_events.notes`/`weight_kg`.
-
-Fallback rápido: `git reset --hard pre-redesign-v0.5.3`.
-
-## UX Principles (hard rules — breaking these regresses the field experience)
-
-- Min 56px touch target, 18px+ font, 1 decision per screen
-- Wizard pattern: VOLTAR/AVANCAR, step indicator always visible
-- Binary SIM/NAO: 100px+ tall, green/red
-- Photos always optional, offered last
-- Color-coded by section (see `Colors` in `constants/index.ts`)
-- BottomNav on main screens only — never inside an active wizard step
+- Min 56px touch target, 18px+ font, 1 decision por screen.
+- Wizard pattern: VOLTAR/AVANCAR, step indicator sempre visível.
+- Binary SIM/NAO: 100px+ tall, verde/vermelho.
+- Fotos sempre opcionais, oferecidas por último.
+- Color-coded por section (ver `Colors` em `constants/index.ts`).
+- BottomNav só em main screens — nunca dentro de wizard step ativo.
 
 ## Conventions
 
-- PT-BR for all user-facing strings (labels, questions, errors)
-- File naming: `step1.tsx` ... `stepN.tsx` + `summary.tsx` per wizard folder
-- When renumbering wizard steps (e.g., removing a step), keep the original filename to avoid rename churn in imports; just update the `step=` prop and `router.push` target
-- Update `CHANGELOG.md` + create a git tag for any user-visible change — see the "Como criar uma nova versão" section in that file
+- PT-BR pra strings user-facing.
+- Wizard files: `step1.tsx` ... `stepN.tsx` + `summary.tsx` por pasta.
+- Removendo step: manter filename original, só atualizar `step=` prop e `router.push` target (evita rename churn).
+- Atualizar `CHANGELOG.md` + git tag pra mudança user-visible.
 
 ## Auth
 
-Admin creates accounts (no self-registration). First login requires internet; credentials cached in SQLite (`users` table, `password_hash` is placeholder — replace before production). Seeded users: `admin` / `joao.peao` / `maria.peao`, all with password `123456` (dev only).
-
-## Deploying prototype to GitHub Pages
-
-```bash
-git checkout gh-pages
-git checkout main -- prototipo/
-git commit -m "deploy: update gh-pages"
-git push -u origin gh-pages
-git checkout main
-```
+Admin cria contas (sem self-registration). Primeiro login requer internet; credenciais cacheadas em SQLite. Seeded users locais (só SQLite, **não** existem no Supabase) pra dev. Admin de produção (Supabase Auth): username `lucas` — senha não commitada; pedir ao Lucas quando necessário.

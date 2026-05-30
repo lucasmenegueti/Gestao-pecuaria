@@ -12,6 +12,7 @@ import {
   listPaddocksForPicker, EVAL_KINDS, EVAL_KIND_LABELS,
   type EvalKind, type InspectionRequest,
 } from '@/lib/inspection-requests';
+import { formatDayMonth } from '@/lib/dates';
 
 export default function SolicitacoesScreen() {
   const db = useDatabase();
@@ -156,7 +157,7 @@ export default function SolicitacoesScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={styles.rowTitle}>{EVAL_KIND_LABELS[req.eval_kind]}</Text>
                       <Text style={styles.rowMeta}>
-                        Criada {formatDate(req.created_at)}
+                        Criada {formatDayMonth(req.created_at)}
                         {req.notes ? ` · ${req.notes}` : ''}
                       </Text>
                     </View>
@@ -265,13 +266,6 @@ export default function SolicitacoesScreen() {
       </Modal>
     </View>
   );
-}
-
-function formatDate(iso: string): string {
-  const part = iso.split('T')[0] ?? iso.split(' ')[0] ?? iso;
-  const parts = part.split('-');
-  if (parts.length === 3) return `${parts[2]}/${parts[1]}`;
-  return iso;
 }
 
 const styles = StyleSheet.create({

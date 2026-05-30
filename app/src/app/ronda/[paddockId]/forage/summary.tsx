@@ -35,7 +35,7 @@ export default function ForageSummary() {
     const measurementType = forage.measurementType || 'ENTRADA';
     const quality = forage.quality || 'REGULAR';
 
-    console.log('[summary-save]', {
+    if (__DEV__) console.log('[summary-save]', {
       wizard: 'forage',
       rondaId: store.currentRondaId,
       measurementType: forage.measurementType,
@@ -59,7 +59,7 @@ export default function ForageSummary() {
       }
       router.replace(`/ronda/${paddockId}/menu`);
     } catch (err) {
-      console.error('[summary-save-error]', { wizard: 'forage', err });
+      if (__DEV__) console.error('[summary-save-error]', { wizard: 'forage', err });
       Alert.alert('Erro', 'Falha ao salvar avaliação de forragem. Tente novamente.');
     }
     setSaving(false);

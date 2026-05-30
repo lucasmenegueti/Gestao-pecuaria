@@ -28,7 +28,7 @@ export default function HealthSummary() {
     const affectedPctSafe = Number.isFinite(health.affectedPct) ? health.affectedPct : 0;
     const observationsSafe = health.observations ?? '';
 
-    console.log('[summary-save]', {
+    if (__DEV__) console.log('[summary-save]', {
       wizard: 'health',
       rondaId: store.currentRondaId,
       parasiteFree: health.parasiteFree,
@@ -48,7 +48,7 @@ export default function HealthSummary() {
       }
       router.replace(`/ronda/${paddockId}/menu`);
     } catch (err) {
-      console.error('[summary-save-error]', { wizard: 'health', err });
+      if (__DEV__) console.error('[summary-save-error]', { wizard: 'health', err });
       Alert.alert('Erro', 'Falha ao salvar avaliação de sanidade. Tente novamente.');
     }
     setSaving(false);

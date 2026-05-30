@@ -7,7 +7,6 @@ import { BrandHeader, StatusPill } from '@/components/ui';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 import { FarmMap, PaddockGeo, WaterTank } from '@/components/map';
 import type { MapMode } from '@/components/map/types';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { piquetes, plural } from '@/constants';
 
 interface Row extends PaddockGeo {
@@ -130,6 +129,11 @@ export default function MapaScreen() {
               {mode === 'ronda' && selected.total_heads > 0 && (
                 <StatusPill kind={selected.has_ronda_today ? 'ok' : 'danger'} size="sm">
                   {selected.has_ronda_today ? 'Ronda OK' : 'Pendente'}
+                </StatusPill>
+              )}
+              {mode === 'ronda' && selected.total_heads === 0 && selected.has_ronda_today && (
+                <StatusPill kind="warn" size="sm">
+                  Ronda sem gado
                 </StatusPill>
               )}
             </View>

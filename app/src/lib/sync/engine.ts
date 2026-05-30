@@ -221,42 +221,6 @@ async function localUpdateFromRemote(
 // Pull (delta)
 // ---------------------------------------------------------------------
 
-async function pullOne(
-  db: SQLite.SQLiteDatabase,
-  table: TableConfig,
-  sinceIso: string | null,
-  idMap: IdMap,
-): Promise<number> {
-  const query = supabase.from(table.name).select('*');
-  // Filtro incremental por updated_at. Primeira vez (null) traz tudo.
-  const q = sinceIso ? query.gt('updated_at', sinceIso) : query;
-  const { data, error } = await q.order('updated_at', { ascending: true });
-  if (error) {
-    throw new Error(`pull ${table.name}: ${error.message}`);
-  }
-  if (!data || data.length === 0) return 0;
-
-  for (const remote of data) {
-    // Resolve FKs: UUIDs remotos → IDs integer locais
-    const localFks: Record<string, number | null> = {};
-    for (const fk of table.fkCols) {
-      localFks[fk.col] = await idMap.localIdFor(fk.table, remote[fk.col]);
-    }
-    // Upsert: verifica se já existe localmente via supabase_id
-    const existing = await db.getFirstAsync<{ id: number }>(
-      `SELECT id FROM ${table.name} WHERE supabase_id = ?`,
-      [remote.id]
-    );
-    if (existing) {
-      await localUpdateFromRemote(db, table.name, existing.id, remote, localFks);
-      idMap.prime(table.name, remote.id, existing.id);
-    } else {
-      await localInsertFromRemote(db, table.name, remote, localFks, idMap);
-    }
-  }
-  return data.length;
-}
-
 export async function pullDelta(db: SQLite.SQLiteDatabase): Promise<Record<string, number>> {
   const state = await getSyncState(db);
   const since = state.last_pull_at;

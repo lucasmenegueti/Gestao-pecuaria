@@ -43,6 +43,9 @@ export const PADDOCK_STYLES = {
   empty: { stroke: '#4b5563', fill: '#9ca3af', fillOpacity: 0.35 },
   // Com gado e sem ronda feita hoje (modo Ronda).
   pending: { stroke: '#b91c1c', fill: '#ef4444', fillOpacity: 0.45 },
+  // Ronda feita num piquete sem gado alocado (modo Ronda) — anomalia: ou o gado
+  // saiu sem registrar, ou o peão rondou piquete vazio sem motivo.
+  anomaly: { stroke: '#7a550f', fill: '#b88217', fillOpacity: 0.5 },
 } satisfies Record<string, PaddockStyle>;
 
 export function stylePaddock(p: PaddockGeo, mode: MapMode): PaddockStyle {
@@ -51,7 +54,7 @@ export function stylePaddock(p: PaddockGeo, mode: MapMode): PaddockStyle {
     return hasCattle ? PADDOCK_STYLES.active : PADDOCK_STYLES.empty;
   }
   // mode === 'ronda'
-  if (!hasCattle) return PADDOCK_STYLES.empty;
+  if (!hasCattle) return p.has_ronda_today ? PADDOCK_STYLES.anomaly : PADDOCK_STYLES.empty;
   return p.has_ronda_today ? PADDOCK_STYLES.active : PADDOCK_STYLES.pending;
 }
 

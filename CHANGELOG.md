@@ -6,6 +6,28 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.7.13 — "fix data em Solicitações/Rebanho + limpeza de código morto + doc de arquitetura" (2026-05-30)
+
+Release de manutenção: um fix user-visible, faxina de código morto (auditada e verificada por multi-agente) e doc nova. Também **commita o código da v0.7.11** (anomalia "Ronda sem gado") que estava no working tree sem nunca ter sido versionado — o CHANGELOG já a descrevia, mas o código não existia em nenhum commit.
+
+**1) Fix: formato de data quebrado.** Novo `src/lib/dates.ts` (`formatDayMonth`) consolida dois `formatDate` divergentes (`(tabs)/ronda.tsx` e `admin/solicitacoes.tsx`). A versão antiga não removia a hora de timestamps do SQLite (separador é espaço, não `T`), exibindo "Criada 30 08:34:03/05" em vez de "30/05". Agora usa `split(/[T ]/)` — mesmo padrão de `loadLastEvals`.
+
+**2) Limpeza de código morto** (auditoria multi-agente com verificação adversarial). Removidos: `classifyFence` (morto — `classifyFenceWith` o substitui), função `pullOne` duplicada em `engine.ts`, import `SafeAreaView` não usado em `mapa.tsx`, deps `nativewind`+`tailwindcss` (sem config/uso) e 8 scripts `test-*.mjs` one-off. `console.*` dos 7 summaries de ronda guardados em `if (__DEV__)`.
+
+**3) Doc de arquitetura.** `docs/ARQUITETURA-E-DADOS.md` (auto-importado no CLAUDE.md): fonte de verdade (Supabase), como o sync funciona, toolchain de scripts e runbooks. Inclui a reorganização pendente do CLAUDE.md.
+
+**4) Confinamento.** 20 piquetes CF1–CF20 (tipo de capim "Confinamento") inseridos no Supabase — aparecem no mapa/listas via sync. Dado, não bundle; cobertos pelos tiles já empacotados.
+
+**Como aplicar:** OTA via `eas update --branch production` + `--branch preview`. Tudo JS/TS — sem build nativo. Devices baixam na próxima abertura.
+
+**Risco:** baixo. Fix de data verificado (tsc + 3 formatos de entrada). Remoções verificadas adversarialmente + bundle Android compilou limpo. A feature anomaly já estava no bundle validado em QA (Expo Go no Tab A9).
+
+**Pendência de segurança (fora deste release):** a senha hardcoded nos scripts `test-*.mjs` removidos continua no histórico git — rotacionar no Supabase.
+
+**Fallback:** `git checkout v0.7.12`.
+
+---
+
 ## v0.7.12 — "estoque: filtrar formulações inativas + tab bar não cola na nav do Android" (2026-05-22)
 
 Dois ajustes user-visible reportados pelo Lucas com base em uso real no Tab A9:

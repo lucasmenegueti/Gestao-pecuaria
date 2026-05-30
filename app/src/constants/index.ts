@@ -111,13 +111,6 @@ export const TROUGH_SCORE_OPTIONS = [
   { value: 'VAZIO', label: 'Vazio', description: 'Cocho sem suplemento', color: Colors.danger },
 ] as const;
 
-export function classifyFence(voltage: number): 'FORTE' | 'ADEQUADO' | 'FRACO' | 'SEM CHOQUE' {
-  if (voltage >= 4000) return 'FORTE';
-  if (voltage >= 2000) return 'ADEQUADO';
-  if (voltage >= 1) return 'FRACO';
-  return 'SEM CHOQUE';
-}
-
 /**
  * Dias até o cocho zerar.
  * @param sacks sacos atuais na bombona

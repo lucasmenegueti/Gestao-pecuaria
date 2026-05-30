@@ -25,7 +25,7 @@ export default function WaterSummary() {
     const availableInt = water.available ? 1 : 0;
     const qualitySafe = water.quality ?? null;
 
-    console.log('[summary-save]', {
+    if (__DEV__) console.log('[summary-save]', {
       wizard: 'water',
       rondaId: store.currentRondaId,
       available: water.available,
@@ -41,7 +41,7 @@ export default function WaterSummary() {
       );
       router.replace(`/ronda/${paddockId}/menu`);
     } catch (err) {
-      console.error('[summary-save-error]', { wizard: 'water', err });
+      if (__DEV__) console.error('[summary-save-error]', { wizard: 'water', err });
       Alert.alert('Erro', 'Falha ao salvar avaliação de aguada. Tente novamente.');
     }
     setSaving(false);

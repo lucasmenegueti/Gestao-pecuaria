@@ -59,3 +59,10 @@ relatorio-*.png
 
 # Cópia local do NSA Design System (usar repo separado: lucasmenegueti/nsa-design-system)
 nsa-design-system/
+
+# Tutoriais "como usar" — screenshots gerados (node_modules já coberto acima; PDFs/source ficam rastreáveis)
+como-usar/src/screens/
+como-usar/src/screens-admin-backup/
+
+# Saídas de auditoria de rebanho (geradas por scripts/audit-herd.mjs)
+app/audit-herd-*.xlsx

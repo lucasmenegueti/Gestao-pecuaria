@@ -47,7 +47,7 @@ export default function FenceSummary() {
     const preventsMixingInt = fence.preventsMixing ? 1 : 0;
     const classificationSafe = classification || 'SEM CHOQUE';
 
-    console.log('[summary-save]', {
+    if (__DEV__) console.log('[summary-save]', {
       wizard: 'fence',
       rondaId: store.currentRondaId,
       voltage: fence.voltage,
@@ -65,7 +65,7 @@ export default function FenceSummary() {
       );
       router.replace(`/ronda/${paddockId}/menu`);
     } catch (err) {
-      console.error('[summary-save-error]', { wizard: 'fence', err });
+      if (__DEV__) console.error('[summary-save-error]', { wizard: 'fence', err });
       Alert.alert('Erro', 'Falha ao salvar avaliação de cerca. Tente novamente.');
     }
     setSaving(false);
