@@ -26,6 +26,7 @@ import base64
 import json
 import math
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -65,6 +66,10 @@ NAVY = "#3a4a9a"
 ST_LABEL = {"green": "Com gado · ronda feita", "red": "Com gado · sem ronda", "grey": "Sem gado"}
 ST_COLOR = {"green": ST_GREEN, "red": ST_RED, "grey": ST_GREY}
 BRT = timezone(timedelta(hours=-3))
+# Currais de confinamento (CF1, CF2…) não passam pela ronda de pasto — ficam fora
+# da cobertura de vistoria (mapa e contagem de "sem ronda"). O gado deles continua
+# nos totais do rebanho (pág. 4).
+CONFINEMENT_RE = re.compile(r"^CF\s*\d+$", re.IGNORECASE)
 
 
 def fmt_int(n):
@@ -303,6 +308,21 @@ def fetch_live(date_iso):
 def load_fixture(path):
     with open(path, encoding="utf-8") as f:
         return json.load(f)
+
+
+def drop_confinement(data):
+    """Tira os currais de confinamento (CF*) da cobertura de ronda: somem do mapa e
+    não contam em verde/vermelho/cinza nem em "com gado · sem ronda". O rebanho deles
+    segue nos totais por categoria (pág. 4). Idempotente — roda sobre live e fixtures."""
+    paddocks = data.get("paddocks", [])
+    kept = [p for p in paddocks if not CONFINEMENT_RE.match((p.get("n") or "").strip())]
+    counts = {"green": 0, "red": 0, "grey": 0}
+    for p in kept:
+        counts[p["status"]] = counts.get(p["status"], 0) + 1
+    data["paddocks"] = kept
+    data["status_counts"] = counts
+    data["confinement_excluded"] = len(paddocks) - len(kept)
+    return data
 
 
 # ---------------------------------------------------------------------------
@@ -555,6 +575,9 @@ def render_html(date_iso, data, c, mapsvg, counts):
     leg = "".join(
         f'<span class="it"><span class="sw" style="background:{ST_COLOR[s]}"></span>'
         f'{ST_LABEL[s]} <b>{counts.get(s, 0)}</b></span>' for s in ("green", "red", "grey"))
+    conf_n = data.get("confinement_excluded", 0)
+    conf_clause = (f' Os {conf_n} currais de confinamento (CF) ficam fora do mapa — não passam por ronda.'
+                   if conf_n else "")
 
     page1 = f"""
     <div class="header"><div>
@@ -579,7 +602,7 @@ def render_html(date_iso, data, c, mapsvg, counts):
     </table>
     <div class="note tight"><strong>Leitura do dia:</strong> as {k["rondas"]} rondas registraram apenas
       <em>Suplementação</em>; <strong>Aguada</strong> e <strong>Cerca</strong> (obrigatórios) ficaram
-      pendentes. {k["com_gado_sem_ronda"]} talhões com gado ainda não receberam ronda (vermelhos no mapa).</div>
+      pendentes. {k["com_gado_sem_ronda"]} talhões com gado ainda não receberam ronda (vermelhos no mapa).{conf_clause}</div>
     """
 
     # ---------- Página 2 ----------
@@ -801,6 +824,7 @@ def main():
             json.dump(data, f, ensure_ascii=False, indent=1)
         print(f"Fixture: fixtures/{args.date}.json")
 
+    drop_confinement(data)  # confinamento (CF*) fora da cobertura de ronda
     c = compute(data)
     mapsvg, counts = build_map_svg(data.get("paddocks", []), data.get("status_counts", {}),
                                    target_aspect=2.95)
