@@ -76,6 +76,17 @@ def fmt_int(n):
     return f"{int(round(n)):,}".replace(",", ".")
 
 
+def plural(n, sing, plur):
+    return sing if n == 1 else plur
+
+
+def join_pt(items):
+    items = list(items)
+    if len(items) <= 1:
+        return items[0] if items else ""
+    return ", ".join(items[:-1]) + " e " + items[-1]
+
+
 def date_extenso(iso):
     dt = datetime.strptime(iso, "%Y-%m-%d")
     return f"{dt.day} de {MONTHS_PT[dt.month - 1]} de {dt.year} · {WEEKDAYS_PT[dt.weekday()]}"
@@ -549,6 +560,34 @@ def kpi(label, value, sub="", cls=""):
             f'<div class="value">{escape(str(value))}</div>{s}</div>')
 
 
+def leitura_do_dia(c, k, conf_clause):
+    """Resumo em prosa da página 1, derivado do que as rondas de fato registraram:
+    volume, obrigatórios completos × pendentes (por seção) e gado sem ronda."""
+    talhoes = c["talhoes"]
+    if not talhoes:
+        s = "Nenhuma ronda registrada hoje."
+    else:
+        rondas_txt = (f'{k["rondas"]} {plural(k["rondas"], "ronda", "rondas")} em '
+                      f'{k["talhoes"]} {plural(k["talhoes"], "talhão", "talhões")}')
+        if k["completas"] == k["talhoes"]:
+            req_labels = join_pt([SECTION_LABELS[s2] for s2 in REQUIRED_SECTIONS])
+            s = f'{rondas_txt}, todos com os obrigatórios ({req_labels}) verificados.'
+        else:
+            pend = ", ".join(
+                f'<strong>{SECTION_LABELS[sec]}</strong> em {n}'
+                for sec in REQUIRED_SECTIONS
+                if (n := sum(1 for t in talhoes if sec in t["missing"])))
+            s = f'{rondas_txt}; {k["completas"]}/{k["talhoes"]} com todos os obrigatórios. Pendentes: {pend}.'
+    red = k["com_gado_sem_ronda"]
+    if red:
+        s += (f' {red} {plural(red, "talhão", "talhões")} com gado ainda '
+              f'{plural(red, "não recebeu", "não receberam")} ronda '
+              f'({plural(red, "vermelho", "vermelhos")} no mapa).')
+    else:
+        s += ' Todos os talhões com gado foram rondados.'
+    return s + conf_clause
+
+
 def render_html(date_iso, data, c, mapsvg, counts):
     k = c["kpis"]
     gerado = datetime.now(BRT).strftime("%d/%m/%Y %H:%M")
@@ -578,6 +617,7 @@ def render_html(date_iso, data, c, mapsvg, counts):
     conf_n = data.get("confinement_excluded", 0)
     conf_clause = (f' Os {conf_n} currais de confinamento (CF) ficam fora do mapa — não passam por ronda.'
                    if conf_n else "")
+    leitura = leitura_do_dia(c, k, conf_clause)
 
     page1 = f"""
     <div class="header"><div>
@@ -600,9 +640,7 @@ def render_html(date_iso, data, c, mapsvg, counts):
         <th style="width:36%">Verificado</th><th>Ficou a verificar</th></tr></thead>
       <tbody>{"".join(rows1)}</tbody>
     </table>
-    <div class="note tight"><strong>Leitura do dia:</strong> as {k["rondas"]} rondas registraram apenas
-      <em>Suplementação</em>; <strong>Aguada</strong> e <strong>Cerca</strong> (obrigatórios) ficaram
-      pendentes. {k["com_gado_sem_ronda"]} talhões com gado ainda não receberam ronda (vermelhos no mapa).{conf_clause}</div>
+    <div class="note tight"><strong>Leitura do dia:</strong> {leitura}</div>
     """
 
     # ---------- Página 2 ----------
