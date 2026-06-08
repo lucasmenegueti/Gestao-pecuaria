@@ -207,25 +207,8 @@ def fetch_live(date_iso):
         if h.get("paddock_id"):
             heads_by_paddock[h["paddock_id"]] += h["head_count"]
             cattle_ids.add(h["paddock_id"])
-    ronda_pids = {r["paddock_id"] for r in rondas}
 
-    # --- mapa: todos os talhões ativos c/ geometria, status por gado+ronda ---
-    paddocks_out, counts = [], {"green": 0, "red": 0, "grey": 0}
-    for p in paddocks:
-        if not p.get("active"):
-            continue
-        ring = _ring(p.get("geometry"))
-        if not ring:
-            continue
-        pid = p["id"]
-        if pid in cattle_ids:
-            st = "green" if pid in ronda_pids else "red"
-        else:
-            st = "grey"
-        counts[st] += 1
-        paddocks_out.append({"n": p["name"], "c": ring, "status": st})
-
-    # --- avaliações por ronda ---
+    # --- avaliações por ronda (carrega antes: define quais rondas têm conteúdo real) ---
     ronda_ids = [r["id"] for r in rondas]
     in_list = "(" + ",".join(ronda_ids) + ")" if ronda_ids else None
     sections_by_ronda = defaultdict(set)
@@ -247,8 +230,31 @@ def fetch_live(date_iso):
                             "restocked": bool(e.get("restocked")),
                             "sacks": sk}
 
+    # Só rondas com avaliação real contam: o sync do app gera linhas de ronda vazias
+    # (e duplicadas) — sem nenhuma seção. Elas não são vistoria, então as descartamos
+    # para não inflar a contagem nem pintar talhão de verde sem inspeção de verdade.
+    real_rondas = [r for r in rondas if sections_by_ronda.get(r["id"])]
+    empty_rondas_dropped = len(rondas) - len(real_rondas)
+    ronda_pids = {r["paddock_id"] for r in real_rondas}
+
+    # --- mapa: todos os talhões ativos c/ geometria, status por gado+ronda ---
+    paddocks_out, counts = [], {"green": 0, "red": 0, "grey": 0}
+    for p in paddocks:
+        if not p.get("active"):
+            continue
+        ring = _ring(p.get("geometry"))
+        if not ring:
+            continue
+        pid = p["id"]
+        if pid in cattle_ids:
+            st = "green" if pid in ronda_pids else "red"
+        else:
+            st = "grey"
+        counts[st] += 1
+        paddocks_out.append({"n": p["name"], "c": ring, "status": st})
+
     rondas_out = []
-    for r in rondas:
+    for r in real_rondas:
         sp = supp_by_ronda.get(r["id"], {})
         rondas_out.append({
             "talhao": pname.get(r["paddock_id"], "—"),
@@ -313,6 +319,7 @@ def fetch_live(date_iso):
         "herd_categories": herd_categories, "unallocated": unallocated,
         "resupply": resupply, "routes_count": len(routes),
         "paddocks": paddocks_out, "status_counts": counts,
+        "empty_rondas_dropped": empty_rondas_dropped,
     }
 
 
@@ -618,6 +625,10 @@ def render_html(date_iso, data, c, mapsvg, counts):
     conf_clause = (f' Os {conf_n} currais de confinamento (CF) ficam fora do mapa — não passam por ronda.'
                    if conf_n else "")
     leitura = leitura_do_dia(c, k, conf_clause)
+    dropped = data.get("empty_rondas_dropped", 0)
+    if dropped:
+        leitura += (f' <span class="muted">({dropped} {plural(dropped, "linha de ronda vazia ignorada", "linhas de ronda vazias ignoradas")} '
+                    f'— duplicação de sync no app.)</span>')
 
     page1 = f"""
     <div class="header"><div>
