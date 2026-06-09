@@ -30,7 +30,7 @@ Doc de referência pra entender **onde o dado vive, como chega no device, e como
 - Avança `last_pull_at` só se algo novo chegou **e** não houve exceção (evita pular linha que falhou).
 
 ### Push — `pushPending`
-- `SELECT ... WHERE pending_sync=1`. `appendOnly:false` tenta `UPDATE` (se já tem `supabase_id`) senão `INSERT`; `appendOnly:true` só faz `INSERT`.
+- `SELECT ... WHERE pending_sync=1`. `appendOnly:false` tenta `UPDATE` (se já tem `supabase_id`) senão `INSERT`. `appendOnly:true` faz `upsert(onConflict:'id')` com um **UUID estável gerado no device** (gravado em `supabase_id` *antes* do envio) — idempotente: retry de resposta-perdida ou ciclo concorrente re-envia o mesmo `id` e colapsa no mesmo row, em vez de cunhar UUID novo. **(v0.7.14; era `INSERT` puro com UUID server-side — origem das rondas/evals duplicadas.)**
 - `toRemotePayload` remove `LOCAL_ONLY_COLS` e converte tipos.
 
 ### Marcação de "sujo" (dirty) — a regra que mais quebra
@@ -77,10 +77,12 @@ A **lista canônica** está em `src/lib/db/schema.ts` (`SYNCED_TABLES`). A forma
 
 **Categorias de tabela** (atributo `appendOnly` em `SYNCED_TABLES`):
 - **Catálogo / mutável** (`appendOnly:false`, geram trigger dirty): `grass_types`, `formulas`, `paddocks`, `water_tanks`, `farm_boundaries`, `herd`, `inventory`, `resupply_routes`, `resupply_loads`, `app_settings`.
-- **Ledger / append-only** (`appendOnly:true`, só INSERT): `rondas`, todos os `*_evals`, `herd_events`, `inventory_events`, `resupply_deliveries`.
+- **Ledger / append-only** (`appendOnly:true`, upsert idempotente on `id`): `rondas`, todos os `*_evals`, `herd_events`, `inventory_events`, `resupply_deliveries`.
 - **Local-only** (não em `SYNCED_TABLES`): `users`, `activity_log`, `sync_state`.
 
 > `grass_type_id` em `paddocks` é **obrigatório** no local (`NOT NULL`) e a tela do mapa faz **INNER JOIN** em `grass_types` — piquete sem tipo de capim **não aparece**. Currais de confinamento usam o tipo **"Confinamento"** (alturas 0/0).
+
+> **`inventory.quantity_sacks` é derivado do ledger NO SERVIDOR** (migration `inventory_balance_derived_from_ledger`, 2026-06-01). Dois triggers no Supabase mantêm `quantity_sacks = SUM(inventory_events.sacks_delta)` por `(formula_id, paddock_id)`: `inventory_force_ledger` (BEFORE UPDATE — ignora qualquer saldo "cru" pushado, força o do ledger) e `inventory_events_recompute` (AFTER INSERT em `inventory_events` — recalcula). Motivo: peões davam baixa de estoque que ficava presa em `pending_sync` e o saldo do servidor derivava (divergência do Topmost NITRO: peão via 70, admin via 80). Agora a ordem de sync é irrelevante — o ledger é a verdade. **Consequência:** não dá pra setar saldo direto no servidor; toda mudança tem que ser um evento (entrada/ajuste/rota já são). O baseline limpo veio de eventos `SALDO_INICIAL` (contagem física) — sem ele os triggers seriam destrutivos (vários ledgers eram negativos por ajustes-delta sobre saldos sem ENTRADA). O **SQLite local não mudou** (offline-first: computa/exibe saldo local; no pull recebe o derivado). Pré-requisito disso: a policy RLS `inventory_upd`/`herd_upd` foi aberta de `is_admin() OR created_by=auth.uid()` (efetivamente admin-only, pois `created_by` é sempre NULL) para `auth.role()='authenticated'` — senão o UPDATE do peão nunca subia.
 
 ---
 
