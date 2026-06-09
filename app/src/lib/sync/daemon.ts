@@ -88,18 +88,26 @@ async function tryRun(reason: string) {
   if (!auth.isAuthenticated) return;
   if (auth.offlineMode) return; // sem JWT, sync falharia — aguarda login online
 
+  // Reivindica o lock ANTES de qualquer await. Antes, state.running só era setado
+  // depois do `await getSyncStatus` — dois gatilhos (poll/foreground/reconnect, ou
+  // o forceSync do login) entravam nessa janela com running=false e rodavam
+  // pushPending concorrente, re-inserindo o mesmo row pending_sync=1 (origem das
+  // rondas/evals duplicadas). Setar aqui torna o check-and-set atômico (JS é
+  // single-thread; não há await entre o check de running acima e este set). Todo
+  // early-return abaixo precisa liberar o lock.
+  state.running = true;
+  state.runStartedAt = now;
+  state.lastSyncAt = now;
+
   // Só roda se há pendentes OU se faz tempo desde o último pull
   const status = await getSyncStatus(state.db).catch(() => null);
-  if (!status) return;
+  if (!status) { state.running = false; return; }
   // Inclui derivados aqui — daemon sincroniza qualquer pending, não só os visíveis.
   const pendingNow = status.pending > 0 || status.pendingDerived > 0;
   const lastPull = status.last_pull_at ? new Date(status.last_pull_at).getTime() : 0;
   const staleByTime = now - lastPull > 60_000; // pull de 1 em 1 min quando conectado
-  if (!pendingNow && !staleByTime) return;
+  if (!pendingNow && !staleByTime) { state.running = false; return; }
 
-  state.running = true;
-  state.runStartedAt = now;
-  state.lastSyncAt = now;
   try {
     const stats = await syncAll(state.db);
     if (__DEV__) console.log(`[sync daemon:${reason}]`, stats);

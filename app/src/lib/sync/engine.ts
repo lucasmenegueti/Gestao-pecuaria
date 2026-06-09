@@ -1,4 +1,5 @@
 import type * as SQLite from 'expo-sqlite';
+import * as Crypto from 'expo-crypto';
 import { supabase } from '@/lib/supabase/client';
 import { SYNCED_TABLES } from '@/lib/db/schema';
 import { logInfo, logWarn, logError } from '@/lib/log';
@@ -459,8 +460,44 @@ async function pushOne(
           [data?.updated_at ?? new Date().toISOString(), row.id]
         );
         stats.updated++;
+      } else if (table.appendOnly) {
+        // Append-only (rondas, *_evals, *_events): push idempotente.
+        // Geramos um UUID estável no device e gravamos em supabase_id ANTES do
+        // upsert. Se a resposta se perder (proxy/CGNAT) e o row continuar
+        // pending_sync=1, o próximo ciclo re-envia o MESMO id → upsert colapsa no
+        // mesmo row em vez de cunhar um UUID novo (era a origem das rondas/evals
+        // duplicadas). Combinado com o mutex atômico do daemon, fecha tanto o
+        // retry de resposta-perdida quanto a corrida de ciclos concorrentes.
+        let stableId = row.supabase_id as string | null;
+        if (!stableId) {
+          stableId = Crypto.randomUUID();
+          await db.runAsync(`UPDATE ${table.name} SET supabase_id = ? WHERE id = ?`, [stableId, row.id]);
+        }
+        const { data, error } = await supabase
+          .from(table.name)
+          .upsert({ ...payload, id: stableId }, { onConflict: 'id' })
+          .select('id, updated_at')
+          .single();
+        if (error) {
+          stats.failed++;
+          const n = markPushFail(table.name, row.id);
+          const isRls = /row-level security|policy/i.test(error.message);
+          if (isRls) {
+            logError('sync', 'push_insert_rls', { table: table.name, localId: row.id, error: error.message, attempts: n });
+          } else {
+            logWarn('sync', 'push_insert_failed', { table: table.name, localId: row.id, error: error.message, attempts: n });
+          }
+          continue;
+        }
+        clearPushFail(table.name, row.id);
+        await db.runAsync(
+          `UPDATE ${table.name} SET supabase_id = ?, pending_sync = 0, local_updated_at = ?, sync_rev = sync_rev + 1 WHERE id = ?`,
+          [data.id, data.updated_at ?? new Date().toISOString(), row.id]
+        );
+        idMap.prime(table.name, data.id, row.id);
+        stats.inserted++;
       } else {
-        // Insert (ou upsert se append-only com supabase_id — raro)
+        // Catálogo mutável, 1ª vez: server gera o id, escrevemos de volta.
         const { data, error } = await supabase
           .from(table.name)
           .insert(payload)

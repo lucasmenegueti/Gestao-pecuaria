@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -39,6 +39,40 @@ const EVAL_ITEMS: EvalItem[] = [
 const OBRIGATORIOS = EVAL_ITEMS.filter((i) => i.category === 'obrigatorio');
 const SOB_DEMANDA = EVAL_ITEMS.filter((i) => i.category === 'sob_demanda');
 
+// Serializa a criação da ronda por (piquete,usuário) entre remounts/instâncias.
+// O guard anterior era um useRef POR-INSTÂNCIA que zerava no remount: dois renders
+// faziam SELECT/SELECT antes do 1º INSERT commitar → INSERT/INSERT → 2+ rondas no
+// mesmo dia (visto em prod: 6 rondas no P75, Rafael, 2026-04-29; e o surto de rondas
+// vazias de 2026-06-08). Aqui a promise é compartilhada por chave em escopo de módulo,
+// então só um INSERT acontece por visita. Limpa ao resolver — a corrida é só entre
+// chamadas in-flight; depois do commit qualquer SELECT seguinte já enxerga a ronda.
+const rondaInitLocks = new Map<string, Promise<number>>();
+
+async function ensureRondaId(
+  db: ReturnType<typeof useDatabase>,
+  paddockId: number,
+  userId: string,
+): Promise<number> {
+  const key = `${paddockId}:${userId}`;
+  const inflight = rondaInitLocks.get(key);
+  if (inflight) return inflight;
+  const p = (async () => {
+    const existing = await db.getFirstAsync<{ id: number }>(
+      "SELECT id FROM rondas WHERE paddock_id = ? AND user_id = ? AND date = date('now','localtime')",
+      [paddockId, userId]
+    );
+    if (existing) return existing.id;
+    const result = await db.runAsync(
+      'INSERT INTO rondas (paddock_id, user_id) VALUES (?, ?)',
+      [paddockId, userId]
+    );
+    return Number(result.lastInsertRowId);
+  })();
+  rondaInitLocks.set(key, p);
+  p.finally(() => { if (rondaInitLocks.get(key) === p) rondaInitLocks.delete(key); });
+  return p;
+}
+
 export default function EvalMenuScreen() {
   const { paddockId } = useLocalSearchParams<{ paddockId: string }>();
   const store = useRondaStore();
@@ -46,16 +80,11 @@ export default function EvalMenuScreen() {
   const user = useAuthStore((s) => s.user);
   const [lastEvals, setLastEvals] = useState<Record<string, string>>({});
   const [pendingRequests, setPendingRequests] = useState<Set<string>>(new Set());
-  // Guard contra disparos paralelos de initRonda. Sem isso, dois renders rápidos
-  // (ex: hidratação tardia do authStore + paddockId mudando) faziam SELECT/SELECT
-  // antes de qualquer INSERT commitar → INSERT/INSERT → 2+ rondas no mesmo dia.
-  // Vimos isso em produção: 6 rondas no P75 num único dia (2026-04-29, Rafael).
-  const initRef = useRef<Promise<void> | null>(null);
-
   useEffect(() => {
     if (!user?.id || !paddockId) return;
-    if (initRef.current) return;
-    initRef.current = initRonda().finally(() => { initRef.current = null; });
+    ensureRondaId(db, Number(paddockId), user.id)
+      .then((id) => store.setRondaId(id))
+      .catch(() => {});
     hydratePaddock();
     // user.id (string estável) em vez de user (objeto novo a cada hidratação)
     // evita re-runs espúrios. eslint-disable: hydratePaddock só depende de paddockId.
@@ -68,23 +97,6 @@ export default function EvalMenuScreen() {
       loadPendingRequests();
     }, [paddockId])
   );
-
-  async function initRonda() {
-    if (!user || !paddockId) return;
-    const existing = await db.getFirstAsync<{ id: number }>(
-      "SELECT id FROM rondas WHERE paddock_id = ? AND user_id = ? AND date = date('now','localtime')",
-      [Number(paddockId), user.id]
-    );
-    if (existing) {
-      store.setRondaId(existing.id);
-    } else {
-      const result = await db.runAsync(
-        'INSERT INTO rondas (paddock_id, user_id) VALUES (?, ?)',
-        [Number(paddockId), user.id]
-      );
-      store.setRondaId(result.lastInsertRowId);
-    }
-  }
 
   // Hidrata dados do piquete no rondaStore sempre que a menu é aberta.
   // Sem isso, entrar direto via URL (sem passar pelo tab ronda/mapa) deixa

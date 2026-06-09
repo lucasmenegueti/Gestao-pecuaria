@@ -6,6 +6,26 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.7.14 — "sync idempotente: fim das rondas/avaliações duplicadas" (2026-06-08)
+
+Correção da raiz da duplicação de rondas no Supabase (um piquete aparecia com "4 rondas" num dia de 1 visita só; piquetes verdes no mapa sem nenhuma avaliação; contadores inflados). Diagnóstico por forense de dados + auditoria multi-agente: **duas falhas se compondo, ambas = guarda não-atômica + ausência de chave de idempotência**. Não é regressão — defeitos latentes amplificados por volume + conexão CGNAT ruim no fim do dia 08/06 (+ backlog do dia 07 sem rondas).
+
+**1) Push append-only idempotente** (`src/lib/sync/engine.ts`). O push de `rondas`/`*_evals`/`*_events` fazia `insert` puro: o servidor cunhava um UUID novo (`gen_random_uuid()`) e o `supabase_id` só voltava pro row local **após** sucesso. Qualquer execução dupla (resposta perdida no proxy, ou ciclos concorrentes) re-inseria com UUID novo — nada deduplicava. Agora geramos um UUID estável no device, gravamos em `supabase_id` **antes** do envio, e trocamos `insert` por `upsert(onConflict:'id')`. Um retry re-envia o mesmo id → colapsa no mesmo row. Sem migration (PK já é `uuid` client-supplyable; RLS OK pro mesmo usuário).
+
+**2) Mutex de sync atômico** (`src/lib/sync/daemon.ts`). `tryRun` checava `state.running` mas só setava depois de um `await getSyncStatus` — janela TOCTOU em que poll/foreground/reconnect (ou o `forceSync` do login) rodavam `pushPending` concorrente sobre os mesmos rows `pending_sync=1`. Agora o lock é reivindicado **antes** de qualquer await (check-and-set atômico); todo early-return libera o lock.
+
+**3) Uma ronda por (piquete, dia)** (`src/app/ronda/[paddockId]/menu.tsx`). `initRonda` fazia `SELECT`-depois-`INSERT` protegido só por um `useRef` por-instância que zerava no remount → dois renders criavam 2+ rondas locais (as "vazias"; a real ficava com a última). Trocado por um lock por chave em escopo de módulo, compartilhado entre remounts: um único INSERT por visita. Os dados confirmaram que **uma-ronda-por-dia é o invariante real** — zero re-visitas legítimas no histórico inteiro.
+
+**Limpeza dos duplicados já no prod:** pendente, a fazer **depois** deste fix no ar (soft-delete reversível, SELECT-first), pra não re-poluir.
+
+**Como aplicar:** OTA via `eas update --branch production` + `--branch preview`. Tudo JS/TS — `expo-crypto` já é dep nativa (build atual), sem prebuild. Validar QA (Expo Go no Tab A9) → APK preview → produção antes de promover.
+
+**Risco:** médio (mexe no core do sync — offline-first é hard constraint). `tsc` limpo. Upsert é aditivo; rows antigas com `supabase_id` nulo seguem válidas. Mutex: cada early-return reseta o lock (senão trava até o watchdog de 60s). Validar no fluxo de 3 estágios antes de prod.
+
+**Fallback:** `git checkout v0.7.13`.
+
+---
+
 ## v0.7.13 — "fix data em Solicitações/Rebanho + limpeza de código morto + doc de arquitetura" (2026-05-30)
 
 Release de manutenção: um fix user-visible, faxina de código morto (auditada e verificada por multi-agente) e doc nova. Também **commita o código da v0.7.11** (anomalia "Ronda sem gado") que estava no working tree sem nunca ter sido versionado — o CHANGELOG já a descrevia, mas o código não existia em nenhum commit.
