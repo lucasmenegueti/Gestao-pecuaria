@@ -104,7 +104,7 @@ node_modules/leaflet ──bundle-leaflet-inline.mjs──▶ src/components/map
 
 - **`seed-map.ts` NÃO é lido em runtime** (o provider não semeia). É consumido em **build-time** por `fetch-tiles.mjs` (calcula o bbox dos tiles empacotados) e por `generate-supabase-seed.mjs`. Por isso **parece órfão, mas não é** — não delete.
 - ⚠️ **Cruft conhecido:** `kml-to-seed.mjs` e `fetch-tiles.mjs` têm caminho default **Windows** (`C:/Users/lucas/gestao-pecuaria/kml`). No Mac, passe o arquivo como argumento (`node scripts/kml-to-seed.mjs caminho.kml`).
-- ⚠️ **Staleness atual:** `seed-map.ts` tem **145** piquetes; o Supabase tem **165** (CF1–CF20 do confinamento foram inseridos direto no Supabase). Isso **não afeta o app** (ele puxa os 165 do Supabase). Só importa pra: (a) bbox de tiles, (b) re-seed. Os CF caem **dentro** do bbox atual (lng −45.34..−45.45 / lat −15.18..−15.30), então os tiles offline já cobrem. Só regenere `seed-map.ts` + `fetch-tiles.mjs` se adicionar piquete **fora** desse range.
+- ⚠️ **Staleness atual:** `seed-map.ts` tem **145** piquetes; o Supabase tem **171** (o confinamento CF1–CF26 foi inserido direto no Supabase; CF21–CF26 estão **sem geometria** por falta de KML). Isso **não afeta o app** (ele puxa os 171 do Supabase). Só importa pra: (a) bbox de tiles, (b) re-seed. Os CF caem **dentro** do bbox atual (lng −45.34..−45.45 / lat −15.18..−15.30), então os tiles offline já cobrem. Só regenere `seed-map.ts` + `fetch-tiles.mjs` se adicionar piquete **fora** desse range.
 
 **Scripts de ops/auditoria — INTENCIONAIS (manter):** `audit-herd.mjs`, `history-herd.mjs`, `probe-paddock.mjs`, `fix-p19a-ghost.mjs`, `xlsx-to-herd.mjs`, `generate-supabase-seed.mjs` (vários citados no `CHANGELOG.md` como referência de post-mortem).
 
@@ -115,10 +115,12 @@ node_modules/leaflet ──bundle-leaflet-inline.mjs──▶ src/components/map
 ## 5. Runbooks
 
 ### Adicionar piquetes
-1. Geometria via KML (polígono por piquete).
+1. Geometria via KML (polígono por piquete). **Opcional — ver nota abaixo.**
 2. `INSERT` no Supabase `paddocks`: `name`, `area_hectares`, `grass_type_id` (**obrigatório**; confinamento → tipo "Confinamento"), `center_lat`/`center_lng`, `geometry` jsonb GeoJSON com coords **`[lon, lat]`**, `active=true`, `client_id`/`created_by` **NULL** (igual aos existentes).
 3. Devices puxam no próximo sync. **Sem rebuild.**
 4. **Tiles:** se o piquete cair **fora** do bbox atual (§4), regenere `seed-map.ts` + `fetch-tiles.mjs` e suba **APK novo** (tiles são empacotados, não sincronizam).
+
+> **Sem KML? Cria assim mesmo.** `geometry` e `center_lat`/`center_lng` são nullable e **só a tela do Mapa** os consome — `src/app/(tabs)/mapa.tsx` filtra `WHERE p.active = 1 AND p.geometry IS NOT NULL`. Rebanho, Ronda, Alocar/Mover gado, Estoque e Reabastecimento só exigem `grass_type_id`. Ou seja: piquete sem geometria é **plenamente operável** (dá pra mover gado, rodar ronda, dar baixa de estoque) — só não desenha no mapa. Quando o KML chegar, é um `UPDATE paddocks SET geometry=…, center_lat=…, center_lng=…` e o polígono aparece no sync seguinte, **sem rebuild nem OTA** (desde que caia no bbox dos tiles — §4). Cuidado com `area_hectares`: é `NOT NULL` e entra no cálculo de lotação (cab/ha), então área estimada = lotação estimada.
 - **Rollback:** soft-delete — `UPDATE paddocks SET deleted_at=now(), updated_at=now() WHERE ...` (sincroniza).
 
 ### Mexer no rebanho (`herd`)
