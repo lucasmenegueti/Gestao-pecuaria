@@ -17,9 +17,10 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-// 1×1 transparent PNG (RGBA, alpha=0) — usado pra tiles fora da área da fazenda
+// 1×1 transparent PNG (RGBA, alpha=0) — usado pra tiles fora da área da fazenda.
+// O base64 antigo era na verdade um pixel VERDE 50% de opacidade.
 const TRANSPARENT_1X1 =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGNgAAIAAAUAAXpeqz8AAAAASUVORK5CYII=';
 
 // No web, Image.resolveAssetSource (API nativa do RN) não existe — usamos
 // expo-asset, que devolve a URL já bundled pelo Metro/webpack. Asset.fromModule

@@ -1,200 +1,28 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, AppState } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Asset } from 'expo-asset';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Location from 'expo-location';
 import { FarmMapProps, parsePolygon, stylePaddock } from './types';
 import { Colors } from '@/constants';
 import { LEAFLET_CSS, LEAFLET_JS } from './leaflet-inline';
 import { TILE_MODULES, TILE_MIN_ZOOM, TILE_MAX_ZOOM } from './tile-manifest';
-
-function buildHtml(
-  initialJson: string,
-  colorWarning: string,
-  tileUrisJson: string,
-  minZoom: number,
-  maxZoom: number,
-  maxBoundsJson: string,
-) {
-  return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no, width=device-width" />
-<style>${LEAFLET_CSS}</style>
-<style>
-  html, body, #map { margin: 0; padding: 0; height: 100%; width: 100%; background: #eee; }
-  .leaflet-popup-content b { font-size: 14px; }
-</style>
-<script>${LEAFLET_JS}</script>
-</head>
-<body>
-<div id="map"></div>
-<script>
-  (function () {
-    var data = ${initialJson};
-    var tileUris = ${tileUrisJson};
-    var TRANSPARENT = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
-
-    var mbRaw = ${maxBoundsJson};
-    var mapOpts = { zoomControl: true, attributionControl: true, minZoom: ${minZoom}, maxZoom: ${maxZoom} };
-    if (mbRaw) { mapOpts.maxBounds = L.latLngBounds(mbRaw); mapOpts.maxBoundsViscosity = 1.0; }
-    var map = L.map('map', mapOpts);
-
-    var BundledLayer = L.TileLayer.extend({
-      getTileUrl: function (coords) {
-        var key = coords.z + '_' + coords.x + '_' + coords.y;
-        return tileUris[key] || TRANSPARENT;
-      },
-      // Retry 1x com pequeno delay se falhar — Metro dev pode dropar requests quando satura
-      createTile: function (coords, done) {
-        var tile = L.TileLayer.prototype.createTile.call(this, coords, done);
-        var retried = false;
-        tile.addEventListener('error', function () {
-          if (retried) return;
-          retried = true;
-          var src = tile.src;
-          setTimeout(function () {
-            tile.src = ''; tile.src = src.includes('?') ? src + '&r=1' : src + '?r=1';
-          }, 300);
-        });
-        return tile;
-      }
-    });
-    var bundledLayer = new BundledLayer('', {
-      minZoom: ${minZoom}, maxZoom: ${maxZoom},
-      errorTileUrl: TRANSPARENT,
-      keepBuffer: 4,
-      attribution: 'Imagery © Esri, Maxar, Earthstar Geographics'
-    });
-    bundledLayer.addTo(map);
-
-    var layers = {};
-    var baseStyles = {};
-    var allLatLngs = [];
-    data.paddocks.forEach(function (p) {
-      if (!p.coords || p.coords.length < 3) return;
-      var st = p.style;
-      var layer = L.polygon(p.coords, {
-        color: st.stroke, weight: 3, fillColor: st.fill, fillOpacity: st.fillOpacity
-      }).addTo(map);
-      var popupExtra = p.heads ? ' • ' + p.heads + ' cab' : '';
-      layer.bindPopup('<b>' + p.name + '</b><br/>' + p.area.toFixed(1) + ' ha' + popupExtra);
-      layer.on('click', function (e) {
-        L.DomEvent.stopPropagation(e);
-        if (window.ReactNativeWebView) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'select', id: p.id }));
-        }
-      });
-      layers[p.id] = layer;
-      baseStyles[p.id] = st;
-      p.coords.forEach(function (c) { allLatLngs.push(c); });
-    });
-
-    // Clique no mapa (fora de polígono) deseleciona.
-    map.on('click', function () {
-      if (window.ReactNativeWebView) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'select', id: null }));
-      }
-    });
-
-    // Caixas d'água: removidas do mapa (markers do Leaflet default dependem de
-    // imagens externas que o WebView inline não acessa, viravam broken-image).
-    // Se voltar, usar L.divIcon c/ emoji.
-
-    if (allLatLngs.length > 0) {
-      map.fitBounds(allLatLngs, { padding: [30, 30] });
-    } else {
-      map.setView([-15.3, -45.6], ${minZoom});
-    }
-
-    // GPS do usuário — atualizado via window.__setUserLocation(lat, lng, acc)
-    var userMarker = null;
-    var userAccCircle = null;
-    var userIcon = L.divIcon({
-      className: 'user-loc',
-      html: '<div style="width:18px;height:18px;border-radius:50%;background:#2563eb;border:3px solid #fff;box-shadow:0 0 6px rgba(37,99,235,0.6);"></div>',
-      iconSize: [18,18],
-      iconAnchor: [9,9]
-    });
-    window.__setUserLocation = function (lat, lng, acc) {
-      var pos = [lat, lng];
-      if (!userMarker) {
-        userMarker = L.marker(pos, { icon: userIcon, interactive: false }).addTo(map);
-        userAccCircle = L.circle(pos, {
-          radius: acc || 0,
-          color: '#2563eb', weight: 1, fillColor: '#2563eb', fillOpacity: 0.12
-        }).addTo(map);
-      } else {
-        userMarker.setLatLng(pos);
-        userAccCircle.setLatLng(pos);
-        if (acc) userAccCircle.setRadius(acc);
-      }
-    };
-    window.__recenterOnUser = function () {
-      if (userMarker) map.flyTo(userMarker.getLatLng(), Math.min(16, ${maxZoom}), { duration: 0.6 });
-    };
-
-    function applySelection(id) {
-      Object.keys(layers).forEach(function (k) {
-        var sel = String(k) === String(id);
-        var st = baseStyles[k];
-        layers[k].setStyle({
-          color: sel ? '${colorWarning}' : st.stroke,
-          weight: sel ? 5 : 3,
-          fillColor: sel ? '${colorWarning}' : st.fill,
-          fillOpacity: sel ? 0.5 : st.fillOpacity
-        });
-      });
-      if (id && layers[id]) {
-        map.flyToBounds(layers[id].getBounds(), { padding: [40, 40], duration: 0.8 });
-      }
-    }
-    window.__setSelected = applySelection;
-    if (data.selectedId != null) applySelection(data.selectedId);
-  })();
-  true;
-</script>
-</body>
-</html>`;
-}
+import { buildMapHtml, TRANSPARENT_PNG } from './map-html';
 
 export function FarmMap({ paddocks, waterTanks, selectedId, onSelect, mode = 'gado', style }: FarmMapProps) {
   const webRef = useRef<WebView | null>(null);
-  const [hasLocation, setHasLocation] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
-  const [tileUris, setTileUris] = useState<Record<string, string>>({});
-  const [tilesReady, setTilesReady] = useState(false);
+  const [gpsMsg, setGpsMsg] = useState<string | null>(null);
+  const [locating, setLocating] = useState(false);
   const [reloadKey, setReloadKey] = useState(0); // bump p/ forçar recarga manual
-
-  // Resolve URIs de todos os tiles via expo-asset — funciona no Expo Go
-  // (baixa/cacheia do metro) e no APK release (desempacota pro FS local).
-  // Image.resolveAssetSource é síncrono mas devolve URIs que a WebView nem
-  // sempre consegue abrir (asset:/... fora do baseUrl); Asset.loadAsync garante
-  // `file://` path válido em ambos os ambientes.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const entries = Object.entries(TILE_MODULES);
-        const modules = entries.map(([, mod]) => mod);
-        const assets = await Asset.loadAsync(modules as any);
-        if (cancelled) return;
-        const map: Record<string, string> = {};
-        entries.forEach(([key], i) => {
-          const uri = assets[i]?.localUri ?? assets[i]?.uri;
-          if (uri) map[key] = uri;
-        });
-        setTileUris(map);
-        setTilesReady(true);
-      } catch {
-        if (!cancelled) setTilesReady(true); // renderiza mesmo sem tiles (só polígonos)
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [reloadKey]);
+  // Última posição conhecida — re-injetada quando o WebView recarrega (iOS mata
+  // o processo do WKWebView em background; sem isso o pontinho do GPS sumia ao
+  // voltar de outro app).
+  const lastLocRef = useRef<{ lat: number; lng: number; acc: number } | null>(null);
+  const watchPromiseRef = useRef<Promise<Location.LocationSubscription> | null>(null);
+  const mountedRef = useRef(true);
+  const gpsMsgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const payload = useMemo(() => {
     const parsed = paddocks
@@ -234,21 +62,23 @@ export function FarmMap({ paddocks, waterTanks, selectedId, onSelect, mode = 'ga
 
   const html = useMemo(
     () =>
-      buildHtml(
-        payload,
-        Colors.warning,
-        JSON.stringify(tileUris),
-        TILE_MIN_ZOOM,
-        TILE_MAX_ZOOM,
+      buildMapHtml({
+        leafletCss: LEAFLET_CSS,
+        leafletJs: LEAFLET_JS,
+        initialJson: payload,
+        colorWarning: Colors.warning,
+        tileKeysJson: JSON.stringify(Object.keys(TILE_MODULES)),
+        minZoom: TILE_MIN_ZOOM,
+        maxZoom: TILE_MAX_ZOOM,
         maxBoundsJson,
-      ),
+      }),
     // Selection não reconstrói HTML — é injetada via __setSelected.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [paddocks, waterTanks, mode, tileUris, maxBoundsJson],
+    [paddocks, waterTanks, mode, maxBoundsJson],
   );
 
-  // Memoizado pra não disparar reload do WebView (perda de zoom/pan/Leaflet init
-  // + 2700 tile lookups) a cada re-render do parent.
+  // Memoizado pra não disparar reload do WebView (perda de zoom/pan/Leaflet init)
+  // a cada re-render do parent.
   const webSource = useMemo(() => ({ html, baseUrl: 'file:///' }), [html]);
 
   useEffect(() => {
@@ -257,97 +87,209 @@ export function FarmMap({ paddocks, waterTanks, selectedId, onSelect, mode = 'ga
     webRef.current.injectJavaScript(`window.__setSelected && window.__setSelected(${id}); true;`);
   }, [selectedId]);
 
+  // Tile pedido pela página via postMessage — lê o asset local e devolve como
+  // data URI. Evita <img src="file://..."> que o WKWebView do iOS bloqueia
+  // (sandbox do processo WebContent em documentos loadHTMLString), causa do
+  // mapa sem imagem no iPhone.
+  async function deliverTile(key: string) {
+    let uri = TRANSPARENT_PNG;
+    const mod = TILE_MODULES[key];
+    if (mod != null) {
+      // 2 tentativas: no Expo Go o Metro pode dropar o download quando satura.
+      for (let attempt = 0; attempt < 2 && uri === TRANSPARENT_PNG; attempt++) {
+        try {
+          const asset = Asset.fromModule(mod);
+          if (!asset.localUri) await asset.downloadAsync();
+          if (asset.localUri) {
+            const b64 = await FileSystem.readAsStringAsync(asset.localUri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            uri = 'data:image/jpeg;base64,' + b64;
+          }
+        } catch {
+          // tile ilegível → retry; persistindo, transparente (fundo neutro, nunca verde)
+          await new Promise((r) => setTimeout(r, 300));
+        }
+      }
+    }
+    webRef.current?.injectJavaScript(
+      `window.__deliverTile && window.__deliverTile(${JSON.stringify(key)}, ${JSON.stringify(uri)}); true;`
+    );
+  }
+
+  function pushLocation(lat: number, lng: number, acc: number, recenter = false) {
+    lastLocRef.current = { lat, lng, acc };
+    webRef.current?.injectJavaScript(
+      `window.__setUserLocation && window.__setUserLocation(${lat}, ${lng}, ${acc});` +
+        (recenter ? `window.__recenterOnUser && window.__recenterOnUser();` : '') +
+        ` true;`
+    );
+  }
+
+  // Inicia (uma vez) o watch contínuo de posição. Idempotente — chamado no
+  // mount e também pelo botão de GPS, pra cobrir o caso "negou a permissão no
+  // boot, concedeu depois pelo botão" (Android): sem isso o pontinho ficava
+  // congelado no fix pontual e não acompanhava mais o movimento.
+  function ensureWatch() {
+    if (watchPromiseRef.current) return watchPromiseRef.current;
+    const p = Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.High,
+        distanceInterval: 5, // m
+        timeInterval: 2000, // ms
+      },
+      (pos) => {
+        if (!mountedRef.current) return;
+        const { latitude, longitude, accuracy } = pos.coords;
+        pushLocation(latitude, longitude, accuracy ?? 0);
+      }
+    ).catch((err) => {
+      watchPromiseRef.current = null; // permite nova tentativa
+      throw err;
+    });
+    watchPromiseRef.current = p;
+    return p;
+  }
+
   // GPS: subscreve atualizações de posição e injeta no WebView
   useEffect(() => {
-    let sub: Location.LocationSubscription | null = null;
-    let cancelled = false;
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
+      if (!mountedRef.current) return;
       if (status !== 'granted') {
-        if (!cancelled) setLocationDenied(true);
+        setLocationDenied(true);
         return;
       }
-      sub = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          distanceInterval: 5, // m
-          timeInterval: 2000, // ms
-        },
-        (pos) => {
-          const { latitude, longitude, accuracy } = pos.coords;
-          if (!webRef.current) return;
-          webRef.current.injectJavaScript(
-            `window.__setUserLocation && window.__setUserLocation(${latitude}, ${longitude}, ${accuracy ?? 0}); true;`
-          );
-          if (!cancelled) setHasLocation(true);
-        }
-      );
+      ensureWatch().catch(() => {});
     })();
     return () => {
-      cancelled = true;
-      sub?.remove();
+      mountedRef.current = false;
+      watchPromiseRef.current?.then((s) => s.remove()).catch(() => {});
+      if (gpsMsgTimerRef.current) clearTimeout(gpsMsgTimerRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function recenterOnUser() {
-    if (!webRef.current || !hasLocation) return;
-    webRef.current.injectJavaScript(`window.__recenterOnUser && window.__recenterOnUser(); true;`);
+  // Ao voltar de outro app, re-injeta a última posição — se o WebView foi
+  // recarregado enquanto o app estava em background, o marker é recriado.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s !== 'active') return;
+      const last = lastLocRef.current;
+      if (last) pushLocation(last.lat, last.lng, last.acc);
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function showGpsMsg(msg: string) {
+    setGpsMsg(msg);
+    if (gpsMsgTimerRef.current) clearTimeout(gpsMsgTimerRef.current);
+    gpsMsgTimerRef.current = setTimeout(() => {
+      if (mountedRef.current) setGpsMsg(null);
+    }, 4000);
+  }
+
+  // Botão de GPS: busca ativamente a posição atual (não depende do watch já ter
+  // emitido) e recentra o mapa nela.
+  async function locateMe() {
+    if (locating) return;
+    setLocating(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLocationDenied(true);
+        return;
+      }
+      setLocationDenied(false);
+      ensureWatch().catch(() => {});
+      const pos = await Promise.race([
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('gps-timeout')), 8000)),
+      ]);
+      pushLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy ?? 0, true);
+    } catch {
+      // Fix atual indisponível (GPS frio/indoor) — usa a última conhecida do OS
+      try {
+        const last = await Location.getLastKnownPositionAsync();
+        if (last) {
+          pushLocation(last.coords.latitude, last.coords.longitude, last.coords.accuracy ?? 0, true);
+        } else if (lastLocRef.current) {
+          const l = lastLocRef.current;
+          pushLocation(l.lat, l.lng, l.acc, true);
+        } else {
+          showGpsMsg('GPS indisponível no momento — tente de novo em céu aberto');
+        }
+      } catch {
+        showGpsMsg('GPS indisponível no momento — tente de novo em céu aberto');
+      }
+    } finally {
+      setLocating(false);
+    }
   }
 
   return (
     <View style={[styles.container, style]}>
-      {!tilesReady ? (
-        <View style={styles.loading}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Carregando mapa…</Text>
-        </View>
-      ) : (
-        <WebView
-          key={reloadKey}
-          ref={webRef}
-          originWhitelist={['*']}
-          // baseUrl 'file:///' dá ao HTML um origin file://, permitindo <img src="file://...">
-          // dos tiles carregarem (mesmo origin). Sem isso WebView cai em about:blank.
-          source={webSource}
-          style={styles.map}
-          javaScriptEnabled
-          domStorageEnabled
-          allowFileAccess
-          allowFileAccessFromFileURLs
-          allowUniversalAccessFromFileURLs
-          mixedContentMode="always"
-          onMessage={(e) => {
-            try {
-              const msg = JSON.parse(e.nativeEvent.data);
-              // type='select' com id numérico = clique em polígono.
-              // type='select' com id=null = clique no mapa fora dos piquetes (deseleciona).
-              if (msg.type === 'select') {
-                onSelect?.(typeof msg.id === 'number' ? msg.id : null);
-              }
-            } catch {}
-          }}
-        />
-      )}
-      {/* Botão discreto de refresh — útil quando tiles não carregam no primeiro
-          render (caso raro de cache/URI inconsistente). Recarrega assets + WebView. */}
+      <WebView
+        key={reloadKey}
+        ref={webRef}
+        originWhitelist={['*']}
+        source={webSource}
+        style={styles.map}
+        javaScriptEnabled
+        domStorageEnabled
+        mixedContentMode="always"
+        // iOS mata o processo do WKWebView sob pressão de memória / background
+        // longo — sem recuperação a tela do mapa ficava morta/branca ao voltar.
+        // Tem que ser REMOUNT (bump da key), não reload(): pra source={{html}} o
+        // WKWebView não retém o HTML string após a morte do processo — reload()
+        // navega pro baseURL e termina numa tela branca. O remount refaz o
+        // loadHTMLString do zero. onRenderProcessGone é o equivalente Android.
+        onContentProcessDidTerminate={() => setReloadKey((k) => k + 1)}
+        onRenderProcessGone={() => setReloadKey((k) => k + 1)}
+        onLoadEnd={() => {
+          // Página (re)carregada: restaura marker do GPS e seleção atual.
+          // __setSelected SEMPRE (mesmo null): o HTML pode ter embutido uma
+          // seleção antiga de quando foi gerado — null aqui limpa o fantasma.
+          const last = lastLocRef.current;
+          if (last) pushLocation(last.lat, last.lng, last.acc);
+          webRef.current?.injectJavaScript(
+            `window.__setSelected && window.__setSelected(${selectedId ?? 'null'}); true;`
+          );
+        }}
+        onMessage={(e) => {
+          try {
+            const msg = JSON.parse(e.nativeEvent.data);
+            // type='select' com id numérico = clique em polígono.
+            // type='select' com id=null = clique no mapa fora dos piquetes (deseleciona).
+            if (msg.type === 'select') {
+              onSelect?.(typeof msg.id === 'number' ? msg.id : null);
+            } else if (msg.type === 'tile' && typeof msg.key === 'string') {
+              deliverTile(msg.key);
+            }
+          } catch {}
+        }}
+      />
+      {/* Botão discreto de refresh — recarrega o WebView se algo travar. */}
       <TouchableOpacity
         style={styles.refreshBtn}
-        onPress={() => {
-          setTilesReady(false);
-          setReloadKey((k) => k + 1);
-        }}
+        onPress={() => setReloadKey((k) => k + 1)}
         hitSlop={6}
       >
         <Text style={styles.refreshIcon}>⟳</Text>
       </TouchableOpacity>
-      {hasLocation && (
-        <TouchableOpacity style={styles.locateBtn} onPress={recenterOnUser}>
+      <TouchableOpacity style={styles.locateBtn} onPress={locateMe} disabled={locating}>
+        {locating ? (
+          <ActivityIndicator size="small" color={Colors.primary} />
+        ) : (
           <Text style={styles.locateIcon}>◎</Text>
-        </TouchableOpacity>
-      )}
-      {locationDenied && (
+        )}
+      </TouchableOpacity>
+      {(locationDenied || gpsMsg) && (
         <View style={styles.gpsBanner}>
-          <Text style={styles.gpsBannerText}>GPS negado — habilite nas configurações do celular</Text>
+          <Text style={styles.gpsBannerText}>
+            {locationDenied ? 'GPS negado — habilite nas configurações do celular' : gpsMsg}
+          </Text>
         </View>
       )}
     </View>
@@ -357,8 +299,6 @@ export function FarmMap({ paddocks, waterTanks, selectedId, onSelect, mode = 'ga
 const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { flex: 1, backgroundColor: '#eee' },
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#eee', gap: 12 },
-  loadingText: { fontSize: 14, color: Colors.textMuted, fontWeight: '600' },
   refreshBtn: {
     position: 'absolute',
     right: 8,
@@ -380,9 +320,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 12,
     bottom: 12,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: Colors.white,
     alignItems: 'center',
     justifyContent: 'center',
@@ -397,7 +337,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 8,
     right: 8,
-    bottom: 8,
+    // Acima do botão de GPS (56px + margem) — embaixo cobria metade do botão
+    // exatamente no estado em que o peão precisa tocá-lo pra re-pedir permissão.
+    bottom: 80,
     backgroundColor: 'rgba(0,0,0,0.7)',
     paddingHorizontal: 12,
     paddingVertical: 8,

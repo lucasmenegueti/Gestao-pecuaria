@@ -6,6 +6,30 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.7.15 — "mapa no iPhone: tiles via bridge, nomes dos piquetes e GPS confiável" (2026-07-23)
+
+Três problemas do mapa reportados no iPhone, com raiz comum investigada a fundo + revisão adversarial multi-agente (16 findings confirmados e corrigidos).
+
+**1) Mapa todo verde no iOS — tiles agora via bridge base64** (`src/components/map/map-html.ts` novo + `FarmMap.native.tsx`). Dois defeitos empilhados: (a) o PNG 1×1 usado como `errorTileUrl`/"transparente" era na verdade um **pixel VERDE 50% de opacidade** (decodificado byte a byte) — quando todos os tiles falhavam, o mapa inteiro ficava verde; (b) no iOS, `<img src="file://...">` dentro de `source={{html}}` **não carrega** (sandbox do processo WebContent do WKWebView em documentos `loadHTMLString` — `allowFileAccess*` não resolve; Android não tem essa restrição, por isso só o iPhone quebrava). Agora a página pede cada tile por `postMessage` e o nativo responde com data URI base64 (`expo-asset` + `expo-file-system/legacy`), com retry nos dois lados. Mesmo caminho nos 2 OS; sem mais `Asset.loadAsync` de 2700 tiles no boot (mapa abre na hora). O HTML do Leaflet foi extraído pra `map-html.ts` (função pura) e validado num harness em Chrome headless com os polígonos e tiles reais.
+
+**2) Nome do piquete no centro de cada polígono.** Label no centroide (shoelace), fonte dimensionada pelo espaço REAL disponível — corda horizontal/vertical do polígono no centroide (bbox superestimava em piquetes diagonais e o texto vazava a cerca), medição de largura real do texto, recalculada a cada zoom. Esconde abaixo de 11px (ilegível sob sol), teto 18px. `pointer-events:none` — não rouba o toque do polígono.
+
+**3) GPS que sumia ao voltar de outro app.** Causa: iOS mata o processo do WKWebView em background → página recarrega sem o marker (e `reload()` não recupera `source={{html}}` — verificado empiricamente: o HTML string morre com o processo; a recuperação certa é REMOUNT via key, agora ligada em `onContentProcessDidTerminate` + `onRenderProcessGone` no Android). Última posição fica em ref e é re-injetada em `onLoadEnd` e no retorno do app (AppState). Botão de GPS agora sempre visível (56px), busca ativa a posição ao tocar (timeout 8s → fallback última conhecida → aviso "GPS indisponível"), e (re)inicia o watch se a permissão foi concedida depois de negada. Banner de GPS reposicionado (cobria o botão).
+
+**Da revisão adversarial, ainda:** círculo de precisão do GPS engolia o toque de quem clicava na própria posição (deseleção fantasma — `interactive:false`); seleção fantasma após reload do WebView (`__setSelected` sempre injetado, mesmo null); nome de piquete contendo `</script>` derrubaria a página (escape `<`); separador `·` no popup (spec NSA).
+
+**Dep nova:** `expo-file-system` (~19.0.23) como dependência direta — já era transitiva do core `expo`, módulo nativo já linkado em todo binário → **mudança 100% JS, sai por OTA** (runtimeVersion `1.0.1` fixa). Web: só corrigido o mesmo PNG verde.
+
+**Conhecidos/não corrigidos:** botão ⟳ de refresh segue 30px (pré-existente, discreto por design); emergency launch do expo-updates no Android deixaria tiles transparentes (cenário raro, já era quebrado antes — só que verde).
+
+**Como aplicar:** validar em Expo Go (Tab A9 + iPhone) → `eas update --branch preview` → validar → `eas update --branch production --environment production`. Sem rebuild.
+
+**Risco:** médio (reescreve o pipeline de tiles do mapa nos 2 OS; Android funcionava via file:// e passa pro bridge). `tsc` limpo; página validada em harness com dados reais.
+
+**Fallback:** `git checkout v0.7.14`.
+
+---
+
 ## v0.7.14 — "sync idempotente: fim das rondas/avaliações duplicadas" (2026-06-08)
 
 Correção da raiz da duplicação de rondas no Supabase (um piquete aparecia com "4 rondas" num dia de 1 visita só; piquetes verdes no mapa sem nenhuma avaliação; contadores inflados). Diagnóstico por forense de dados + auditoria multi-agente: **duas falhas se compondo, ambas = guarda não-atômica + ausência de chave de idempotência**. Não é regressão — defeitos latentes amplificados por volume + conexão CGNAT ruim no fim do dia 08/06 (+ backlog do dia 07 sem rondas).
