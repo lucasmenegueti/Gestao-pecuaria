@@ -82,6 +82,37 @@ export async function sbListAll<T>(
   }
 }
 
+/**
+ * Upsert numa tabela via PostgREST, resolvendo conflito pela coluna indicada.
+ * Escreve com o JWT do usuário logado — RLS decide se pode.
+ */
+export async function sbUpsert(
+  table: string,
+  rows: Array<Record<string, unknown>>,
+  opts: { onConflict: string; accessToken?: string },
+): Promise<void> {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) throw new Error('Supabase env missing');
+  if (rows.length === 0) return;
+
+  const url = `${SUPABASE_URL}/rest/v1/${table}?on_conflict=${encodeURIComponent(opts.onConflict)}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: authHeader(opts.accessToken),
+      'Content-Type': 'application/json',
+      Prefer: 'resolution=merge-duplicates,return=minimal',
+    },
+    body: JSON.stringify(rows),
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`[supabase] upsert ${table}: ${res.status} — ${body.slice(0, 200)}`);
+  }
+}
+
 /** RPC call ao Supabase. */
 export async function sbRpc<T>(
   fn: string,

@@ -5,6 +5,7 @@ import { KG_PESO_VIVO_POR_ARROBA, RENDIMENTO_CARCACA } from '@/lib/precos-racao'
 import { parsePeriodFromSearchParams } from '@/lib/period';
 import { getSessionOrRedirect } from '@/lib/auth/session-server';
 import { Wheat } from 'lucide-react';
+import Link from 'next/link';
 
 interface PageProps {
   searchParams: Promise<{ periodo?: string; inicio?: string; fim?: string }>;
@@ -72,11 +73,13 @@ export default async function ConsumoPage({ searchParams }: PageProps) {
 
       {data.formulasSemPreco.length > 0 ? (
         <div className="mb-6">
-          <AlertCard
-            kind="info"
-            title="Preço da ração não cadastrado"
-            body={`Sem R$/saco, as colunas de custo e R$/@ ficam em "—". Preencha em src/lib/precos-racao.ts: ${data.formulasSemPreco.join(', ')}.`}
-          />
+          <Link href="/configuracoes" className="block transition-opacity hover:opacity-80">
+            <AlertCard
+              kind="info"
+              title="Custo da ração ainda não apurado"
+              body={`Falta lançar o preço das compras destas rações em Configurações: ${data.formulasSemPreco.join(', ')}. Até lá, custo e R$/@ ficam em "—".`}
+            />
+          </Link>
         </div>
       ) : null}
 

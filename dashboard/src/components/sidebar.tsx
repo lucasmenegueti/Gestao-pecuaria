@@ -14,6 +14,7 @@ import {
   Map,
   Menu,
   Package,
+  Settings,
   Users,
   Wheat,
   X,
@@ -37,14 +38,17 @@ const NAV: ReadonlyArray<NavItemDef> = [
   { href: '/equipe', label: 'Equipe', icon: Users, group: 'Operação' },
   { href: '/alertas', label: 'Alertas', icon: AlertTriangle, group: 'Operação' },
   { href: '/inspecoes', label: 'Inspeções', icon: ClipboardCheck, group: 'Operação' },
+  { href: '/configuracoes', label: 'Configurações', icon: Settings, group: 'Operação' },
 ];
 
 interface Props {
   username: string;
   role: 'owner' | 'gestor';
+  /** Entradas de ração sem preço — vira badge no menu Configurações. */
+  pendenciasPreco?: number;
 }
 
-export function Sidebar({ username, role }: Props) {
+export function Sidebar({ username, role, pendenciasPreco = 0 }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const qs = searchParams.toString();
@@ -159,6 +163,7 @@ export function Sidebar({ username, role }: Props) {
                     href={hrefWithQuery(item.href)}
                     active={pathname === item.href}
                     onNavigate={close}
+                    badge={item.href === '/configuracoes' ? pendenciasPreco : 0}
                   />
                 ))}
               </ul>
@@ -199,11 +204,13 @@ function NavItem({
   href,
   active,
   onNavigate,
+  badge = 0,
 }: {
   def: NavItemDef;
   href: string;
   active: boolean;
   onNavigate: () => void;
+  badge?: number;
 }) {
   const Icon = def.icon;
   return (
@@ -220,6 +227,14 @@ function NavItem({
       >
         <Icon size={16} strokeWidth={1.75} className="shrink-0" />
         <span>{def.label}</span>
+        {badge > 0 ? (
+          <span
+            title={`${badge} entrada(s) de ração sem preço`}
+            className="ml-auto inline-flex min-w-[18px] items-center justify-center rounded-full bg-warning px-1.5 py-0.5 text-[10px] font-semibold leading-none text-[#3d2a05]"
+          >
+            {badge}
+          </span>
+        ) : null}
       </Link>
     </li>
   );

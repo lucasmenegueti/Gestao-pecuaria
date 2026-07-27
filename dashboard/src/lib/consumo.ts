@@ -11,11 +11,9 @@ import {
   type HerdEventRow,
   type HerdRow,
 } from './consumo-calc';
-import {
-  KG_PESO_VIVO_POR_ARROBA,
-  PESO_PADRAO_KG,
-  precoDoSaco,
-} from './precos-racao';
+import { KG_PESO_VIVO_POR_ARROBA, PESO_PADRAO_KG } from './precos-racao';
+import { custoMedioNaData, diaBRT } from './custo-racao';
+import { loadSerieCusto } from './precos';
 import type { Period } from './period';
 
 // Consumo de ração por período móvel: quanto foi posto no cocho, quantas
@@ -166,6 +164,9 @@ export async function loadConsumoData(period: Period, accessToken?: string): Pro
   const auth = { accessToken };
   const janela = { created_at: `gte.${startIso}`, and: `(created_at.lte.${endIso},deleted_at.is.null)` };
 
+  // Dispara junto com o resto; só é consumida depois de montar o consumo.
+  const serieCustoPromise = loadSerieCusto(accessToken);
+
   const [paddocks, formulas, herd, rondas, herdEvents, supplements, weights, saidasEstoque] = await Promise.all([
     sbList<PaddockRow>('paddocks', { ...auth, select: 'id,name,area_hectares,active', order: 'name' }),
     sbList<FormulaRow>('formulas', { ...auth, select: 'id,name,kg_per_sack' }),
@@ -267,7 +268,10 @@ export async function loadConsumoData(period: Period, accessToken?: string): Pro
   }
 
   // ---------- Consumo por (talhão, fórmula) ----------
-  const consumoPorPiquete = new Map<string, Map<string, { sacos: number; kg: number }>>();
+  // Cada reposição é custeada pelo custo médio vigente NA DATA em que aconteceu:
+  // uma compra de hoje não pode reprecificar o que foi consumido semana passada.
+  const serieCusto = await serieCustoPromise;
+  const consumoPorPiquete = new Map<string, Map<string, { sacos: number; kg: number; custo: number | null }>>();
   let evalsSemVinculo = 0;
   for (const s of supplements) {
     const pid = paddockDaRonda.get(s.ronda_id);
@@ -279,9 +283,12 @@ export async function loadConsumoData(period: Period, accessToken?: string): Pro
     const formula = formulaById.get(s.formula_id);
     if (!formula) continue;
     const porFormula = consumoPorPiquete.get(pid) ?? new Map();
-    const cur = porFormula.get(s.formula_id) ?? { sacos: 0, kg: 0 };
+    const cur = porFormula.get(s.formula_id) ?? { sacos: 0, kg: 0, custo: 0 as number | null };
     cur.sacos += sacos;
     cur.kg += sacos * formula.kg_per_sack;
+    const custoMedio = custoMedioNaData(serieCusto, s.formula_id, diaBRT(s.created_at));
+    if (custoMedio == null) cur.custo = null;
+    else if (cur.custo != null) cur.custo += sacos * custoMedio;
     porFormula.set(s.formula_id, cur);
     consumoPorPiquete.set(pid, porFormula);
   }
@@ -308,17 +315,13 @@ export async function loadConsumoData(period: Period, accessToken?: string): Pro
     const cabecasDiaPiquete = lotesDoPiquete.reduce((s, l) => s + l.cabDia, 0);
     if (!consumo && cabecasDiaPiquete === 0) continue;
 
-    const formulasDoPiquete: ConsumoFormula[] = Array.from(consumo?.entries() ?? []).map(([fid, v]) => {
-      const nome = formulaById.get(fid)?.name ?? '—';
-      const preco = precoDoSaco(nome);
-      return {
-        formulaId: fid,
-        formulaName: nome,
-        sacos: v.sacos,
-        kg: v.kg,
-        custo: preco == null ? null : v.sacos * preco,
-      };
-    }).sort((a, b) => b.kg - a.kg);
+    const formulasDoPiquete: ConsumoFormula[] = Array.from(consumo?.entries() ?? []).map(([fid, v]) => ({
+      formulaId: fid,
+      formulaName: formulaById.get(fid)?.name ?? '—',
+      sacos: v.sacos,
+      kg: v.kg,
+      custo: v.custo,
+    })).sort((a, b) => b.kg - a.kg);
 
     const sacos = formulasDoPiquete.reduce((s, f) => s + f.sacos, 0);
     const kg = formulasDoPiquete.reduce((s, f) => s + f.kg, 0);
@@ -429,9 +432,9 @@ export async function loadConsumoData(period: Period, accessToken?: string): Pro
     comAmbos.flatMap((p) => p.lotes.filter((l) => l.arrobas != null).map((l) => l.custo)),
   );
 
-  const formulasSemPreco = porFormula
-    .filter((f) => precoDoSaco(f.formulaName) == null)
-    .map((f) => f.formulaName);
+  // Fórmula consumida cujo custo não pôde ser apurado — falta preço de compra
+  // lançado antes daquela reposição.
+  const formulasSemPreco = porFormula.filter((f) => f.custo == null).map((f) => f.formulaName);
 
   // ---------- Cobertura: saída de estoque × registro de cocho ----------
   const saidaPorFormula = new Map<string, number>();

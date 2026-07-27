@@ -1,30 +1,7 @@
-// Preço da ração e conversão de arroba — parâmetros que NÃO existem no banco
-// do app pecuária. Editar aqui é a única forma de alimentar as colunas de custo.
-
-/**
- * Preço em R$ por saco, por nome de fórmula (igual ao cadastrado em `formulas.name`).
- * `null` = preço não informado → as colunas de custo (R$, R$/@) mostram "—".
- *
- * O peso do saco vem do banco (`formulas.kg_per_sack`), não daqui.
- */
-export const PRECO_POR_SACO: Record<string, number | null> = {
-  'Probeef Reprodução Ureia ADT': null,
-  'Probeef Topmost NITRO': null,
-  'Probeef Topmost Golden': null,
-  'Probeef Reprodução': null,
-  'Probeef Confinamento Recria': null,
-  'Probeef Confinamento Control TMR': null,
-  'Probeef Confinamento TMR': null,
-  'Adsorb Afla': null,
-  'Prohorse Sal 60': null,
-  'Engorda 3 KG': null,
-  'Proteinado Seco': null,
-  'Sal Mineral': null,
-};
-
-export function precoDoSaco(formulaName: string): number | null {
-  return PRECO_POR_SACO[formulaName] ?? null;
-}
+// Parâmetros de conversão de arroba e pesos de referência.
+//
+// O preço da ração NÃO fica aqui: vem do custo médio móvel calculado a partir
+// das compras lançadas na aba Configurações (`inventory_entry_prices`).
 
 /** Rendimento de carcaça usado pra converter peso vivo em arroba. */
 export const RENDIMENTO_CARCACA = 0.5;
