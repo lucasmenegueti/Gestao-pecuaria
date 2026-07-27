@@ -17,6 +17,7 @@ interface QueryParams {
   select?: string;
   order?: string;
   limit?: number;
+  offset?: number;
   filters?: Record<string, string>;
   /** JWT de acesso do user (Supabase Auth). Sem isso, RLS bloqueia. */
   accessToken?: string;
@@ -38,6 +39,7 @@ export async function sbList<T>(
   search.set('select', params.select ?? '*');
   if (params.order) search.set('order', params.order);
   if (params.limit) search.set('limit', String(params.limit));
+  if (params.offset) search.set('offset', String(params.offset));
   if (params.filters) {
     for (const [k, v] of Object.entries(params.filters)) {
       search.set(k, v);
@@ -61,6 +63,23 @@ export async function sbList<T>(
   }
 
   return (await res.json()) as T[];
+}
+
+/**
+ * Igual ao `sbList`, mas pagina até acabar. Use quando o resultado pode passar
+ * do teto de linhas do PostgREST — truncamento ali é silencioso.
+ */
+export async function sbListAll<T>(
+  table: string,
+  params: Omit<QueryParams, 'limit' | 'offset'> = {},
+  pageSize = 1000,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const page = await sbList<T>(table, { ...params, limit: pageSize, offset });
+    out.push(...page);
+    if (page.length < pageSize) return out;
+  }
 }
 
 /** RPC call ao Supabase. */

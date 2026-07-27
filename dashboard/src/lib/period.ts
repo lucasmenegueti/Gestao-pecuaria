@@ -1,6 +1,6 @@
 // Helpers de período. URL ?periodo=hoje|ontem|7d|semana-passada|custom&inicio=YYYY-MM-DD&fim=YYYY-MM-DD
 
-export type PeriodKind = 'hoje' | 'ontem' | '7d' | 'semana-passada' | 'custom';
+export type PeriodKind = 'hoje' | 'ontem' | '7d' | '30d' | 'semana-passada' | 'custom';
 
 export interface Period {
   kind: PeriodKind;
@@ -34,6 +34,7 @@ function periodLabel(kind: PeriodKind, start: string, end: string): string {
   if (kind === 'hoje') return 'Hoje';
   if (kind === 'ontem') return 'Ontem';
   if (kind === '7d') return 'Últimos 7 dias';
+  if (kind === '30d') return 'Últimos 30 dias';
   if (kind === 'semana-passada') return 'Semana passada';
   return `${formatBR(start)} – ${formatBR(end)}`;
 }
@@ -43,9 +44,12 @@ function formatBR(iso: string): string {
   return `${d}/${m}/${y}`;
 }
 
-export function parsePeriodFromSearchParams(params: { periodo?: string; inicio?: string; fim?: string }): Period {
+export function parsePeriodFromSearchParams(
+  params: { periodo?: string; inicio?: string; fim?: string },
+  fallback: PeriodKind = 'hoje',
+): Period {
   const today = new Date();
-  const kind = (params.periodo as PeriodKind) || 'hoje';
+  const kind = (params.periodo as PeriodKind) || fallback;
 
   if (kind === 'hoje') {
     const t = fmt(today);
@@ -59,6 +63,11 @@ export function parsePeriodFromSearchParams(params: { periodo?: string; inicio?:
     const start = fmt(addDays(today, -6));
     const end = fmt(today);
     return { kind, start, end, label: 'Últimos 7 dias' };
+  }
+  if (kind === '30d') {
+    const start = fmt(addDays(today, -29));
+    const end = fmt(today);
+    return { kind, start, end, label: 'Últimos 30 dias' };
   }
   if (kind === 'semana-passada') {
     const thisMon = lastMonday(today);

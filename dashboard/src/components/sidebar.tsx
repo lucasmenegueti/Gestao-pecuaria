@@ -15,6 +15,7 @@ import {
   Menu,
   Package,
   Users,
+  Wheat,
   X,
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
@@ -32,6 +33,7 @@ const NAV: ReadonlyArray<NavItemDef> = [
   { href: '/mapa', label: 'Mapa', icon: Map, group: 'Pecuária' },
   { href: '/rebanho', label: 'Rebanho', icon: Beef, group: 'Pecuária' },
   { href: '/estoque', label: 'Estoque', icon: Package, group: 'Pecuária' },
+  { href: '/consumo', label: 'Consumo & Custo', icon: Wheat, group: 'Pecuária' },
   { href: '/equipe', label: 'Equipe', icon: Users, group: 'Operação' },
   { href: '/alertas', label: 'Alertas', icon: AlertTriangle, group: 'Operação' },
   { href: '/inspecoes', label: 'Inspeções', icon: ClipboardCheck, group: 'Operação' },
