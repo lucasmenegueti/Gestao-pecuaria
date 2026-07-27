@@ -252,6 +252,11 @@ export default async function ConsumoPage({ searchParams }: PageProps) {
             Talhão com <strong>GMD zero</strong> (peso visual igual ao anterior) entra com o custo mas sem arroba: se o
             ganho zero for erro de medição, o R$/@ sobe artificialmente. Confira a coluna GMD antes de decidir.
           </li>
+          <li>
+            <strong>Custo</strong> = custo médio móvel da ração na data de cada reposição, formado pelas compras
+            lançadas em Configurações. A precisão é diária: se uma compra e uma reposição caem no mesmo dia, aquela
+            reposição já sai pelo médio com a compra dentro.
+          </li>
         </ul>
       </div>
     </main>
