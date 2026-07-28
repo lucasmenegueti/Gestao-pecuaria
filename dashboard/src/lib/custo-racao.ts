@@ -110,7 +110,11 @@ export function calcularCustoMedio(
       // A saída tira da parcela custeada na proporção que ela representa do estoque.
       const fracaoCusteada = st.saldo > 0 ? st.saldoCusteado / st.saldo : 0;
       const baixaCusteada = Math.min(st.saldoCusteado, baixa * fracaoCusteada);
-      st.saldo = Math.max(0, st.saldo - baixa);
+      // O saldo NÃO é travado em zero: o ledger do central fica negativo em
+      // trechos onde a baixa veio antes da entrada (perdas pré-fix de RLS,
+      // depois reconciliadas por SALDO_INICIAL). Travar aqui faria o saldo
+      // divergir de `inventory.quantity_sacks`, que é a soma crua do ledger.
+      st.saldo -= baixa;
       st.saldoCusteado = Math.max(0, st.saldoCusteado - baixaCusteada);
       st.valor = Math.max(0, st.valor - baixaCusteada * (st.custoMedio ?? 0));
       if (st.saldoCusteado <= 0) st.valor = 0;

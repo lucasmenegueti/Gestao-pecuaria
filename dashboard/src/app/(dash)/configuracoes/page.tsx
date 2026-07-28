@@ -221,6 +221,7 @@ function TabelaEntradas({ entradas }: { entradas: EntradaEstoque[] }) {
                   isPurchase={e.isPurchase}
                   classificada={e.classificada}
                   compraPorPadrao={e.compraPorPadrao}
+                  precoSugerido={e.precoSugerido}
                 />
               </td>
             </tr>

@@ -33,6 +33,8 @@ export interface EntradaEstoque {
   precoPorSaco: number | null;
   /** Sugestão de classificação — ajuste de contagem não é compra por padrão. */
   compraPorPadrao: boolean;
+  /** Último preço já pago nessa ração — sugerido quando a entrada não tem preço. */
+  precoSugerido: number | null;
 }
 
 export interface CustoFormula {
@@ -94,6 +96,19 @@ export async function loadPrecosData(accessToken?: string): Promise<PrecosData> 
 
   const { atual, serie, pendentes } = calcularCustoMedio(eventos, precos);
 
+  // Último preço pago em cada ração — vira sugestão nas entradas sem preço.
+  const eventoPorId = new Map(eventos.map((e) => [e.id, e]));
+  const ultimoPreco = new Map<string, { data: string; preco: number }>();
+  for (const p of precos) {
+    if (!p.is_purchase || p.price_per_sack == null) continue;
+    const ev = eventoPorId.get(p.inventory_event_id);
+    if (!ev) continue;
+    const atualDaFormula = ultimoPreco.get(ev.formula_id);
+    if (!atualDaFormula || ev.created_at > atualDaFormula.data) {
+      ultimoPreco.set(ev.formula_id, { data: ev.created_at, preco: p.price_per_sack });
+    }
+  }
+
   const entradas: EntradaEstoque[] = eventos
     .filter((e) => ehEntradaDeMercadoria(e.event_type, e.sacks_delta))
     .map((e) => {
@@ -112,6 +127,7 @@ export async function loadPrecosData(accessToken?: string): Promise<PrecosData> 
         isPurchase: preco?.is_purchase ?? ehCompraPorPadrao(e.event_type),
         precoPorSaco: preco?.price_per_sack ?? null,
         compraPorPadrao: ehCompraPorPadrao(e.event_type),
+        precoSugerido: ultimoPreco.get(e.formula_id)?.preco ?? null,
       };
     })
     .sort((a, b) => b.data.localeCompare(a.data));

@@ -10,10 +10,17 @@ interface Props {
   isPurchase: boolean;
   classificada: boolean;
   compraPorPadrao: boolean;
+  precoSugerido: number | null;
 }
 
-export function PrecoForm({ eventId, precoAtual, isPurchase, classificada, compraPorPadrao }: Props) {
+const emReal = (v: number) => String(v).replace('.', ',');
+
+export function PrecoForm({
+  eventId, precoAtual, isPurchase, classificada, compraPorPadrao, precoSugerido,
+}: Props) {
   const [state, action, pending] = useActionState<PrecoFormState, FormData>(salvarPrecoAction, {});
+  // Entrada sem preço já abre com o último preço pago naquela ração.
+  const valorInicial = precoAtual ?? (compraPorPadrao ? precoSugerido : null);
 
   return (
     <form action={action} className="flex flex-wrap items-center justify-end gap-2">
@@ -25,8 +32,13 @@ export function PrecoForm({ eventId, precoAtual, isPurchase, classificada, compr
         <input
           name="preco"
           inputMode="decimal"
-          defaultValue={precoAtual != null ? String(precoAtual).replace('.', ',') : ''}
-          placeholder="por saco"
+          defaultValue={valorInicial != null ? emReal(valorInicial) : ''}
+          placeholder={precoSugerido != null ? emReal(precoSugerido) : 'por saco'}
+          title={
+            precoAtual == null && precoSugerido != null
+              ? `Sugestão: último preço pago nessa ração (R$ ${emReal(precoSugerido)})`
+              : undefined
+          }
           aria-label="Preço por saco"
           className="w-[104px] rounded-md border border-border-strong bg-bg-elevated py-1 pl-7 pr-2 text-right text-[13px] tabular text-fg outline-none focus:border-accent"
         />
