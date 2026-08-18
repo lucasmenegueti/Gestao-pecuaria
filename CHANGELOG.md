@@ -48,7 +48,9 @@ deveria ter = saldo da última entrega − sacos que a Suplementação tirou des
 
 **Risco:** médio — é a primeira vez que a ronda escreve em `inventory`. A correção é sempre um evento, nunca um saldo cru.
 
-**Fallback:** `git checkout v0.7.15`.
+**No ar (OTA, 2026-08-18):** runtime `1.0.1`, android+ios. Preview update group `88af753f-5ee0-4e15-80b1-ff94a9760b27` · production `afd10324-7acb-46ed-bc12-128c386f97b4`. Preview bateu no QA (env do `.env` local), produção usou o environment `production` do EAS.
+
+**Fallback:** `git checkout v0.7.15` e republicar o bundle anterior com `eas update --branch production --environment production`.
 
 ---
 

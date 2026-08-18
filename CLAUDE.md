@@ -133,6 +133,7 @@ Ordem em `menu.tsx`: Suplementação → Bombona → Forragem → Aguada → Bio
 ## Conventions
 
 - PT-BR pra strings user-facing.
+- Número fracionário user-facing passa por `decimal()` (`constants/index.ts`) — vírgula, não ponto. Nunca interpolar `${n}` cru; o erro é silencioso e só aparece quando o valor deixa de ser inteiro.
 - Wizard files: `step1.tsx` ... `stepN.tsx` + `summary.tsx` por pasta.
 - Removendo step: manter filename original, só atualizar `step=` prop e `router.push` target (evita rename churn).
 - Atualizar `CHANGELOG.md` + git tag pra mudança user-visible.

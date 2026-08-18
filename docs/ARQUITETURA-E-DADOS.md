@@ -84,6 +84,19 @@ A **lista canônica** está em `src/lib/db/schema.ts` (`SYNCED_TABLES`). A forma
 
 > **`inventory.quantity_sacks` é derivado do ledger NO SERVIDOR** (migration `inventory_balance_derived_from_ledger`, 2026-06-01). Dois triggers no Supabase mantêm `quantity_sacks = SUM(inventory_events.sacks_delta)` por `(formula_id, paddock_id)`: `inventory_force_ledger` (BEFORE UPDATE — ignora qualquer saldo "cru" pushado, força o do ledger) e `inventory_events_recompute` (AFTER INSERT em `inventory_events` — recalcula). Motivo: peões davam baixa de estoque que ficava presa em `pending_sync` e o saldo do servidor derivava (divergência do Topmost NITRO: peão via 70, admin via 80). Agora a ordem de sync é irrelevante — o ledger é a verdade. **Consequência:** não dá pra setar saldo direto no servidor; toda mudança tem que ser um evento (entrada/ajuste/rota já são). O baseline limpo veio de eventos `SALDO_INICIAL` (contagem física) — sem ele os triggers seriam destrutivos (vários ledgers eram negativos por ajustes-delta sobre saldos sem ENTRADA). O **SQLite local não mudou** (offline-first: computa/exibe saldo local; no pull recebe o derivado). Pré-requisito disso: a policy RLS `inventory_upd`/`herd_upd` foi aberta de `is_admin() OR created_by=auth.uid()` (efetivamente admin-only, pois `created_by` é sempre NULL) para `auth.role()='authenticated'` — senão o UPDATE do peão nunca subia.
 
+> **A bombona não é debitada pelo consumo — o "quanto tem hoje" é calculado em leitura** (`src/lib/bombona.ts`, v0.7.16). `inventory` com `location='bombona'` guarda o que a **rota entregou**; a ronda de Suplementação registra os sacos que vão pro cocho, mas esses sacos saem da bombona e **nenhum evento os debita**. Por isso os saldos ficavam parados na data da última entrega. A conta que fecha a lacuna:
+>
+> ```
+> deveria ter = inventory.quantity_sacks − Σ supplement_evals.sacks_in_trough
+>               (das rondas do piquete, mesma fórmula, restocked=1, r.date > last_resupply_date)
+> ```
+>
+> `loadBombonaExpectations()` é a **fonte única** dessa conta — a ronda de Bombona e o alerta do Painel (`alerts.ts`) leem de lá. O alerta usa o resultado como "quanto ainda tem" e só o consumo do rebanho para "quanto dura"; antes ele derivava o saldo por conta própria e podia discordar da ronda sobre o mesmo piquete.
+>
+> **Não confundir com o "não recomputar saldo pelo ledger" da reconciliação de 06/2026** (nota acima): aquilo era sobre reescrever o saldo **gravado** da central a partir de um ledger incompleto. Aqui nada é reescrito na leitura — o saldo gravado só muda quando o peão confirma ou corrige.
+>
+> **A confirmação da ronda corrige o estoque.** Discordância (ou "bombona vazia", que zera todas as fórmulas daquele piquete) grava `inventory_events` do tipo `CONTAGEM_BOMBONA` com a diferença e re-ancora `last_resupply_date` para hoje, na mesma transação da avaliação. O evento é obrigatório porque o trigger `inventory_force_ledger` ignora saldo cru pushado. Re-ancorar é o que impede o número de errar de novo no dia seguinte — sem isso a próxima leitura tornaria a descontar os abastecimentos antigos do saldo recém-corrigido. Quando a contagem bate (delta 0) a âncora **não** se move, de propósito. Limite conhecido: a âncora é `DATE`, então abastecimento feito depois de uma contagem divergente no mesmo dia fica de fora (erra pra cima; a ronda seguinte corrige).
+
 ---
 
 ## 4. Toolchain de scripts — quem gera o quê
