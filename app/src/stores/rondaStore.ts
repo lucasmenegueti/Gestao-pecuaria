@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { BombonaExpectation } from '@/lib/bombona';
 
 interface RondaState {
   currentRondaId: number | null;
@@ -29,6 +30,10 @@ interface RondaState {
     kgPerSack: number;
     sacks: number;
     photoUri: string | null;
+    /** O que o sistema acha que tem, da fórmula escolhida. null = sem registro. */
+    expected: BombonaExpectation | null;
+    /** Resposta do peão à confirmação. null enquanto não passou pela tela. */
+    matchesExpected: boolean | null;
   };
 
   // Forage wizard state
@@ -128,6 +133,8 @@ const initialBombona: RondaState['bombona'] = {
   kgPerSack: 25,
   sacks: 0,
   photoUri: null,
+  expected: null,
+  matchesExpected: null,
 };
 
 const initialForage: RondaState['forage'] = {

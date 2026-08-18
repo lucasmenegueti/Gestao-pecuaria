@@ -9,7 +9,7 @@ import {
 import { useDatabase } from '@/lib/db/provider';
 import { BrandHeader } from '@/components/ui';
 import { NSA, Fonts, Radius, tokensForStatus } from '@/theme/nsa';
-import { plural } from '@/constants';
+import { decimal, plural } from '@/constants';
 
 interface RondaRow {
   id: number;
@@ -273,7 +273,7 @@ export default function RelatorioScreen() {
                 <View key={e.id} style={[styles.card, { borderLeftColor: tokens.edge, borderLeftWidth: 3 }]}>
                   <View style={styles.cardHead}>
                     <Text style={styles.cardTitle}>{e.event_type.replace(/_/g, ' ').toLowerCase().replace(/^\w/, c => c.toUpperCase())}</Text>
-                    <Text style={styles.cardMeta}>{isIn ? '+' : ''}{e.sacks_delta} {plural(e.sacks_delta, 'saco', 'sacos')} · {timeOfDay(e.created_at)}</Text>
+                    <Text style={styles.cardMeta}>{isIn ? '+' : ''}{decimal(e.sacks_delta)} {plural(e.sacks_delta, 'saco', 'sacos')} · {timeOfDay(e.created_at)}</Text>
                   </View>
                   <Text style={styles.cardSub}>
                     {e.formula_name}{e.paddock_name ? ` · ${e.paddock_name}` : ' · Central'}

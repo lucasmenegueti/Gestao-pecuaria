@@ -6,6 +6,52 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.7.16 — "meio saco no cocho e bombona conferida na ronda" (2026-08-18)
+
+### 1. Suplementação: meio saco e teto de 20
+
+Pedido do campo: o peão frequentemente coloca **meio saco** no cocho, e em piquete grande passa de 10 sacos. O slider de "Quantos sacos colocou no cocho?" (Ronda › Suplementação, passo 4) só aceitava inteiros de 1 a 10. Agora vai de **0,5 a 20, de meio em meio** — no arraste, nos botões −/+ e na digitação direta.
+
+**Sem migration.** `supplement_evals.sacks_in_trough` já era `REAL` no SQLite e `real` no Postgres. `calculateSupplementDays` multiplica sacos × kg e faz `Math.floor` no fim, então a previsão do cocho continua em dias inteiros.
+
+**Decimal em pt-BR** (`src/components/ui/SliderInput.tsx`, `src/constants/index.ts`). Este é o primeiro uso de `SliderInput` com `step < 1` — o ramo fracionário nunca tinha renderizado e imprimia ponto (`1.5`), além de `3.0` para valor inteiro. Agora `toLocaleString('pt-BR', { maximumFractionDigits: 1 })` no número grande, nos rótulos das pontas e no valor que semeia o campo de edição: `1,5` e `3`. Novo helper `decimal()`; `sacos()` passou a usá-lo, o que corrige de quebra os pontos que já apareciam em saldos fracionários no Painel, Estoque, Reabastecimento e Relatório.
+
+### 2. Bombona: o sistema diz quanto deveria ter, o peão confirma
+
+A ronda de Bombona pedia a contagem no vácuo. Agora ela **mostra quanto deveria ter e pede confirmação** — e a resposta corrige o estoque.
+
+**De onde sai o "deveria ter"** (`src/lib/bombona.ts`, novo). Do ledger da própria ronda:
+
+```
+deveria ter = saldo da última entrega − sacos que a Suplementação tirou desde então
+```
+
+`inventory` guardava só o que a rota **entregou** e nada nunca debitava: a Suplementação registra os sacos que vão pro cocho, mas esses sacos saem da bombona e ninguém subtraía. Por isso os saldos estavam parados em maio/julho. A conta acima fecha a lacuna sem precisar de evento novo no fluxo de Suplementação.
+
+**Fluxo** (passos variam conforme as respostas): tem ração? → fórmula (cada uma mostra `sistema: N sacos`) → **confere?** → contagem real (só se discordar) → resumo. Fórmula sem registro na bombona pula a confirmação e cai na contagem, que é o fluxo antigo.
+
+**A confirmação corrige o estoque.** Grava `inventory_events` do tipo `CONTAGEM_BOMBONA` com a diferença e re-ancora `last_resupply_date`. O evento é obrigatório porque no servidor `inventory.quantity_sacks` é derivado da soma do ledger (trigger `inventory_force_ledger`) — saldo "cru" pushado é ignorado. Avaliação e evento vão na mesma transação. Re-ancorar a data é o que impede o número de errar de novo no dia seguinte: sem isso a próxima ronda tornaria a descontar os abastecimentos antigos do saldo recém-corrigido. **"Não tem ração" zera todas as fórmulas da bombona daquele piquete**, não só a que seria escolhida depois.
+
+**Ledger negativo é comum hoje e a tela avisa.** Nos dados de produção, P51 tem 5 sacos entregues em 25/05 contra 95 já registrados no cocho (−90); P50 dá −64 e T27 - P10, −15 — ração que veio direto do trator ou reabastecimento não registrado. Nunca mostramos negativo pro peão: o exibido é cortado em zero e a base aparece embaixo ("5 entregues em 25/05 · 95 foram pro cocho desde então"), com um aviso de que a contagem dele vai corrigir o estoque.
+
+**Alerta do Painel passou a ler da mesma fonte** (`src/lib/alerts.ts`). Antes ele estimava o saldo restante por consumo do lote (`saldo − consumo diário × dias`), caminho diferente do da ronda — os dois discordariam sobre o mesmo piquete. Agora "quanto ainda tem" vem do ledger e só "quanto dura" continua vindo do consumo do rebanho.
+
+**A contagem aceita meio saco** (0 a 20, passo 0,5): a projeção sai fracionária, então granularidade de saco inteiro tornaria a confirmação incoerente.
+
+**Sem migration** aqui também — `bombona_evals.sacks` já é `REAL`, `inventory_events.event_type` não tem CHECK, e o relatório rotula tipos novos automaticamente.
+
+### Escopo
+
+100% JS, nenhuma superfície nativa tocada → **sai por OTA** (`eas update`), sem rebuild. `tsc` limpo. A SQL da projeção e a reconciliação foram validadas contra um SQLite real com os casos de produção (entrega anterior à ronda, abastecimento no dia da entrega, `restocked = 0`, piquete inativo, segunda fórmula na mesma bombona) e a reprojeção pós-contagem devolve a contagem em vez de descontar de novo.
+
+**Limites conhecidos.** (a) Se a contagem divergir **e** a Bombona for feita antes da Suplementação **e** houver abastecimento no mesmo dia, aqueles sacos não entram na conta (a âncora é DATE, sem hora) — erra pra cima e a ronda seguinte corrige; detalhe do porquê em `src/lib/bombona.ts`. (b) Não há tela para desfazer uma contagem errada: `estoque/ajuste.tsx` só opera na central. O conserto hoje é outra ronda.
+
+**Risco:** médio — é a primeira vez que a ronda escreve em `inventory`. A correção é sempre um evento, nunca um saldo cru.
+
+**Fallback:** `git checkout v0.7.15`.
+
+---
+
 ## Dados — NSA2: 32 piquetes novos (2026-08-18)
 
 Mudança de **dado**, não de código — sem versão, sem tag, sem build. Devices puxam no próximo sync.

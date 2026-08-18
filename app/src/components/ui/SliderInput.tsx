@@ -15,6 +15,10 @@ interface SliderInputProps {
   color?: string;
 }
 
+// Steps fracionários (ex.: meio saco) precisam de vírgula decimal — pt-BR.
+// `maximumFractionDigits` mantém inteiro como "3" em vez de "3,0".
+const fmt = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+
 export function SliderInput({ value, onValueChange, min, max, step = 1, unit = '', unitSingular, label, color = NSA.green800 }: SliderInputProps) {
   const trackRef = useRef<View>(null);
   const layoutRef = useRef<{ pageX: number; width: number }>({ pageX: 0, width: 0 });
@@ -89,7 +93,7 @@ export function SliderInput({ value, onValueChange, min, max, step = 1, unit = '
     setEditing(false);
   }
 
-  const displayValue = step < 1 ? value.toFixed(1) : Math.round(value).toLocaleString('pt-BR');
+  const displayValue = step < 1 ? fmt(value) : Math.round(value).toLocaleString('pt-BR');
   // Singularização opcional: usa unitSingular quando value=1 e foi configurado.
   const valueUnit = unitSingular && Math.round(value) === 1 ? unitSingular : unit;
 
@@ -116,7 +120,7 @@ export function SliderInput({ value, onValueChange, min, max, step = 1, unit = '
         ) : (
           <TouchableOpacity
             onPress={() => {
-              setTextValue(String(value));
+              setTextValue(fmt(value));
               setEditing(true);
             }}
             style={styles.valueWrap}
@@ -144,8 +148,8 @@ export function SliderInput({ value, onValueChange, min, max, step = 1, unit = '
       </View>
 
       <View style={styles.range}>
-        <Text style={styles.rangeText}>{min} {unit}</Text>
-        <Text style={styles.rangeText}>{max} {unit}</Text>
+        <Text style={styles.rangeText}>{fmt(min)} {unit}</Text>
+        <Text style={styles.rangeText}>{fmt(max)} {unit}</Text>
       </View>
     </View>
   );

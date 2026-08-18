@@ -3,7 +3,7 @@ import { Text, View, StyleSheet } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { WizardFlow, SliderInput } from '@/components/ui';
-import { Colors, plural } from '@/constants';
+import { Colors, decimal, plural } from '@/constants';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 
 export default function SupplementStep4() {
@@ -25,16 +25,16 @@ export default function SupplementStep4() {
       <SliderInput
         value={supplement.sacksInTrough}
         onValueChange={(v) => updateSupplement({ sacksInTrough: v })}
-        min={1}
-        max={10}
-        step={1}
+        min={0.5}
+        max={20}
+        step={0.5}
         unit="sacos"
         unitSingular="saco"
         color={Colors.suplementacao}
       />
       <View style={styles.calcCard}>
         <Text style={styles.calcText}>
-          {supplement.sacksInTrough} {plural(supplement.sacksInTrough, 'saco', 'sacos')} × {supplement.kgPerSack} kg = {totalKg} kg
+          {decimal(supplement.sacksInTrough)} {plural(supplement.sacksInTrough, 'saco', 'sacos')} × {supplement.kgPerSack} kg = {decimal(totalKg)} kg
         </Text>
         <Text style={styles.calcSub}>{supplement.formulaName}</Text>
       </View>

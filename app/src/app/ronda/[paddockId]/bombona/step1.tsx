@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRondaStore } from '@/stores/rondaStore';
 import { WizardFlow, BinaryChoice } from '@/components/ui';
 import { Colors } from '@/constants';
+import { bombonaTotalSteps } from '@/lib/bombona';
 import { NSA, Fonts } from '@/theme/nsa';
 
 export default function BombonaStep1() {
@@ -17,7 +18,7 @@ export default function BombonaStep1() {
       title="Bombona"
       subtitle="Estoque do reservatório"
       step={1}
-      totalSteps={4}
+      totalSteps={bombonaTotalSteps(bombona)}
       accentColor={Colors.bombona}
       onBack={() => router.back()}
       onNext={() => {

@@ -1,6 +1,7 @@
 import type * as SQLite from 'expo-sqlite';
 import { effectiveWeightKg } from '@/constants';
 import { loadSettings } from '@/lib/settings';
+import { loadBombonaExpectations } from '@/lib/bombona';
 
 // Alertas agregados pra o Painel. Cada função é autônoma e retorna lista pronta.
 // Todas as seções podem ficar vazias — UI mostra "Sem alertas" quando for o caso.
@@ -68,14 +69,6 @@ function mostRecentWeekdayIso(weekday: number): string | null {
   today.setDate(today.getDate() - daysBack);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
-}
-
-function daysBetween(fromIso: string | null | undefined, toIso: string): number {
-  if (!fromIso) return 0;
-  const from = new Date(fromIso).getTime();
-  const to = new Date(toIso).getTime();
-  if (!isFinite(from) || !isFinite(to)) return 0;
-  return Math.max(0, Math.floor((to - from) / (1000 * 60 * 60 * 24)));
 }
 
 // Última avaliação de cada tipo por piquete via ROW_NUMBER() OVER (...)
@@ -300,34 +293,24 @@ export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData>
 
   const bombonas: BombonaRisk[] = [];
   if (settings.bombona.enabled) {
-    const bombonaRows = await db.getAllAsync<{
-      paddock_id: number; paddock_name: string; sacks: number; kg_per_sack: number;
-      g_per_kg_body_day: number; last_resupply_date: string | null; formula_id: number; formula_name: string;
-    }>(`
-      SELECT p.id AS paddock_id, p.name AS paddock_name,
-        i.quantity_sacks AS sacks,
-        f.id AS formula_id, f.kg_per_sack, f.target_g_per_kg_body_day AS g_per_kg_body_day, f.name AS formula_name,
-        i.last_resupply_date
-      FROM paddocks p
-      JOIN inventory i ON i.paddock_id = p.id AND i.location = 'bombona'
-      JOIN formulas f ON f.id = i.formula_id
-      WHERE p.active = 1
-    `);
+    // Quanto ainda tem: ledger da Suplementação (fonte única em lib/bombona.ts).
+    // Quanto dura: consumo do lote deste piquete. Antes o "quanto ainda tem"
+    // também era estimado pelo consumo — o alerta e a ronda derivavam o saldo
+    // por caminhos diferentes e podiam discordar sobre o mesmo piquete.
+    const bombonaRows = await loadBombonaExpectations(db);
 
     for (const b of bombonaRows) {
-      const bodyKg = bodyKgByPaddock[b.paddock_id] || 0;
+      const bodyKg = bodyKgByPaddock[b.paddockId] || 0;
       if (bodyKg <= 0) continue;
-      const dailyKg = (bodyKg * b.g_per_kg_body_day) / 1000;
+      const dailyKg = (bodyKg * b.gPerKgBodyDay) / 1000;
       if (dailyKg <= 0) continue;
-      const initialKg = b.sacks * b.kg_per_sack;
-      const daysSinceResupply = daysBetween(b.last_resupply_date, today);
-      const remainingKg = initialKg - dailyKg * daysSinceResupply;
+      const remainingKg = b.expectedSacks * b.kgPerSack;
       const daysLeft = Math.floor(remainingKg / dailyKg);
       if (daysLeft > settings.bombona.warnDays) continue;
       bombonas.push({
-        paddockId: b.paddock_id,
-        paddockName: b.paddock_name,
-        formulaName: b.formula_name,
+        paddockId: b.paddockId,
+        paddockName: b.paddockName,
+        formulaName: b.formulaName,
         daysLeft,
         severity: daysLeft <= settings.bombona.dangerDays ? 'danger' : 'warning',
       });

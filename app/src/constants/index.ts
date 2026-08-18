@@ -154,10 +154,16 @@ export function plural(n: number, singular: string, pluralForm: string): string 
   return abs === 1 ? singular : pluralForm;
 }
 
+// Número em pt-BR com no máximo 1 casa decimal: meio saco vira "1,5" e o
+// inteiro continua "3" (não "3,0").
+export function decimal(n: number): string {
+  return n.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+}
+
 // Açúcares pros casos mais comuns no app — mantém "1 saco" vs "2 sacos" certo
 // sem repetir o par singular/plural em cada call site.
 export function sacos(n: number): string {
-  return `${n} ${plural(n, 'saco', 'sacos')}`;
+  return `${decimal(n)} ${plural(n, 'saco', 'sacos')}`;
 }
 
 export function cabecas(n: number): string {
