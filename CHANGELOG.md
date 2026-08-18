@@ -6,6 +6,22 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## Dados — NSA2: 32 piquetes novos (2026-08-18)
+
+Mudança de **dado**, não de código — sem versão, sem tag, sem build. Devices puxam no próximo sync.
+
+Inseridos 32 piquetes `NSA2 - P01` … `NSA2 - P32` (761,58 ha) no Supabase de produção, a partir de `kml/NSA2 - piquetes, por lote.kml`. Áreas calculadas por shoelace em projeção equirretangular local (média 23,8 ha — coerente com os P77–P84 vizinhos); geometria GeoJSON `[lon, lat]`, anel fechado, 7 casas decimais (padrão dos existentes); `center_lat`/`center_lng` = centroide; tipo de capim **Braquiarão** (decisão do Lucas) para os 32.
+
+**Correções de nome aplicadas na origem** (KML tinha dois fora do padrão): `NSA - P22` → `NSA2 - P22` e `NSA2 - 18` → `NSA2 - P18`. Com isso a sequência P01–P32 fecha sem buraco.
+
+**Tiles:** o bbox do NSA2 (lng −45,3867..−45,3489 / lat −15,2143..−15,1786) cai **dentro** do bbox já empacotado. Verificados os 286 tiles (z12–z17) que cobrem a área: 0 faltando. Mapa offline funciona sem `fetch-tiles.mjs` nem APK novo.
+
+**Pendências conhecidas:** (a) nenhum lote/rebanho alocado — o KML não traz essa informação, apesar do nome do arquivo; alocar via `/admin` quando o dado existir. (b) O prefixo `NSA2` reintroduz o padrão `NSA I`/`NSA II` que a v0.7.7 removeu dos 125 piquetes antigos; se a intenção for tratar como talhão, renomear para `Txx - Pxx` via `/admin/piquetes`. (c) `seed-map.ts` segue com 145 piquetes (Supabase: 203) — não afeta o app, só re-seed e cálculo de bbox.
+
+**Fallback:** soft-delete — `UPDATE paddocks SET deleted_at = now(), updated_at = now() WHERE name LIKE 'NSA2 - %';` (sincroniza para os devices).
+
+---
+
 ## v0.7.15 — "mapa no iPhone: tiles via bridge, nomes dos piquetes e GPS confiável" (2026-07-23)
 
 Três problemas do mapa reportados no iPhone, com raiz comum investigada a fundo + revisão adversarial multi-agente (16 findings confirmados e corrigidos).
