@@ -16,6 +16,14 @@ import { KeyboardAvoidingView, StyleSheet, type StyleProp, type ViewStyle } from
  * fora mantém o botão de salvar enterrado sob o teclado, que é metade do bug.
  * Cabeçalho fica de fora — ele deve continuar visível.
  *
+ * **Não fecha 100% no Android.** Medido em emulador (Pixel 7 / API 35, tela
+ * 914 dp): com o teclado aberto o rodapé sobe de y=778 pra y=549 dp — o wrapper
+ * age — mas termina em 611 contra o topo do teclado em 578, então ~33 dp do
+ * botão seguem cobertos. Suspeita não confirmada: o `SafeAreaView
+ * edges={['bottom']}` de dentro aplica o inset inferior na área já encolhida.
+ * Ainda é bem melhor que sem o wrapper (aí o próprio campo fica cortado).
+ * iOS não medido.
+ *
  * Não combinar com `automaticallyAdjustKeyboardInsets` no ScrollView de dentro:
  * os dois somam e abrem um vão morto do tamanho do teclado.
  */
