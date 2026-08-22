@@ -33,7 +33,9 @@ Reportado em Configurações › Formulações: com o teclado numérico aberto, 
 
 **Escopo:** 100% JS → **OTA**, sem rebuild. `tsc` limpo.
 
-**Fallback:** `git checkout v0.7.16`.
+**No ar (OTA, 2026-08-21):** runtime `1.0.1`, android+ios. Preview update group `b09757a5-f7b9-4cee-9abf-8476f480a996` · production `22dc3f31-8ae3-480b-a01c-13e53f58d40a`.
+
+**Fallback:** `git checkout v0.7.16` e republicar com `eas update --branch production --environment production`.
 
 ---
 
