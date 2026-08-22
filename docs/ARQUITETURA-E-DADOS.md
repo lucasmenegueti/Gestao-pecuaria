@@ -142,7 +142,15 @@ node_modules/leaflet ──bundle-leaflet-inline.mjs──▶ src/components/map
 
 ### Mexer no rebanho (`herd`)
 - Forma: `(paddock_id, category, head_count, avg_weight_kg)`. **Pool** = `paddock_id IS NULL`. `UNIQUE (paddock_id, category)` quando alocado; `UNIQUE (category)` no pool.
-- Movimentos sempre via **`herd_events`** (ledger append-only). Invariante: `herd.head_count` == soma dos `herd_events` daquela (piquete, categoria).
+- Movimentos sempre via **`herd_events`** (ledger append-only). A intenção é que `herd.head_count` == soma dos `herd_events` daquela (piquete, categoria) — mas **isso não vale na prática, e código novo não pode assumir que vale.**
+
+> **O ledger fica negativo.** Quando a mesma saída é lançada duas vezes (P47, maio/2026: 5 vacas paridas desalocadas *e* transferidas), o saldo acumulado da categoria vai abaixo de zero e nunca se recupera. Somando o piquete inteiro a divergência é grosseira: no P47 o ledger dá 32 cabeças contra 13 em `herd`.
+>
+> Duas consequências para quem for derivar algo do ledger:
+> - **Trave o saldo em zero** ao acumular (`Math.max(0, saldo + delta)`). Piquete não guarda gado negativo, e sem a trava um saldo negativo antigo engole coortes legítimas posteriores.
+> - **Acumule por categoria, não pelo total do piquete.** Por categoria o ledger reconcilia com `herd` mesmo onde o total diverge — foi assim que a entrada do lote da Ficha do Piquete (`src/lib/paddock-info.ts`) fechou exato nos quatro piquetes testados.
+>
+> `EVOLUCAO` também não é entrada nem saída: é troca de categoria no mesmo piquete, com a origem em `category` e o destino em `notes` ("ORIGEM → DESTINO"). Quem rastreia coorte precisa herdar a data através dela, senão um lote de 82 dias aparece como recém-chegado só porque virou boi.
 - **Não** crie a mesma row `(piquete, categoria)` em 2 devices offline → `tryHealOrphan` descarta a órfã (não soma).
 - Auditar: `node scripts/audit-herd.mjs <user> <pass>` / `scripts/probe-paddock.mjs`.
 

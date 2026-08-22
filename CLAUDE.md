@@ -31,6 +31,10 @@ npx expo start --tunnel      # fallback p/ LAN/firewall bloqueando Expo Go
 
 Sem testes nem lint script configurados. Type check via `npx tsc --noEmit` em `app/`.
 
+**`--tunnel` precisa de duas coisas.** O pacote: `npm install -g @expo/ngrok@^4.1.0` (sem ele o Expo pede confirmação interativa e morre em modo não-interativo). E o caminho: o npm instala em `/opt/homebrew/lib/node_modules`, que a resolução do Expo **não** varre — subir com `NODE_PATH=/opt/homebrew/lib/node_modules npx expo start --tunnel`. Sem o `NODE_PATH` o erro é idêntico ao de pacote ausente.
+
+**Quando LAN não serve:** rede com isolamento de clientes (portal cativo de hotel/aeroporto, wifi corporativo). O Metro responde certo — `lsof -iTCP:8081` escutando, manifesto 200 pelo IP da LAN — e mesmo assim o device não chega. Diagnosticar pela rede, não pelo Metro; a saída é tunnel.
+
 ## Dev / Release Flow (obrigatório)
 
 Toda alteração passa por 3 estágios, **nessa ordem**. Não pular — cada um pega classe diferente de bug.
@@ -50,6 +54,7 @@ Mudanças de JS/TS/assets/JSON (incluindo `.env` que vira `process.env.EXPO_PUBL
 - **`expo-sqlite` + Web**: requer `.wasm` como bundled asset. `app/metro.config.js` adiciona `wasm` a `resolver.assetExts`. Não remover — SQLite web worker falha em resolver `wa-sqlite.wasm`.
 - **Port 8081 stuck**: `lsof -ti:8081 | xargs kill -9`.
 - **`SliderInput` abre teclado**: o número grande é um `TextInput` editável ao toque. Varredura por `TextInput` **não** acha as telas que só usam slider (eram 17 de 31 na v0.7.17). Pra qualquer coisa de teclado/foco/scroll, buscar `TextInput\|SliderInput`.
+- **`formulas.target_g_per_kg_body_day` é gramas por CABEÇA/dia** — o nome da coluna e o rótulo em `admin/formulas.tsx` ("g/kg PV/dia") mentem. O cadastro real da fazenda é por cabeça: 70 (Reprodução Ureia ADT), 100 (confinamento), 150 (Topmost NITRO) são valores normais. Fórmulas gravadas **abaixo de 1** (ex.: "Probeef Reprodução" = 0,25) são resquício da unidade antiga e não servem de régua — `paddock-info.ts` descarta `< 1`. **Nunca inferir a semântica desse campo pelo nome**; foi assim que uma sessão reportou um bug inexistente de "erro por 100×".
 - **Schema migration**: `app/src/lib/db/provider.tsx` usa `PRAGMA user_version` + `SCHEMA_VERSION`. Bumpar `SCHEMA_VERSION` e listar tabelas a dropar no bloco de migration quando schema muda. Seed tables (users, formulas, grass_types, paddocks, herd) **não** são dropadas — preservam fixtures.
 - **Sync de UPDATE: `SYNCED_TABLES` + `MUTABLE_TABLES` devem casar.** Se uma tabela está em `SYNCED_TABLES` como `appendOnly: false` (= recebe UPDATEs), **PRECISA** estar em `MUTABLE_TABLES` no mesmo arquivo. Sem isso, trigger `tg_<table>_mark_dirty` não é criado → UPDATEs locais não setam `pending_sync=1` → engine de push filtra por `pending_sync=1` e nunca envia → pull subsequente sobrescreve local com versão remota. Bug observado: rota finalizada nunca chegando no servidor.
 - **Tiles do mapa empacotados**: `app/assets/tiles/` contém ~2700 PNGs do OSM pro bbox da fazenda (zooms 12–17, ~55 MB). Mapa funciona offline a partir do primeiro boot. Atualizar OSM: `cd app && node scripts/fetch-tiles.mjs` (respeita rate-limit OSM 2 req/s, ~35 min). Quando KML dos piquetes muda (bbox diferente), rodar `fetch-tiles.mjs` também — tiles fora do novo bbox são apagados automaticamente.
@@ -103,7 +108,9 @@ Primitivos reusáveis = design system. Não introduzir novos estilos de botão/i
 - **Reabastecimento**: 3-phase tractor route (Load na sede → Distribute → Return leftover).
 - **Lotação**: cab/ha por piquete.
 - **Categorias de gado** (11 em `constants/index.ts CATTLE_CATEGORIES`, ordem etária): BEZERRO MAMANDO, BEZERRA MAMANDO, BEZERRO, BEZERRA, GARROTE, NOVILHA, NOVILHA PRENHA, BOI, VACA SOLTEIRA, VACA PRENHA, VACA PARIDA. Lote de pares = VACA PARIDA + BEZERRO/A MAMANDO (`PAIR_CATEGORIES`).
-- **Formulações**: supplement formulas (CRUD) com `kg_per_sack`, `target_consumption_g_per_day`.
+- **Formulações**: supplement formulas (CRUD) com `kg_per_sack` e alvo de consumo (ver gotcha da unidade acima).
+- **Arroba (@) = 30 kg de PESO VIVO** — convenção da fazenda, definida pelo Lucas. Equivale a 15 kg de carcaça com 50% de rendimento; usar peso vivo direto evita carregar premissa de rendimento. Efeito prático: GMD em kg/dia é numericamente o ganho em @/mês.
+- **Bezerro mamando não entra em conta de consumo por cabeça** (BEZERRO/BEZERRA MAMANDO): mama, não come do cocho. Dividir suplemento pelo total de cabeças subestima pela metade em lote de pares.
 - **Tipos de Capim**: grass types com entry/exit height targets (cm).
 
 ### Key calculations (`app/src/constants/index.ts`)
