@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'rea
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDatabase } from '@/lib/db/provider';
-import { Card, Button, MultiChoice, SliderInput, SummaryRow, BrandHeader } from '@/components/ui';
+import { Card, Button, MultiChoice, SliderInput, SummaryRow, BrandHeader, KeyboardAvoider} from '@/components/ui';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 
 interface PaddockOption {
@@ -150,8 +150,9 @@ export default function DesalocarScreen() {
     return (
       <View style={styles.root}>
         <BrandHeader title="Confirmar desalocação" context="Rebanho" onBack={() => setReviewing(false)} />
+        <KeyboardAvoider>
         <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
             <Card borderColor={NSA.warn}>
               <SummaryRow label="Piquete" value={paddockName} />
               {selectedEntries.map(([cat, qty]) => (
@@ -180,6 +181,7 @@ export default function DesalocarScreen() {
             />
           </View>
         </SafeAreaView>
+        </KeyboardAvoider>
       </View>
     );
   }
@@ -187,8 +189,9 @@ export default function DesalocarScreen() {
   return (
     <View style={styles.root}>
       <BrandHeader title="Desalocar lote" context="Rebanho" onBack={() => router.back()} />
+      <KeyboardAvoider>
       <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {!params.paddockId && (
             <>
               <Text style={styles.label}>PIQUETE DE ORIGEM</Text>
@@ -261,6 +264,7 @@ export default function DesalocarScreen() {
           </View>
         )}
       </SafeAreaView>
+      </KeyboardAvoider>
     </View>
   );
 }

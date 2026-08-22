@@ -5,7 +5,7 @@ import { useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, ChevronRight } from 'lucide-react-native';
 import { useDatabase } from '@/lib/db/provider';
-import { Card, Button, BrandHeader } from '@/components/ui';
+import { Card, Button, BrandHeader, KeyboardAvoider } from '@/components/ui';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 
 interface PaddockRow {
@@ -99,7 +99,7 @@ export default function PiquetesAdminScreen() {
           />
         </View>
         <Text style={styles.countText}>{filtered.length} de {paddocks.length} piquete{paddocks.length === 1 ? '' : 's'}</Text>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {filtered.map((p) => (
             <TouchableOpacity key={p.id} activeOpacity={0.85} onPress={() => openEdit(p)}>
               <Card>
@@ -120,8 +120,13 @@ export default function PiquetesAdminScreen() {
       </SafeAreaView>
 
       <Modal visible={modalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <KeyboardAvoider style={styles.modalOverlay}>
+          <ScrollView
+            style={styles.modalCard}
+            contentContainerStyle={styles.modalCardContent}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+          >
             <Text style={styles.modalTitle}>Renomear piquete</Text>
             <Text style={styles.modalSubtitle}>Atual: {editOriginalName}</Text>
             <Text style={styles.label}>Novo nome</Text>
@@ -139,8 +144,8 @@ export default function PiquetesAdminScreen() {
               <Button title="Cancelar" variant="outline" onPress={() => setModalVisible(false)} style={{ flex: 1 }} disabled={saving} />
               <Button title={saving ? 'Salvando…' : 'Salvar'} onPress={handleSave} style={{ flex: 1 }} disabled={saving} />
             </View>
-          </View>
-        </View>
+          </ScrollView>
+        </KeyboardAvoider>
       </Modal>
     </View>
   );
@@ -182,7 +187,10 @@ const styles = StyleSheet.create({
   itemDetail: { fontSize: 12, color: NSA.inkSecondary, marginTop: 2, fontFamily: Fonts.regular },
   emptyText: { fontSize: 13, color: NSA.inkMuted, textAlign: 'center', marginTop: 32, fontFamily: Fonts.regular },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15,15,13,0.5)', justifyContent: 'center', padding: 24 },
-  modalContent: { backgroundColor: NSA.bgElevated, borderRadius: Radius.xl, padding: 20 },
+  // Card rolável e limitado ao espaço livre — com o teclado aberto sobra pouca
+  // altura, e sem isso os últimos campos e o Salvar ficam cortados.
+  modalCard: { backgroundColor: NSA.bgElevated, borderRadius: Radius.xl, flexGrow: 0, maxHeight: '100%' },
+  modalCardContent: { padding: 20 },
   modalTitle: { fontSize: 18, fontFamily: Fonts.loraSemibold, color: NSA.inkPrimary, marginBottom: 4, letterSpacing: -0.3 },
   modalSubtitle: { fontSize: 12, color: NSA.inkMuted, fontFamily: Fonts.regular, marginBottom: 14 },
   label: { fontSize: 12, fontFamily: Fonts.medium, color: NSA.inkSecondary, marginBottom: 4, marginTop: 8 },

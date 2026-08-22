@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TextInput, Alert } from 'react-nati
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDatabase } from '@/lib/db/provider';
-import { Button, MultiChoice, SliderInput, BrandHeader } from '@/components/ui';
+import { Button, MultiChoice, SliderInput, BrandHeader, KeyboardAvoider } from '@/components/ui';
 import { CATTLE_CATEGORIES } from '@/constants';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 
@@ -108,8 +108,9 @@ export default function EventoScreen() {
   return (
     <View style={styles.root}>
       <BrandHeader title="Registrar evento" context="Rebanho" onBack={() => router.back()} />
+      <KeyboardAvoider>
       <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <Text style={styles.label}>TIPO DE EVENTO</Text>
           <MultiChoice options={EVENT_TYPES} value={eventType} onChange={(v) => { setEventType(v); setCategory(null); }} />
 
@@ -147,6 +148,7 @@ export default function EventoScreen() {
           <Button title="Registrar evento" onPress={handleSave} style={{ marginTop: 20 }} />
         </ScrollView>
       </SafeAreaView>
+      </KeyboardAvoider>
     </View>
   );
 }

@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Truck, Search, X, CheckCircle2, AlertTriangle } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDatabase } from '@/lib/db/provider';
-import { Card, Button, SliderInput, BrandHeader } from '@/components/ui';
+import { Card, Button, SliderInput, BrandHeader, KeyboardAvoider } from '@/components/ui';
 import { useAuthStore } from '@/stores/authStore';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 import { cancelActiveRoute } from '@/lib/reabastecimento/active-route';
@@ -310,6 +310,7 @@ export default function RotaScreen() {
         ))}
       </View>
 
+      <KeyboardAvoider>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text style={styles.listTitle}>
           PIQUETES · {abastecidos}/{paddocks.length} abastecidos
@@ -497,6 +498,7 @@ export default function RotaScreen() {
           onPress={() => router.replace(`/reabastecimento/resumo?routeId=${routeId}`)}
         />
       </SafeAreaView>
+      </KeyboardAvoider>
     </View>
   );
 }

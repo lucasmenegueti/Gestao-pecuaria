@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'rea
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDatabase } from '@/lib/db/provider';
-import { Card, Button, SliderInput, SummaryRow, BrandHeader } from '@/components/ui';
+import { Card, Button, SliderInput, SummaryRow, BrandHeader, KeyboardAvoider} from '@/components/ui';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 
 interface PoolCat {
@@ -96,8 +96,9 @@ export default function VendaScreen() {
     return (
       <View style={styles.root}>
         <BrandHeader title="Confirmar venda" context="Rebanho" onBack={() => setReviewing(false)} />
+        <KeyboardAvoider>
         <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
             <Card borderColor={NSA.warn}>
               {selectedEntries.map(([cat, qty]) => (
                 <SummaryRow key={cat} label={cat} value={`${qty} cab`} />
@@ -125,6 +126,7 @@ export default function VendaScreen() {
             />
           </ScrollView>
         </SafeAreaView>
+        </KeyboardAvoider>
       </View>
     );
   }
@@ -132,8 +134,9 @@ export default function VendaScreen() {
   return (
     <View style={styles.root}>
       <BrandHeader title="Vender gado" context="Rebanho · Desalocados" onBack={() => router.back()} />
+      <KeyboardAvoider>
       <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <Text style={styles.label}>QUANTIDADE POR CATEGORIA</Text>
           <Text style={styles.sublabel}>
             {pool.reduce((s, p) => s + p.total, 0)} cab desalocadas disponíveis
@@ -185,6 +188,7 @@ export default function VendaScreen() {
           />
         </ScrollView>
       </SafeAreaView>
+      </KeyboardAvoider>
     </View>
   );
 }

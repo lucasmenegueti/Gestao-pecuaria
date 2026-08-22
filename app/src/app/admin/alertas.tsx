@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Alert, Switch, TouchableOpacity } f
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDatabase } from '@/lib/db/provider';
-import { Card, Button, SliderInput, MultiChoice, BrandHeader } from '@/components/ui';
+import { Card, Button, SliderInput, MultiChoice, BrandHeader, KeyboardAvoider} from '@/components/ui';
 import { loadSettings, setSetting, AppSettings } from '@/lib/settings';
 import { WATER_QUALITY_OPTIONS } from '@/constants';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
@@ -84,7 +84,8 @@ export default function AlertasConfigScreen() {
   return (
     <View style={styles.root}>
       <BrandHeader title="Alertas" context="Configurações" onBack={() => router.back()} />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <KeyboardAvoider>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text style={styles.intro}>
           Cada alerta pode ser desligado ou ter seus limiares ajustados. Quando desligado, não aparece no Painel.
         </Text>
@@ -194,6 +195,7 @@ export default function AlertasConfigScreen() {
       <SafeAreaView edges={['bottom']} style={styles.stickyFooter}>
         <Button title={saving ? 'Salvando…' : 'Salvar'} onPress={handleSave} disabled={saving} />
       </SafeAreaView>
+      </KeyboardAvoider>
     </View>
   );
 }

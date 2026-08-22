@@ -4,6 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { ChevronLeft, ArrowRight } from 'lucide-react-native';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 import { useSafeBack } from '@/hooks/use-safe-back';
+import { KeyboardAvoider } from './KeyboardAvoider';
 
 interface WizardFlowProps {
   title: string;
@@ -64,27 +65,29 @@ export function WizardFlow({
         </View>
       </View>
 
-      {/* Conteúdo */}
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled">
-        {children}
-      </ScrollView>
+      {/* Conteúdo e rodapé sobem juntos quando o teclado abre */}
+      <KeyboardAvoider>
+        <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled">
+          {children}
+        </ScrollView>
 
-      {/* Footer fixo */}
-      {onNext && (
-        <SafeAreaView edges={['bottom']} style={styles.footerWrap}>
-          <View style={styles.footer}>
-            <TouchableOpacity
-              style={[styles.nextButton, { backgroundColor: nextBg }, nextDisabled && styles.disabled]}
-              onPress={onNext}
-              disabled={nextDisabled}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.nextText}>{nextLabel}</Text>
-              {nextVariant !== 'success' && <ArrowRight size={16} color={NSA.cream} strokeWidth={2} />}
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      )}
+        {/* Footer fixo */}
+        {onNext && (
+          <SafeAreaView edges={['bottom']} style={styles.footerWrap}>
+            <View style={styles.footer}>
+              <TouchableOpacity
+                style={[styles.nextButton, { backgroundColor: nextBg }, nextDisabled && styles.disabled]}
+                onPress={onNext}
+                disabled={nextDisabled}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.nextText}>{nextLabel}</Text>
+                {nextVariant !== 'success' && <ArrowRight size={16} color={NSA.cream} strokeWidth={2} />}
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+        )}
+      </KeyboardAvoider>
     </View>
   );
 }

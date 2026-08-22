@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDatabase } from '@/lib/db/provider';
-import { Button, Card, MultiChoice, SliderInput, SummaryRow, BrandHeader } from '@/components/ui';
+import { Button, Card, MultiChoice, SliderInput, SummaryRow, BrandHeader, KeyboardAvoider} from '@/components/ui';
 import { useAuthStore } from '@/stores/authStore';
 import { NSA, Fonts } from '@/theme/nsa';
 import { sacos } from '@/constants';
@@ -73,8 +73,9 @@ export default function EntradaEstoqueScreen() {
     return (
       <View style={styles.root}>
         <BrandHeader title="Confirmar entrada" context="Estoque" onBack={() => setReviewing(false)} />
+        <KeyboardAvoider>
         <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
             <Card borderColor={NSA.ok}>
               <Text style={styles.reviewLabel}>ENTRADA NO ESTOQUE CENTRAL</Text>
               <SummaryRow label="Produto" value={formulaName} />
@@ -101,6 +102,7 @@ export default function EntradaEstoqueScreen() {
             />
           </View>
         </SafeAreaView>
+        </KeyboardAvoider>
       </View>
     );
   }
@@ -108,8 +110,9 @@ export default function EntradaEstoqueScreen() {
   return (
     <View style={styles.root}>
       <BrandHeader title="Entrada de estoque" context="Central" onBack={() => router.back()} />
+      <KeyboardAvoider>
       <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <Text style={styles.label}>PRODUTO</Text>
           <MultiChoice
             options={formulas.map((f) => ({ value: String(f.id), label: f.name }))}
@@ -128,6 +131,7 @@ export default function EntradaEstoqueScreen() {
           />
         </View>
       </SafeAreaView>
+      </KeyboardAvoider>
     </View>
   );
 }

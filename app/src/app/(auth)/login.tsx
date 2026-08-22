@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Alert, TouchableOpacity, Image } from 'react-native';
+import { View, Text, ScrollView, TextInput, StyleSheet, Alert, TouchableOpacity, Image } from 'react-native';
 import { router } from 'expo-router';
 import { Check, Wifi } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,7 +9,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useDatabase } from '@/lib/db/provider';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
 import { forceSync } from '@/lib/sync/daemon';
-import { Button } from '@/components/ui';
+import { Button, KeyboardAvoider } from '@/components/ui';
 import { NSA, Fonts } from '@/theme/nsa';
 
 export default function LoginScreen() {
@@ -93,6 +93,14 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      {/* Sem ScrollView o KeyboardAvoider não tem pra onde empurrar — esta tela
+          não tinha nenhum, e no iPhone o teclado cobria o campo de senha. */}
+      <KeyboardAvoider>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        bounces={false}
+      >
       <View style={styles.hero}>
         <Image source={require('../../../assets/logo-nsa-green.png')} style={styles.logo} resizeMode="contain" />
         <View style={styles.captions}>
@@ -152,12 +160,17 @@ export default function LoginScreen() {
       <Text style={styles.version}>
         v{Constants.expoConfig?.version ?? '—'} · {Updates.updateId ? Updates.updateId.slice(0, 8) : 'embedded'}
       </Text>
+      </ScrollView>
+      </KeyboardAvoider>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: NSA.cream },
+  // flexGrow mantém o `flex: 1` do hero funcionando (centralização vertical)
+  // quando o conteúdo cabe, e deixa rolar quando o teclado encolhe o espaço.
+  scrollContent: { flexGrow: 1 },
   hero: {
     flex: 1,
     paddingHorizontal: 28,

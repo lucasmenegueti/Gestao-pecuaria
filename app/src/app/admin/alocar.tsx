@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { Search, X, AlertTriangle } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDatabase } from '@/lib/db/provider';
-import { Card, Button, MultiChoice, SliderInput, BrandHeader } from '@/components/ui';
+import { Card, Button, MultiChoice, SliderInput, BrandHeader, KeyboardAvoider } from '@/components/ui';
 import { PAIR_CATEGORIES } from '@/constants';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 
@@ -150,7 +150,8 @@ export default function AlocarScreen() {
   return (
     <View style={styles.root}>
       <BrandHeader title="Alocar em piquete" context="Rebanho" onBack={() => router.back()} />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <KeyboardAvoider>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>COMPOSIÇÃO DO LOTE (da pool)</Text>
         <Text style={styles.sublabel}>
           {pool.reduce((s, p) => s + p.total, 0)} cab desalocadas disponíveis
@@ -250,6 +251,7 @@ export default function AlocarScreen() {
           disabled={selectedTotal === 0 || !destinoId}
         />
       </SafeAreaView>
+      </KeyboardAvoider>
     </View>
   );
 }

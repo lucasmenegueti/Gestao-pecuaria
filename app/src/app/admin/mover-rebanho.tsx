@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, X } from 'lucide-react-native';
 import { useDatabase } from '@/lib/db/provider';
-import { Card, Button, SliderInput, MultiChoice, BrandHeader, SummaryRow } from '@/components/ui';
+import { Card, Button, SliderInput, MultiChoice, BrandHeader, SummaryRow, KeyboardAvoider } from '@/components/ui';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 
 interface PaddockOption {
@@ -134,7 +134,8 @@ export default function MoverRebanhoScreen() {
   return (
     <View style={styles.root}>
       <BrandHeader title="Mover rebanho" context="Rebanho" onBack={() => router.back()} />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <KeyboardAvoider>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>DE (origem)</Text>
         {lockedOrigin && fromName ? (
           <View style={styles.lockedOrigin}>
@@ -270,6 +271,7 @@ export default function MoverRebanhoScreen() {
           />
         </SafeAreaView>
       )}
+      </KeyboardAvoider>
     </View>
   );
 }

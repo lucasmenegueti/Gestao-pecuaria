@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { AlertTriangle, Plus, Minus } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDatabase } from '@/lib/db/provider';
-import { Button, MultiChoice, SliderInput, BrandHeader } from '@/components/ui';
+import { Button, MultiChoice, SliderInput, BrandHeader, KeyboardAvoider } from '@/components/ui';
 import { useAuthStore } from '@/stores/authStore';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 import { sacos } from '@/constants';
@@ -128,8 +128,9 @@ export default function AjusteEstoqueScreen() {
   return (
     <View style={styles.root}>
       <BrandHeader title="Ajuste manual" context={contextLabel} onBack={() => router.back()} />
+      <KeyboardAvoider>
       <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <View style={styles.modeRow}>
             <TouchableOpacity
               style={[styles.modeBtn, isAdd && styles.modeBtnActiveAdd]}
@@ -218,6 +219,7 @@ export default function AjusteEstoqueScreen() {
           />
         </View>
       </SafeAreaView>
+      </KeyboardAvoider>
     </View>
   );
 }

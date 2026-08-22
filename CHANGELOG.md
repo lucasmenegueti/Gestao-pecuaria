@@ -6,6 +6,37 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.7.17 — "teclado não cobre mais campo nem botão" (2026-08-21)
+
+Reportado em Configurações › Formulações: com o teclado numérico aberto, "Estoque mínimo" e o botão Salvar ficavam embaixo dele, sem como rolar. O app **não tinha nenhum `KeyboardAvoidingView`** — o problema existia em toda tela com campo, não só nessa.
+
+**Primitivo novo:** `src/components/ui/KeyboardAvoider.tsx`. `behavior="padding"` nos dois sistemas, deliberadamente: no Android o SDK 54 é edge-to-edge obrigatório e a janela não encolhe mais sozinha com o teclado; e onde ela ainda encolhe, o RN calcula `frame.y + frame.height − keyboardY`, que dá ~0 quando o frame já subiu — ou seja, não soma padding em cima do resize. Um `Platform.select` seriam duas rotas pra manter sem ganho.
+
+**Aplicado em 31 telas** — todas que podem abrir teclado. A varredura inicial por `TextInput` achava só 14; o `SliderInput` tem um `TextInput` embutido (o número é editável ao toque), então **17 telas de slider também abriam teclado** e teriam ficado de fora. As telas de ronda vieram de graça: o `WizardFlow` recebeu o wrapper uma vez.
+
+**Regras que o wrapper carrega** (documentadas no arquivo, porque cada uma corresponde a um jeito de errar):
+- Envolver o ScrollView **e** o rodapé fixo juntos. Em `alocar`, `mover-rebanho`, `ajuste`, `rota`, `alertas` e `cerca` o rodapé é irmão do ScrollView — deixá-lo de fora mantém o botão de salvar enterrado, que é metade do bug.
+- Cabeçalho fica de fora, pra continuar visível.
+- Não combinar com `automaticallyAdjustKeyboardInsets` no ScrollView de dentro: os dois somam e abrem um vão morto do tamanho do teclado.
+
+**Modais viraram roláveis.** Os cards de `formulas`, `grass-types` e `piquetes` eram `View` de altura livre num overlay centralizado, sem `maxHeight`: mesmo com o teclado tratado, o card era espremido e cortava o conteúdo em vez de rolar. Agora são `ScrollView` com `maxHeight: '100%'` e `flexGrow: 0`. Em `solicitacoes` o `maxHeight: 520` fixo da lista virou `flexShrink: 1`, senão não cabe no card encolhido.
+
+**Login ganhou ScrollView.** Era a única tela sem nenhum — sem algo pra rolar, o `KeyboardAvoider` não tem pra onde empurrar. `contentContainerStyle: { flexGrow: 1 }` preserva a centralização vertical quando o conteúdo cabe.
+
+**`keyboardShouldPersistTaps="handled"`** nos ScrollViews dessas telas: sem isso o primeiro toque no botão de salvar só fecha o teclado.
+
+**Validado em emulador Android** (Pixel 7 / API 35, Expo Go, harness replicando as duas estruturas com o `KeyboardAvoider` real e toggle liga/desliga):
+- **Modal de Formulações — resolvido.** Campo "Estoque mínimo" focado e Cancelar/Salvar inteiros acima do teclado. Quem resolve neste sistema é a mudança estrutural (card virou `ScrollView` com `maxHeight`): a janela do `Modal` é um Dialog separado e encolhe com o teclado, então o card recentra sozinho. O wrapper importa no iOS, não aqui.
+- **Tela com rodapé fixo — melhorou, não fechou.** Sem o wrapper, o campo MOTIVO fica cortado na borda inferior e o botão some. Com ele, `measureInWindow` do rodapé vai de y=778 dp para y=549 dp (tela = 914 dp) — sobe 229 dp — mas termina em 611 dp contra o topo do teclado em 578 dp: **~33 dp do botão seguem cobertos**. Suspeita: o `SafeAreaView edges={['bottom']}` aplica o inset inferior dentro da área já encolhida. Não investigado até o fim.
+
+**Não validado em iOS** — que é onde o bug foi reportado. Os dois sistemas usam mecanismos diferentes; o resultado do Android não transfere.
+
+**Escopo:** 100% JS → **OTA**, sem rebuild. `tsc` limpo.
+
+**Fallback:** `git checkout v0.7.16`.
+
+---
+
 ## v0.7.16 — "meio saco no cocho e bombona conferida na ronda" (2026-08-18)
 
 ### 1. Suplementação: meio saco e teto de 20

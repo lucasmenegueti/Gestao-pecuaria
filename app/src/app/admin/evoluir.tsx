@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react-native';
 import { useDatabase } from '@/lib/db/provider';
-import { Card, Button, SliderInput, MultiChoice, BrandHeader, SummaryRow } from '@/components/ui';
+import { Card, Button, SliderInput, MultiChoice, BrandHeader, SummaryRow, KeyboardAvoider} from '@/components/ui';
 import { CATTLE_CATEGORIES, CATEGORY_EVOLUTIONS } from '@/constants';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 
@@ -169,8 +169,9 @@ export default function EvoluirScreen() {
   return (
     <View style={styles.root}>
       <BrandHeader title="Evoluir rebanho" context={paddockName} onBack={() => router.back()} />
+      <KeyboardAvoider>
       <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {evolvableLots.length > 0 ? (
             <>
               <Text style={styles.label}>LOTES PRA EVOLUIR</Text>
@@ -306,6 +307,7 @@ export default function EvoluirScreen() {
           </View>
         )}
       </SafeAreaView>
+      </KeyboardAvoider>
     </View>
   );
 }

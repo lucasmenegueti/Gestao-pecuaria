@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDatabase } from '@/lib/db/provider';
-import { Card, Button, StatusPill, BrandHeader } from '@/components/ui';
+import { Card, Button, StatusPill, BrandHeader, KeyboardAvoider } from '@/components/ui';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 
 interface GrassRow {
@@ -62,7 +62,7 @@ export default function GrassTypesScreen() {
     <View style={styles.root}>
       <BrandHeader title="Tipos de capim" context="Configurações" onBack={() => router.back()} />
       <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {types.map((g) => (
             <Card key={g.id}>
               <View style={styles.itemHeader}>
@@ -88,8 +88,13 @@ export default function GrassTypesScreen() {
       </SafeAreaView>
 
       <Modal visible={modalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <KeyboardAvoider style={styles.modalOverlay}>
+          <ScrollView
+            style={styles.modalCard}
+            contentContainerStyle={styles.modalCardContent}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+          >
             <Text style={styles.modalTitle}>{editId ? 'Editar tipo' : 'Novo tipo de capim'}</Text>
             <Text style={styles.label}>Nome</Text>
             <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Ex: Mombaça" placeholderTextColor={NSA.inkDisabled} />
@@ -101,8 +106,8 @@ export default function GrassTypesScreen() {
               <Button title="Cancelar" variant="outline" onPress={() => setModalVisible(false)} style={{ flex: 1 }} />
               <Button title="Salvar" onPress={handleSave} style={{ flex: 1 }} />
             </View>
-          </View>
-        </View>
+          </ScrollView>
+        </KeyboardAvoider>
       </Modal>
     </View>
   );
@@ -119,7 +124,10 @@ const styles = StyleSheet.create({
   actionLink: { paddingVertical: 4 },
   actionText: { fontSize: 13, fontFamily: Fonts.semibold, color: NSA.green800 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15,15,13,0.5)', justifyContent: 'center', padding: 24 },
-  modalContent: { backgroundColor: NSA.bgElevated, borderRadius: Radius.xl, padding: 20 },
+  // Card rolável e limitado ao espaço livre — com o teclado aberto sobra pouca
+  // altura, e sem isso os últimos campos e o Salvar ficam cortados.
+  modalCard: { backgroundColor: NSA.bgElevated, borderRadius: Radius.xl, flexGrow: 0, maxHeight: '100%' },
+  modalCardContent: { padding: 20 },
   modalTitle: { fontSize: 18, fontFamily: Fonts.loraSemibold, color: NSA.inkPrimary, marginBottom: 14, letterSpacing: -0.3 },
   label: { fontSize: 12, fontFamily: Fonts.medium, color: NSA.inkSecondary, marginBottom: 4, marginTop: 12 },
   input: {

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Alert, TextInput } from 'react-nati
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDatabase } from '@/lib/db/provider';
-import { Card, Button, MultiChoice, SliderInput, SummaryRow, BrandHeader } from '@/components/ui';
+import { Card, Button, MultiChoice, SliderInput, SummaryRow, BrandHeader, KeyboardAvoider } from '@/components/ui';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 
 interface PaddockOption { id: number; name: string }
@@ -83,7 +83,7 @@ export default function MorteScreen() {
       <View style={styles.root}>
         <BrandHeader title="Confirmar morte" context="Rebanho" onBack={() => setReviewing(false)} />
         <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
             <Card borderColor={NSA.danger}>
               <SummaryRow label="Piquete" value={paddockName} />
               {selectedEntries.map(([cat, qty]) => (
@@ -118,8 +118,9 @@ export default function MorteScreen() {
   return (
     <View style={styles.root}>
       <BrandHeader title="Registrar morte" context="Rebanho" onBack={() => router.back()} />
+      <KeyboardAvoider>
       <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {!params.paddockId && (
             <>
               <Text style={styles.label}>PIQUETE</Text>
@@ -183,6 +184,7 @@ export default function MorteScreen() {
           )}
         </ScrollView>
       </SafeAreaView>
+      </KeyboardAvoider>
     </View>
   );
 }

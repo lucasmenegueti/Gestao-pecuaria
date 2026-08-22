@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search } from 'lucide-react-native';
 import { useDatabase } from '@/lib/db/provider';
 import { useRondaStore } from '@/stores/rondaStore';
-import { StatusPill, BrandHeader } from '@/components/ui';
+import { StatusPill, BrandHeader, KeyboardAvoider} from '@/components/ui';
 import { NSA, Fonts, Radius, tokensForStatus } from '@/theme/nsa';
 import { calculateSupplementDays, dailyConsumptionKg, piquetes } from '@/constants';
 import { formatDayMonth } from '@/lib/dates';
@@ -93,6 +93,7 @@ export default function RondaScreen() {
   return (
     <View style={styles.root}>
       <BrandHeader title="Ronda" context={`${piquetes(paddocks.length)} com gado`} />
+      <KeyboardAvoider>
       <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
         <View style={styles.searchBar}>
           <Search size={16} color={NSA.inkMuted} strokeWidth={1.75} style={{ marginLeft: 2 }} />
@@ -104,7 +105,7 @@ export default function RondaScreen() {
             placeholderTextColor={NSA.inkDisabled}
           />
         </View>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {filtered.map((p) => {
             const { status, message } = getStatus(p);
             const t = tokensForStatus(status);
@@ -138,6 +139,7 @@ export default function RondaScreen() {
           <View style={{ height: 20 }} />
         </ScrollView>
       </SafeAreaView>
+      </KeyboardAvoider>
     </View>
   );
 }

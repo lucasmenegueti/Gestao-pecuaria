@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDatabase } from '@/lib/db/provider';
-import { Card, Button, MultiChoice, SliderInput, SummaryRow, BrandHeader } from '@/components/ui';
+import { Card, Button, MultiChoice, SliderInput, SummaryRow, BrandHeader, KeyboardAvoider} from '@/components/ui';
 import { CATTLE_CATEGORIES, DEFAULT_WEIGHT_KG } from '@/constants';
 import { NSA, Fonts } from '@/theme/nsa';
 
@@ -69,8 +69,9 @@ export default function CompraScreen() {
     return (
       <View style={styles.root}>
         <BrandHeader title="Confirmar compra" context="Rebanho" onBack={() => setReviewing(false)} />
+        <KeyboardAvoider>
         <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
             <Card borderColor={NSA.ok}>
               <SummaryRow label="Categoria" value={categoryLabel} />
               <SummaryRow label="Quantidade" value={`${count} cab`} valueColor={NSA.ok} />
@@ -95,6 +96,7 @@ export default function CompraScreen() {
             />
           </ScrollView>
         </SafeAreaView>
+        </KeyboardAvoider>
       </View>
     );
   }
@@ -102,8 +104,9 @@ export default function CompraScreen() {
   return (
     <View style={styles.root}>
       <BrandHeader title="Comprar gado" context="Rebanho" onBack={() => router.back()} />
+      <KeyboardAvoider>
       <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <Text style={styles.label}>CATEGORIA</Text>
           <MultiChoice
             options={CATTLE_CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
@@ -137,6 +140,7 @@ export default function CompraScreen() {
           />
         </ScrollView>
       </SafeAreaView>
+      </KeyboardAvoider>
     </View>
   );
 }

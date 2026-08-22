@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDatabase } from '@/lib/db/provider';
-import { Card, Button, SliderInput, BrandHeader, StatusPill } from '@/components/ui';
+import { Card, Button, SliderInput, BrandHeader, StatusPill, KeyboardAvoider} from '@/components/ui';
 import { loadSettings, setSetting, classifyFenceWith, AppSettings } from '@/lib/settings';
 import { NSA, Fonts } from '@/theme/nsa';
 
@@ -64,7 +64,8 @@ export default function CercaConfigScreen() {
   return (
     <View style={styles.root}>
       <BrandHeader title="Cerca · voltagens" context="Configurações" onBack={() => router.back()} />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <KeyboardAvoider>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text style={styles.intro}>
           Define os thresholds de classificação do choque da cerca. Uma ronda classifica a
           voltagem medida comparando com estes valores.
@@ -101,6 +102,7 @@ export default function CercaConfigScreen() {
           disabled={saving}
         />
       </SafeAreaView>
+      </KeyboardAvoider>
     </View>
   );
 }

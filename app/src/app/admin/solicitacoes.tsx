@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronRight, X, Plus, Search } from 'lucide-react-native';
 import { useDatabase } from '@/lib/db/provider';
 import { useAuthStore } from '@/stores/authStore';
-import { Card, Button, StatusPill, BrandHeader } from '@/components/ui';
+import { Card, Button, StatusPill, BrandHeader, KeyboardAvoider } from '@/components/ui';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 import {
   listPendingRequests, createRequest, cancelRequest,
@@ -135,7 +135,7 @@ export default function SolicitacoesScreen() {
         }
       />
       <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {requests.length === 0 ? (
             <View style={styles.empty}>
               <StatusPill kind="ok">Sem solicitações pendentes</StatusPill>
@@ -172,7 +172,7 @@ export default function SolicitacoesScreen() {
 
       {/* Modal de criação */}
       <Modal visible={modalVisible} animationType="slide" transparent>
-        <View style={styles.modalBackdrop}>
+        <KeyboardAvoider style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Nova solicitação</Text>
@@ -181,7 +181,11 @@ export default function SolicitacoesScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ maxHeight: 520 }} contentContainerStyle={{ paddingBottom: 12 }}>
+            <ScrollView
+              style={{ flexShrink: 1 }}
+              contentContainerStyle={{ paddingBottom: 12 }}
+              keyboardShouldPersistTaps="handled"
+            >
               <View style={styles.fieldRow}>
                 <Text style={styles.fieldLabel}>
                   Piquetes{selectedPaddockIds.size > 0 ? ` · ${selectedPaddockIds.size} marcado${selectedPaddockIds.size === 1 ? '' : 's'}` : ''}
@@ -262,7 +266,7 @@ export default function SolicitacoesScreen() {
               </View>
             </View>
           </View>
-        </View>
+        </KeyboardAvoider>
       </Modal>
     </View>
   );
