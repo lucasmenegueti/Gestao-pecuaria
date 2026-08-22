@@ -189,6 +189,13 @@ export default function EvalMenuScreen() {
         title={store.currentPaddockName || 'Piquete'}
         context={context ? `Ronda · ${context}` : 'Ronda'}
         onBack={() => router.replace('/(tabs)/ronda')}
+        right={
+          // Segundo acesso à Ficha do Piquete. O mapa é o caminho principal, mas
+          // currais sem geometria (CF21–CF26) nunca desenham lá — e têm gado.
+          <TouchableOpacity onPress={() => router.push(`/piquete/${paddockId}/info`)} hitSlop={10}>
+            <Text style={styles.headerLink}>Informações</Text>
+          </TouchableOpacity>
+        }
       />
       <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
@@ -267,6 +274,7 @@ function Section({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: NSA.bg },
+  headerLink: { color: NSA.cream, fontSize: 13, fontFamily: Fonts.medium, opacity: 0.85 },
   scroll: { flex: 1 },
   scrollContent: { padding: 20, paddingBottom: 24 },
   sectionLabel: {

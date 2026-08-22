@@ -141,6 +141,12 @@ export default function MapaScreen() {
               {selected.area_hectares.toFixed(1)} ha · {selected.total_heads} cab
             </Text>
           </View>
+          <TouchableOpacity
+            style={styles.selectedBtnGhost}
+            onPress={() => router.push(`/piquete/${selected.id}/info`)}
+          >
+            <Text style={styles.selectedBtnGhostText}>Informações</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.selectedBtn} onPress={() => openPaddock(selected)}>
             <Text style={styles.selectedBtnText}>Abrir</Text>
           </TouchableOpacity>
@@ -219,6 +225,15 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
   },
   selectedBtnText: { color: NSA.cream, fontFamily: Fonts.semibold, fontSize: 13 },
+  selectedBtnGhost: {
+    backgroundColor: NSA.bgElevated,
+    borderWidth: 1.5,
+    borderColor: NSA.green800,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: Radius.lg,
+  },
+  selectedBtnGhostText: { color: NSA.green800, fontFamily: Fonts.semibold, fontSize: 13 },
   list: { flex: 0.38 },
   listContent: { paddingHorizontal: 16, paddingBottom: 24, paddingTop: 10 },
   listTitle: {

@@ -55,6 +55,7 @@ export default function RootLayout() {
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="ronda" />
+          <Stack.Screen name="piquete" />
           <Stack.Screen name="admin" />
           <Stack.Screen name="estoque" />
           <Stack.Screen name="reabastecimento" />

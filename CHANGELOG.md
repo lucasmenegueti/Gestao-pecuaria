@@ -6,6 +6,63 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.8.0 — "ficha do piquete" (2026-08-22)
+
+Tela nova de leitura: **Ficha do Piquete** (`piquete/[paddockId]/info`), com o retrato do piquete e do lote que está nele hoje. Chega por dois caminhos: botão **Informações** na barra de seleção do Mapa (o pedido original) e link no cabeçalho do menu de avaliação da ronda — este segundo porque **CF21–CF26 têm gado e não têm geometria**, então nunca desenham no mapa e ficariam inalcançáveis.
+
+**Cards:** Lote atual (entrada, composição, peso médio em @) · Consumo de suplemento · Desempenho (GMD, ganho em @) · Situação (última avaliação de cada seção) · Movimentações recentes. Cada bloco vira estado vazio ou some quando o dado não existe — **nenhum piquete da fazenda tem todas as métricas ao mesmo tempo**, então degradar bem é requisito, não detalhe.
+
+**Entrada do lote é por categoria, não por piquete.** Para cada categoria presente hoje, anda o ledger somando o saldo e guarda a última vez que ele saiu de zero. Pegar o evento de chegada mais recente erra feio: no T34 - P02 daria "há 4 dias" para um piquete ocupado desde 22/07. Dois detalhes que só os dados de produção expuseram:
+- **Saldo travado em zero.** O ledger fica negativo quando a mesma saída foi lançada duas vezes (P47, maio: 5 vacas paridas desalocadas *e* transferidas). Sem a trava, o negativo engolia a coorte de agosto e a entrada saía como "sem registro".
+- **Coorte herda através de `EVOLUCAO`.** O CF4 entrou como garrote em 01/06 e virou boi em 22/06 sem sair do lugar; sem a herança, um lote de 82 dias apareceria como recém-chegado só porque mudou de nome. A busca para *antes* do próprio evento de evolução — ele fecha a categoria de origem no mesmo evento em que abre a de destino.
+
+**O número em destaque é g/cabeça/dia**, não kg/dia — é o que se compara com o alvo do produto. O kg/dia do lote virou linha de apoio.
+
+**Bezerro mamando não entra no divisor.** Mama, não come do cocho. No P47 são 6 de 13 cabeças, o que separa 533 de 989 g/cab/dia. Quando o lote tem mamando, o card diz por quantas cabeças dividiu — senão o número parece brigar com o total do lote logo acima.
+
+**A régua é o alvo cadastrado na fórmula**, lido como g/cabeça/dia. Barra de 0 a 2× o alvo, faixa verde em ±20%; acima de 2× o marcador satura e o texto dá o múltiplo real. Fórmulas gravadas **abaixo de 1** são resquício da unidade antiga e não servem de régua — o código as descarta (`rawTarget >= 1`) e o card diz que não há alvo utilizável, em vez de acusar consumo de 4.000×.
+
+**1 @ = 30 kg de peso vivo**, convenção da fazenda. Vale para o peso médio por cabeça e para o ganho, e elimina a premissa de rendimento de carcaça que a versão anterior carregava. Efeito colateral: como são 30 kg por @ e ~30 dias no mês, o GMD em kg/dia é numericamente o ganho em @/mês.
+
+**Saíram da tela:** peso vivo total do lote e lotação (UA/ha e cab/ha) — ninguém olhava.
+
+**Consumo é ancorado nos abastecimentos, não em dias corridos.** Soma os sacos que foram pro cocho exceto os do último abastecimento e divide pelo intervalo entre o primeiro e o último — o último saco ainda não foi comido. Medido em produção (15 janelas com rebanho constante por 25+ dias, estimativa curta contra a do período inteiro):
+
+| estimador | janela | erro mediano |
+|---|---|---|
+| simples | 5 dias | 51% |
+| simples | 10 dias | 28% |
+| simples | 14 dias | 31% |
+| **ancorado** | **5 dias** | **22%** |
+
+Dois achados: esperar de 10 para 14 dias não compra nada (o que sobra de erro é o consumo variando de verdade), e o ancorado com 5 dias é melhor que o simples com 14. Por isso **a trava é 2 abastecimentos, não N dias** — critério que se ajusta sozinho ao tamanho do lote. Com menos de 4 abastecimentos o número sai marcado como "estimativa inicial". Amostra pequena com outliers pesados: são ordens de grandeza, não medida fina.
+
+**Consumo não aparece no confinamento.** O trato não passa pelo app, então qualquer número seria falso — o card some (não é estado vazio). Regra por tipo de capim: `Confinamento`.
+
+**Única referência externa que sobrou:** GMD mínimo de 0,4 kg/cab/dia para engorda a pasto. O consumo passou a ser medido contra o próprio cadastro.
+
+**Sem data de entrada, consumo e GMD são suprimidos.** Se o ledger não diz quando o gado chegou, a janela abriria pro histórico inteiro do piquete e a média misturaria lotes que já foram embora — número plausível e errado ao lado de "sem registro de entrada". O card explica o motivo em vez de mostrar a conta.
+
+**Ganho em arroba só quando o GMD é da mesma categoria.** `loadGmd` devolve a primeira categoria com 2+ pesagens, que nem sempre é a dominante; sem a guarda, um piquete misto imprimiria o ganho da categoria A a partir do peso da B.
+
+**Testado contra produção:** P47, CF4, NSA2 - P18 e T34 - P02, com `loadPaddockInfo` real rodando sobre um stub alimentado com `herd_events`, `supplement_evals`, `visual_weight_evals` e a última avaliação de cada seção, todos reais — entrada, dias, cabeças, peso em @/cab, kg/dia, cabeças contadas no consumo, g/cab, alvo da fórmula, razão contra o alvo, nº de abastecimentos, GMD, ganho em @ e a ordenação da Situação conferem. Mais um caso sintético (gado no `herd`, ledger vazio) cobrindo a supressão acima. Foi esse teste que achou os dois bugs de coorte. Os nomes de coluna das nove queries de Situação foram conferidos contra o `CREATE TABLE` de `schema.ts` — `tsc` não enxerga SQL em template literal, e o erro apareceria como tela branca. `tsc` limpo.
+
+**Conhecido — não corrigido nesta versão:**
+- **O nome da coluna do alvo mente.** `formulas.target_g_per_kg_body_day` e o rótulo em Configurações dizem "g/kg de peso vivo/dia"; o cadastro real da fazenda é **g por cabeça/dia**. Renomear coluna + rótulo é a correção limpa; até lá, o comentário em `paddock-info.ts` é o que guarda a semântica. (Uma versão anterior deste changelog afirmava que o campo estava errado por ~100× em 24 bombonas — isso partia do nome da coluna e estava invertido.)
+- **Duas fórmulas com alvo abaixo de 1**, resquício da unidade antiga: "Probeef Reprodução" com `0,25` — em **4 bombonas** — e "Probeef Topmost Golden" com `0,5`, hoje sem bombona. Nesses piquetes a Ficha mostra "sem alvo utilizável" em vez de uma razão absurda, mas o cadastro segue errado e o alerta do Painel continua usando o valor cru.
+- **Pesagem fica no piquete, não segue o lote.** Não existe entidade de lote — é o conteúdo de `herd` naquele piquete. Lote que muda de piquete recomeça sem GMD. Seguir entre piquetes exigiria identificador de lote.
+- **Forragem tem 1 registro em toda a base** (30/05). A linha aparece como "nunca avaliado", de propósito.
+
+**Não validado em device.** O Expo Go do estágio 1 não chegou a rodar: o QA ficou com dados parciais (rebanho e ledger reais, sem rondas nem avaliações) e a rede do local de teste isolava os aparelhos. Subiu direto para produção a pedido do Lucas, ciente disso. A mudança é aditiva — tela nova atrás de dois botões novos — e o rollback é uma linha.
+
+**Escopo:** 100% JS → **OTA**, sem rebuild. As rotas novas de `expo-router` e o `Stack.Screen name="piquete"` são registro em JS; nada nativo mudou.
+
+**No ar (OTA, 2026-08-22):** runtime `1.0.1`, android+ios. Production update group `454c042d-a275-404b-9185-b3e8d9d53cd2`.
+
+**Fallback:** `git checkout v0.7.17` e republicar com `eas update --branch production --environment production`.
+
+---
+
 ## v0.7.17 — "teclado não cobre mais campo nem botão" (2026-08-21)
 
 Reportado em Configurações › Formulações: com o teclado numérico aberto, "Estoque mínimo" e o botão Salvar ficavam embaixo dele, sem como rolar. O app **não tinha nenhum `KeyboardAvoidingView`** — o problema existia em toda tela com campo, não só nessa.
