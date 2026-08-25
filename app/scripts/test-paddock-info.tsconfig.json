@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2019",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "baseUrl": "/Users/lucasmenegueti/Documents/Claude-code-workspace/gestao-pecuaria/app",
+    "paths": { "@/*": ["./src/*"] },
+    "outDir": "/private/tmp/claude-501/-Users-lucasmenegueti-Documents-Claude-code-workspace-gestao-pecuaria/04d4c2f5-6872-4db2-9d58-f032d7248edf/scratchpad/build",
+    "rootDir": "/Users/lucasmenegueti/Documents/Claude-code-workspace/gestao-pecuaria/app/src"
+  },
+  "files": [
+    "/Users/lucasmenegueti/Documents/Claude-code-workspace/gestao-pecuaria/app/src/lib/paddock-info.ts"
+  ]
+}
