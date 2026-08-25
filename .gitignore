@@ -66,3 +66,6 @@ como-usar/src/screens-admin-backup/
 
 # Saídas de auditoria de rebanho (geradas por scripts/audit-herd.mjs)
 app/audit-herd-*.xlsx
+
+# Local Netlify folder
+.netlify

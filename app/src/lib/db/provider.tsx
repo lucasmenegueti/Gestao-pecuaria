@@ -6,7 +6,7 @@ import { setLogDb, logInfo, logWarn } from '@/lib/log';
 // Deixar seed local criaria duplicatas / conflitos ao sincronizar.
 
 const DB_NAME = 'gestao_pecuaria.db';
-const SCHEMA_VERSION = 23;
+const SCHEMA_VERSION = 24;
 
 const DatabaseContext = createContext<SQLite.SQLiteDatabase | null>(null);
 
@@ -225,6 +225,10 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           // SYNCED). `key` continua UNIQUE — settings.ts não muda.
           // DBs que boot-aram em v22 com a PK antiga (key) precisam dropar.
           await database.execAsync('DROP TABLE IF EXISTS app_settings;');
+        }
+        if (currentVersion < 24) {
+          // v24: schedule_projects + schedule_tasks (cronograma de atividades).
+          // Tabelas novas — CREATE_TABLES_SQL cria com IF NOT EXISTS. Nada a dropar.
         }
         if (currentVersion < 21) {
           // v21: Reset pra produção — Supabase foi limpo (migration

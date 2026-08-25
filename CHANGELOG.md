@@ -6,6 +6,36 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.9.0 — "cronograma de atividades" (2026-08-25)
+
+Aba nova, **admin-only**: **Cronograma** (`(tabs)/cronograma.tsx`). Board de tarefas × dias no formato do cronograma do `gestao-agricultura`, com o eixo trocado — lá a linha é o talhão; aqui é a **tarefa**, agrupada sob uma **macro-atividade** (projeto). Ex.: *Montar ILP no T33* → comprar vergalhões · fazer projeto · colocar encanamento. *Estação de cria 26-7* → comprar sêmen · marcar com veterinário · inseminar.
+
+**Nada é ligado a piquete.** `location` é texto livre porque o lugar pode ser um talhão da agricultura, a sede, ou nada — FK pra `paddocks` estaria errada.
+
+**Gestos** (portados verbatim da agricultura): arrastar a barra move o período e grava direto, sem abrir editor; arrastar a borda redimensiona; tocar abre o editor; arrastar no vazio de uma linha define o período (na linha do projeto, cria tarefa; na da tarefa, redefine a dela). No touch, criar/mover exigem long-press de 220ms — arraste solto rola o board. **"+"** no cabeçalho do projeto cria a tarefa na hora e já abre o nome pra digitar; tocar no nome do projeto ou da tarefa renomeia ali, sem abrir tela.
+
+**A borda de resize é 18px no touch** (11px no mouse). O valor da agricultura foi pensado pro mouse: com o dedo, mirar 11px falha e você move a barra inteira em vez de esticar.
+
+**Tabelas novas: `schedule_projects` + `schedule_tasks`** (`SCHEMA_VERSION` 23 → 24, aditivo — nada é dropado). Quatro adaptações que a diferença entre os dois apps obrigou:
+- **Sem `client_id`** — o bloco `SYNC` da pecuária não tem essa coluna.
+- **`author_id`, não `created_by`** — `created_by` está em `REMOTE_ONLY_COLS` e é descartada no pull; quem criou apareceria só no aparelho de origem.
+- **Nenhuma coluna JSON** — o engine daqui não tem `JSON_COLS` (só `geometry`). Responsável virou `assignee` texto livre e o engine não foi tocado.
+- **`order_index` como coluna**, não JSON em `app_settings`.
+
+**Migration aplicada em QA e produção** (nesta ordem), espelhando `inspection_requests`: trigger `tg_set_updated_at` (é o cursor do delta) e RLS no padrão de `app_settings` — leitura autenticada, escrita `is_admin()`. **A migration tem que preceder o OTA**: exceção em qualquer tabela no `pullDelta` impede `last_pull_at` de avançar para todas, o que congelaria o sync de todo mundo.
+
+**Web publicada:** https://nsa-gestao-pecuaria.netlify.app — build de produção (aponta pro Worker), `_redirects` pro roteamento SPA e `_headers` com COOP/COEP (o wa-sqlite precisa em OPFS). ⚠️ `expo export` ignora `--environment production` e carrega o `.env` local: o primeiro build saiu apontando pro QA. Buildar web com `EXPO_NO_DOTENV=1` **e conferir o bundle** (`grep` da URL) antes de publicar. O `eas update` não tem esse problema — verificado comparando o hash do launchAsset com e sem `.env` presente: idêntico.
+
+**Validado em device** (iPhone, Expo Go): a tela renderiza, criar projeto e tarefa funciona. **O que não fechou foi o round-trip de sync** — e por um problema **anterior a esta feature**: o app estava falando com o Supabase como anônimo (pull zerado em todas as 26 tabelas, push barrado por RLS). O `authStore` fora de `offlineMode` mas sem sessão no supabase-js, estado que `hydrateSessionIfNeeded` (`daemon.ts:53`) não recupera porque só re-autentica quando `offlineMode === true`; logout + login online contorna. Subiu para produção a pedido do Lucas, ciente disso. A mudança é aditiva e a aba é invisível pro peão.
+
+**Escopo:** 100% JS + schema local → **OTA**, sem rebuild.
+
+**No ar (OTA, 2026-08-25):** runtime `1.0.1`, android+ios. Production update group `7b0b4f75-34aa-4ec5-a863-16a58b6d69e2`.
+
+**Fallback:** `git checkout v0.8.0` e republicar com `eas update --branch production --environment production`. As tabelas novas podem ficar no banco — nada as lê fora do cronograma.
+
+---
+
 ## v0.8.0 — "ficha do piquete" (2026-08-22)
 
 Tela nova de leitura: **Ficha do Piquete** (`piquete/[paddockId]/info`), com o retrato do piquete e do lote que está nele hoje. Chega por dois caminhos: botão **Informações** na barra de seleção do Mapa (o pedido original) e link no cabeçalho do menu de avaliação da ronda — este segundo porque **CF21–CF26 têm gado e não têm geometria**, então nunca desenham no mapa e ficariam inalcançáveis.

@@ -69,7 +69,8 @@ Mudanças de JS/TS/assets/JSON (incluindo `.env` que vira `process.env.EXPO_PUBL
 ```
 app/src/app/
 ├── (auth)/login.tsx              Auth gate (first login online, cached after)
-├── (tabs)/                       6 tabs: index(Painel)/ronda/rebanho/estoque/mapa/relatorio
+├── (tabs)/                       7 tabs: index(Painel)/ronda/rebanho/estoque/mapa/relatorio/cronograma
+│                                 (rebanho, relatorio e cronograma só pra admin — `href: null` esconde)
 ├── ronda/[paddockId]/
 │   ├── menu.tsx                  Menu de Avaliação — usa <BottomNav/>
 │   └── {supplement,bombona,forage,water,biological,health,fence,weight,washing}/
@@ -119,6 +120,15 @@ Primitivos reusáveis = design system. Não introduzir novos estilos de botão/i
 - `calculateStockingRate(heads, ha)` → cab/ha
 - `calculateForageAverage(m1, m2, m3)` → média das 3 medidas de altura
 - `classifyFenceWith(volts, settings.fence)` (em `lib/settings.ts`) → FORTE ≥4000 / ADEQUADO ≥2000 / FRACO ≥1 / SEM CHOQUE =0 — limites configuráveis via `app_settings`
+
+### Cronograma (`(tabs)/cronograma.tsx`, admin-only)
+
+Board de **tarefas × dias**, portado do `gestao-agricultura` com o eixo trocado: lá a linha é o talhão, aqui é a **tarefa**, agrupada sob uma **macro-atividade** (`schedule_projects` → `schedule_tasks`). **Nada é ligado a piquete** — `location` é texto livre porque o lugar pode ser um talhão da agricultura, a sede, ou nada. Tarefas ordenam por `start_date` (a ordem natural de uma lista de passos é a data), com `order_index` só de desempate.
+
+- **`author_id`, nunca `created_by`**: `created_by` está em `REMOTE_ONLY_COLS` (`engine.ts`) e é descartada no pull — quem criou apareceria só no aparelho de origem.
+- **Invariantes de touch portados verbatim** (bugs vc7–vc9 da agricultura, causa provada em emulador): container com `onMoveShouldSetPanResponder: false` (senão rouba o tap da barra-filha no 1º micro-move), barra com `onPanResponderTerminationRequest: () => false`, ambos com `onShouldBlockNativeResponder: () => false` (senão o board não rola), `scrollLock` desligando os 2 ScrollViews durante o drag armado, tap de 12px no touch / 5px no mouse. **Não "limpar".**
+- **Exceção consciente às UX Principles**: alvos de 26px e texto de 10px. É tela de admin no escritório, não do peão com luva. Mesmo desvio já aceito na agricultura.
+- Detalhes e pendências: `BRIEFING-cronograma-pecuaria.md`.
 
 ### Ronda sections
 

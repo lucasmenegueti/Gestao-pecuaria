@@ -26,6 +26,7 @@ const MUTABLE_TABLES = [
   'grass_types', 'formulas', 'paddocks', 'water_tanks', 'farm_boundaries',
   'herd', 'inventory', 'inspection_requests',
   'resupply_routes', 'resupply_loads',
+  'schedule_projects', 'schedule_tasks',
   'app_settings',
 ];
 
@@ -337,6 +338,50 @@ CREATE TABLE IF NOT EXISTS inspection_requests (
 CREATE INDEX IF NOT EXISTS idx_insp_req_paddock_status ON inspection_requests(paddock_id, status);
 CREATE INDEX IF NOT EXISTS idx_insp_req_status ON inspection_requests(status);
 
+-- =====================================================================
+-- CRONOGRAMA (admin-only; board de tarefas × dias) — v0.9.0
+-- =====================================================================
+-- O cronograma da pecuária é por ATIVIDADE, não por piquete: cada projeto é uma
+-- macro-atividade ("Montar ILP no T33", "Estação de cria 26-7") e as tarefas são
+-- os passos dela ("comprar vergalhões", "inseminar"). Nada aqui referencia
+-- paddocks — o location é texto livre, porque o lugar pode ser um talhão da
+-- agricultura, a sede, ou nada.
+--
+-- author_id guarda quem criou. NÃO renomear pra created_by: essa coluna está
+-- em REMOTE_ONLY_COLS (engine.ts) e é descartada no pull — o nome apareceria só
+-- no aparelho que criou o registro.
+CREATE TABLE IF NOT EXISTS schedule_projects (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  color TEXT,                                  -- hex #RRGGBB herdado pelas barras
+  location TEXT,                               -- texto livre: "T33", "Sede", "P47"
+  status TEXT NOT NULL DEFAULT 'ativo',        -- ativo | concluido | cancelado
+  order_index INTEGER NOT NULL DEFAULT 0,      -- ordem manual no board
+  notes TEXT,
+  author_id TEXT,${SYNC}
+);
+
+-- Cada tarefa é uma barra do board (start_date..end_date) e uma linha da coluna
+-- esquerda, sob o cabeçalho do projeto. include_saturday/include_sunday dizem se
+-- o fim de semana conta na duração (o editor converte duração ↔ end_date).
+CREATE TABLE IF NOT EXISTS schedule_tasks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  start_date TEXT NOT NULL,                    -- ISO yyyy-mm-dd
+  end_date TEXT NOT NULL,                      -- ISO yyyy-mm-dd (>= start_date)
+  status TEXT NOT NULL DEFAULT 'planejado',    -- planejado | em_andamento | feito | cancelado
+  assignee TEXT,                               -- quem executa (texto livre)
+  order_index INTEGER NOT NULL DEFAULT 0,      -- ordem dentro do projeto
+  include_saturday INTEGER NOT NULL DEFAULT 1,
+  include_sunday INTEGER NOT NULL DEFAULT 1,
+  notes TEXT,
+  author_id TEXT,${SYNC},
+  FOREIGN KEY (project_id) REFERENCES schedule_projects(id)
+);
+CREATE INDEX IF NOT EXISTS idx_sched_tasks_project ON schedule_tasks(project_id, order_index);
+CREATE INDEX IF NOT EXISTS idx_sched_tasks_dates ON schedule_tasks(start_date, end_date);
+
 -- app_settings: chave-valor pra configurações (voltagens de cerca, limiares de alertas).
 -- Todos os values são TEXT; caller faz JSON.parse ou Number() conforme o tipo.
 -- Defaults populados via INSERT OR IGNORE — só entram na primeira criação da tabela.
@@ -447,6 +492,8 @@ export const SYNCED_TABLES = [
     { col: 'formula_id', table: 'formulas' },
   ] },
   { name: 'inspection_requests', appendOnly: false, fkCols: [{ col: 'paddock_id', table: 'paddocks' }] },
+  { name: 'schedule_projects', appendOnly: false, fkCols: [] },
+  { name: 'schedule_tasks', appendOnly: false, fkCols: [{ col: 'project_id', table: 'schedule_projects' }] },
   { name: 'app_settings', appendOnly: false, fkCols: [] },
 ] as const;
 

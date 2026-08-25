@@ -2,7 +2,7 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LayoutDashboard, Footprints, Beef, Package, Map as MapIcon, ClipboardList } from 'lucide-react-native';
+import { LayoutDashboard, Footprints, Beef, Package, Map as MapIcon, ClipboardList, CalendarRange } from 'lucide-react-native';
 import { NSA, Fonts } from '@/theme/nsa';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -13,6 +13,7 @@ const ICON_BY_NAME = {
   estoque: Package,
   mapa: MapIcon,
   relatorio: ClipboardList,
+  cronograma: CalendarRange,
 } as const;
 
 function Icon({ name, focused }: { name: keyof typeof ICON_BY_NAME; focused: boolean }) {
@@ -22,7 +23,7 @@ function Icon({ name, focused }: { name: keyof typeof ICON_BY_NAME; focused: boo
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
-  // Peão: vê Painel/Ronda/Estoque/Mapa. Rebanho e Relatório só pra admin.
+  // Peão: vê Painel/Ronda/Estoque/Mapa. Rebanho, Relatório e Cronograma só pra admin.
   const isAdmin = useAuthStore((s) => s.user?.role === 'admin');
   // expo-router: apenas href:null esconde a tab. Combinar com tabBarButton dispara
   // runtime error "Cannot use href and tabBarButton together" no Android — derruba app.
@@ -84,6 +85,13 @@ export default function TabLayout() {
         options={isAdmin ? {
           title: 'Relatório',
           tabBarIcon: ({ focused }) => <Icon name="relatorio" focused={focused} />,
+        } : hidden}
+      />
+      <Tabs.Screen
+        name="cronograma"
+        options={isAdmin ? {
+          title: 'Crono',
+          tabBarIcon: ({ focused }) => <Icon name="cronograma" focused={focused} />,
         } : hidden}
       />
     </Tabs>
