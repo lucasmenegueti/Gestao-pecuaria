@@ -1,0 +1,377 @@
+/* Print rules + layout do tutorial.
+   Tudo medido em mm pra resultado consistente em A4. */
+
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
+* { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  color: var(--grey-800);
+  background: var(--cream);
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============ PAGE ============ */
+.page {
+  width: 210mm;
+  height: 297mm;
+  padding: 18mm 18mm 16mm;
+  page-break-after: always;
+  position: relative;
+  overflow: hidden;
+}
+.page:last-child { page-break-after: auto; }
+
+.page--dark { background: var(--green-800); color: var(--cream); padding: 0; }
+
+/* ============ COVER ============ */
+.cover {
+  width: 100%; height: 100%;
+  padding: 38mm 22mm 22mm;
+  display: flex; flex-direction: column;
+  background: var(--green-800); color: var(--cream);
+}
+.cover__brand {
+  text-align: center;
+  letter-spacing: 0.5em;
+  font-size: 9pt;
+  font-weight: 500;
+  color: var(--cream);
+  opacity: 0.85;
+  margin-bottom: 36mm;
+}
+.cover__title {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: 46pt;
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+  text-align: center;
+  margin: 0 0 10mm;
+}
+.cover__title .accent { color: var(--green-accent); }
+.cover__subtitle {
+  text-align: center;
+  font-size: 14pt;
+  color: var(--cream);
+  opacity: 0.85;
+  margin-bottom: 28mm;
+}
+.cover__lede {
+  text-align: center;
+  font-size: 10.5pt;
+  line-height: 1.6;
+  color: var(--cream);
+  opacity: 0.75;
+  max-width: 130mm;
+  margin: 0 auto;
+}
+.cover__footer {
+  margin-top: auto;
+  text-align: center;
+  letter-spacing: 0.4em;
+  font-size: 8.5pt;
+  font-weight: 500;
+  color: var(--cream);
+  opacity: 0.7;
+}
+
+/* ============ HEADER / FOOTER ============ */
+.page__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 9pt;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  color: var(--green-800);
+  border-bottom: 1.5px solid var(--green-800);
+  padding-bottom: 4mm;
+  margin-bottom: 8mm;
+}
+.page__header .pagenum {
+  letter-spacing: 0;
+  color: var(--grey-500);
+  font-weight: 500;
+}
+.page__footer {
+  position: absolute;
+  bottom: 8mm; left: 18mm; right: 18mm;
+  text-align: center;
+  letter-spacing: 0.4em;
+  font-size: 7.5pt;
+  color: var(--grey-500);
+  font-weight: 500;
+}
+
+/* ============ TITLE ROW (heading + pill) ============ */
+.title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4mm;
+}
+.title-row h1 {
+  font-family: var(--font-sans);
+  font-size: 28pt;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--green-900);
+  line-height: 1;
+}
+.pill {
+  display: inline-block;
+  padding: 4px 14px 6px;
+  border-radius: 999px;
+  background: var(--green-900);
+  color: var(--cream);
+  font-size: 18pt;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+.subtitle {
+  font-size: 11pt;
+  color: var(--grey-600);
+  margin: 0 0 8mm;
+  line-height: 1.45;
+}
+
+/* ============ TWO-COLUMN STEP ============ */
+.step {
+  display: grid;
+  grid-template-columns: 1fr 78mm;
+  gap: 10mm;
+  align-items: start;
+  margin-bottom: 8mm;
+}
+.step--reverse { grid-template-columns: 78mm 1fr; }
+.step__num {
+  width: 14mm; height: 14mm;
+  border-radius: 50%;
+  background: var(--green-900);
+  color: var(--cream);
+  font-weight: 700;
+  font-size: 16pt;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4mm;
+}
+.step__text h2 {
+  font-size: 16pt;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0 0 3mm;
+  color: var(--green-900);
+}
+.step__text p {
+  font-size: 10.5pt;
+  line-height: 1.5;
+  margin: 0 0 3mm;
+  color: var(--grey-800);
+}
+.step__text strong { font-weight: 600; }
+.step__text ul { padding-left: 5mm; margin: 0 0 3mm; }
+.step__text li {
+  font-size: 10.5pt;
+  line-height: 1.5;
+  margin-bottom: 1mm;
+}
+
+/* ============ DEVICE FRAME ============ */
+.device {
+  width: 100%;
+  border: 1.5px solid var(--green-900);
+  border-radius: 14px;
+  padding: 6px;
+  background: var(--cream);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04);
+}
+.device img {
+  width: 100%;
+  display: block;
+  border-radius: 8px;
+}
+.device--small { max-width: 60mm; }
+
+/* ============ CALLOUTS ============ */
+.callout {
+  padding: 5mm 6mm;
+  border-radius: 4px;
+  margin: 0 0 4mm;
+  font-size: 10pt;
+  line-height: 1.5;
+}
+.callout--dark {
+  background: var(--green-900);
+  color: var(--cream);
+}
+.callout--dark h3 {
+  font-size: 13pt;
+  font-weight: 700;
+  margin: 0 0 2mm;
+}
+.callout--warn {
+  background: transparent;
+  border: 1.5px dashed var(--warning);
+  color: var(--grey-800);
+}
+.callout--warn h3 {
+  font-size: 11pt;
+  font-weight: 700;
+  margin: 0 0 2mm;
+  color: var(--warning);
+}
+.callout--info {
+  background: transparent;
+  border: 1.5px dashed var(--green-700);
+  color: var(--grey-800);
+}
+.callout--info h3 {
+  font-size: 11pt;
+  font-weight: 700;
+  margin: 0 0 2mm;
+  color: var(--green-800);
+}
+
+/* ============ CHECK LIST ============ */
+.check {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 4mm;
+}
+.check li {
+  display: flex;
+  gap: 8px;
+  font-size: 10.5pt;
+  margin-bottom: 2mm;
+  line-height: 1.4;
+}
+.check li::before {
+  content: "✓";
+  color: var(--success);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* ============ FAQ ============ */
+.faq { margin-bottom: 5mm; }
+.faq h3 {
+  font-size: 12pt;
+  font-weight: 700;
+  margin: 0 0 2mm;
+  color: var(--green-900);
+  border-left: 3px solid var(--green-800);
+  padding-left: 4mm;
+}
+.faq p {
+  font-size: 10pt;
+  line-height: 1.5;
+  margin: 0 0 3mm;
+  color: var(--grey-700, #363632);
+  padding-left: 4mm;
+}
+
+/* ============ TOC ============ */
+.toc { margin-top: 4mm; }
+.toc__title {
+  font-family: var(--font-sans);
+  font-size: 26pt;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0 0 8mm;
+  color: var(--green-900);
+}
+.toc__list { list-style: none; padding: 0; margin: 0; }
+.toc__list li {
+  display: flex;
+  align-items: baseline;
+  gap: 4mm;
+  padding: 3mm 0;
+  border-bottom: 1px solid var(--grey-200);
+  font-size: 12pt;
+}
+.toc__num {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14pt;
+  color: var(--green-800);
+  min-width: 14mm;
+}
+.toc__label {
+  flex: 1;
+  color: var(--green-900);
+  font-weight: 500;
+}
+.toc__label a { color: inherit; text-decoration: none; }
+.toc__dots {
+  flex: 0 1 30mm;
+  border-bottom: 1.5px dotted var(--grey-300);
+  transform: translateY(-4px);
+}
+.toc__page {
+  color: var(--grey-500);
+  font-variant-numeric: tabular-nums;
+  font-size: 10pt;
+}
+
+/* ============ SECTION OPENER ============ */
+.opener {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  padding: 24mm 22mm;
+  background: var(--green-800);
+  color: var(--cream);
+}
+.opener__kicker {
+  letter-spacing: 0.5em;
+  font-size: 9pt;
+  font-weight: 500;
+  opacity: 0.8;
+  margin-bottom: 12mm;
+}
+.opener__num {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 90pt;
+  line-height: 0.9;
+  color: var(--green-accent);
+  margin-bottom: 6mm;
+}
+.opener__title {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: 42pt;
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+  margin: 0 0 10mm;
+}
+.opener__lede {
+  font-size: 12pt;
+  line-height: 1.55;
+  opacity: 0.85;
+  max-width: 130mm;
+}
+
+/* ============ UTILITY ============ */
+.small { font-size: 9pt; color: var(--grey-500); }
+.muted { color: var(--grey-500); }
+.center { text-align: center; }
+.no-margin { margin: 0; }
+.mt-4 { margin-top: 8mm; }
+
+/* full-width device for landscape-ish screens */
+.device--full { max-width: none; }

@@ -1,0 +1,25 @@
+/* NSA design tokens — extraídos de nsa-design-system/project/colors_and_type.css */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Lora:wght@600;700&display=swap');
+
+:root {
+  --green-900: #0c1609;
+  --green-800: #172514;
+  --green-700: #1f3520;
+  --green-500: #3f6340;
+  --green-accent: #C8E0A0;       /* verde claro do título da capa do Posto */
+  --cream:      #FFFFE3;
+  --cream-dim:  #FAFAD8;
+  --grey-800:   #1f1f1c;
+  --grey-600:   #54544f;
+  --grey-500:   #787873;
+  --grey-400:   #a8a8a2;
+  --grey-300:   #d2d2cd;
+  --grey-200:   #e5e5e1;
+  --warning:    #b88217;
+  --warning-bg: #faf1dc;
+  --success:    #2e8c4f;
+  --danger:     #c0392b;
+
+  --font-sans:    'Inter', -apple-system, sans-serif;
+  --font-display: 'Lora', Georgia, serif;
+}
