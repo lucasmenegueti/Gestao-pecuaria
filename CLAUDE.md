@@ -49,6 +49,22 @@ Toda alteração passa por 3 estágios, **nessa ordem**. Não pular — cada um 
 
 Mudanças de JS/TS/assets/JSON (incluindo `.env` que vira `process.env.EXPO_PUBLIC_*` inlined no bundle) podem ir via OTA: `eas env:update` + `eas update --branch <preview|production>`. Devices baixam na próxima abertura. Mudanças nativas (app.json `permissions`/`plugins`, novas dependências com código nativo, `runtimeVersion` bump) **exigem** `eas build`. Regra: se `npx expo prebuild` geraria `android/`/`ios/` diferentes, é build. Senão, é update.
 
+### Web (Netlify) — https://nsa-gestao-pecuaria.netlify.app
+
+Build de produção da web + republicação (de `app/`):
+
+```bash
+EXPO_NO_DOTENV=1 npx eas-cli env:exec production \
+  "npx expo export --platform web --output-dir dist --clear" --non-interactive
+grep -c "nsa-supa.lucas-cf1.workers.dev" dist/_expo/static/js/web/entry-*.js  # tem que dar 1
+grep -c "zmetxajiimsclhuhaykv" dist/_expo/static/js/web/entry-*.js            # tem que dar 0
+npx netlify-cli deploy --prod --dir dist --site e635475a-b815-4b63-882e-5a771cdb1c34 --no-build
+```
+
+**`expo export` ignora o `--environment production` e carrega o `.env` local** — que aponta pro QA. Sem `EXPO_NO_DOTENV=1` o site de produção sai falando com o QA, silenciosamente. O `--clear` também é obrigatório: sem ele o Metro reusa o módulo já compilado com a env anterior. **Sempre conferir o bundle com os dois `grep` antes de publicar.** O `eas update` **não** tem esse problema (verificado comparando o hash do launchAsset com e sem `.env` presente).
+
+`app/public/_redirects` (fallback SPA do expo-router) e `app/public/_headers` (COOP/COEP, que o wa-sqlite exige pra OPFS) são copiados pro `dist` pelo próprio export — não deletar.
+
 ## Known gotchas
 
 - **`expo-sqlite` + Web**: requer `.wasm` como bundled asset. `app/metro.config.js` adiciona `wasm` a `resolver.assetExts`. Não remover — SQLite web worker falha em resolver `wa-sqlite.wasm`.
