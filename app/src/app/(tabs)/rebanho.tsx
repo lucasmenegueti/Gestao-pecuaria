@@ -167,7 +167,8 @@ export default function RebanhoScreen() {
             const pair = isPairLot(h.categories);
             const hasParent = h.categories.some((c) =>
               c.category === 'VACA PARIDA' || c.category === 'VACA PRENHA' ||
-              c.category === 'VACA SOLTEIRA' || c.category === 'NOVILHA'
+              c.category === 'VACA SOLTEIRA' || c.category === 'NOVILHA' ||
+              c.category === 'NOVILHA PRENHA'
             );
             const expanded = expandedId === h.paddock_id;
             return (
@@ -225,12 +226,26 @@ export default function RebanhoScreen() {
                         style={styles.actionBtn}
                       />
                     </View>
+                    <Button
+                      title="Consumo"
+                      variant="outline"
+                      onPress={() => router.push(`/admin/consumo?paddockId=${h.paddock_id}`)}
+                    />
                     {hasParent && (
-                      <Button
-                        title="Nascimentos"
-                        variant="outline"
-                        onPress={() => router.push(`/admin/nascimento?paddockId=${h.paddock_id}`)}
-                      />
+                      <View style={styles.actionGrid}>
+                        <Button
+                          title="Nascimentos"
+                          variant="outline"
+                          onPress={() => router.push(`/admin/nascimento?paddockId=${h.paddock_id}`)}
+                          style={styles.actionBtn}
+                        />
+                        <Button
+                          title="Aborto"
+                          variant="outline"
+                          onPress={() => router.push(`/admin/aborto?paddockId=${h.paddock_id}`)}
+                          style={styles.actionBtn}
+                        />
+                      </View>
                     )}
                   </View>
                 )}

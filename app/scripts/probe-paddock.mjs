@@ -95,7 +95,7 @@ for (const e of events) {
   } else if (e.event_type === 'EVOLUCAO') {
     // EVOLUCAO no mesmo piquete: troca de categoria. precisa de target_category — pula
   } else {
-    const sign = { COMPRA: +1, NASCIMENTO: +1, ALOCACAO: +1, VENDA: -1, MORTE: -1, DESALOCACAO: -1 }[e.event_type] ?? 0;
+    const sign = { COMPRA: +1, NASCIMENTO: +1, ALOCACAO: +1, VENDA: -1, MORTE: -1, DESALOCACAO: -1, CONSUMO: -1 }[e.event_type] ?? 0;
     if (e.paddock_id) {
       const k = `${e.paddock_id}|${cat}`;
       simul.set(k, (simul.get(k) ?? 0) + sign * e.head_count);

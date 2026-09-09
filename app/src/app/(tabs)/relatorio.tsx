@@ -79,6 +79,8 @@ const HERD_EVENT_LABELS: Record<string, { label: string; color: 'ok' | 'warn' | 
   TRANSFERENCIA: { label: 'Transferência', color: 'neutral' },
   NASCIMENTO: { label: 'Nascimento', color: 'ok' },
   MORTE: { label: 'Morte', color: 'danger' },
+  ABORTO: { label: 'Aborto', color: 'danger' },
+  CONSUMO: { label: 'Consumo', color: 'warn' },
   VENDA: { label: 'Venda', color: 'warn' },
   COMPRA: { label: 'Compra', color: 'ok' },
   EVOLUCAO: { label: 'Evolução', color: 'ok' },

@@ -65,8 +65,8 @@ if (hErr) { console.error('herd:', hErr.message); process.exit(1); }
 // --- agrega delta por categoria ---
 const SIGN = {
   COMPRA: +1, NASCIMENTO: +1, ALOCACAO: +1,
-  VENDA: -1, MORTE: -1, DESALOCACAO: -1,
-  TRANSFERENCIA: 0, EVOLUCAO: 0,
+  VENDA: -1, MORTE: -1, DESALOCACAO: -1, CONSUMO: -1,
+  TRANSFERENCIA: 0, EVOLUCAO: 0, ABORTO: 0,
 };
 const deltaByCat = new Map();
 const deltaTotal = { in: 0, out: 0, neutral: 0 };
@@ -135,7 +135,7 @@ for (const h of herd) {
 // --- consolidado ---
 console.log('\n=== DELTA TOTAL por sinal ===');
 console.log(`+ entradas (COMPRA/NASCIMENTO/ALOCACAO): ${deltaTotal.in} cab`);
-console.log(`- saídas   (VENDA/MORTE/DESALOCACAO):    ${deltaTotal.out} cab`);
+console.log(`- saídas   (VENDA/MORTE/DESALOCACAO/CONSUMO): ${deltaTotal.out} cab`);
 console.log(`= neutros  (TRANSFERENCIA/EVOLUCAO):     ${deltaTotal.neutral} movimentos`);
 console.log(`Delta líquido no rebanho:                ${deltaTotal.in - deltaTotal.out} cab`);
 

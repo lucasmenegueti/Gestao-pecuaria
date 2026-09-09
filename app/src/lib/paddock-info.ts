@@ -66,8 +66,9 @@ interface Delta {
  * Convenções do ledger (ver as telas em `app/admin/`):
  *  - TRANSFERENCIA: `paddock_id` é a origem, `target_paddock_id` o destino.
  *  - ALOCACAO: vem do pool (`paddock_id` NULL) pro `target_paddock_id`.
- *  - DESALOCACAO / MORTE: saem do `paddock_id`.
+ *  - DESALOCACAO / MORTE / CONSUMO: saem do `paddock_id`.
  *  - NASCIMENTO: entra no `paddock_id`.
+ *  - ABORTO: indicador reprodutivo, não mexe no rebanho — cai no `default`.
  *  - EVOLUCAO: fica no mesmo piquete e troca a categoria — `category` é a de
  *    origem e `notes` traz "ORIGEM → DESTINO" (com sufixo " · obs" opcional).
  *  - COMPRA / VENDA: sempre no pool, nunca tocam piquete.
@@ -96,6 +97,7 @@ function toDeltas(
         break;
       case 'DESALOCACAO':
       case 'MORTE':
+      case 'CONSUMO':
         if (isSource) out.push({ date: e.date, category: e.category, delta: -e.head_count, evt });
         break;
       case 'EVOLUCAO': {
@@ -686,6 +688,9 @@ function toMoves(
         break;
       case 'MORTE':
         if (isSource) out.push({ date: e.date, direction: 'out', text: `Morreram ${n} · ${cat}` });
+        break;
+      case 'CONSUMO':
+        if (isSource) out.push({ date: e.date, direction: 'out', text: `Consumo ${n} · ${cat}` });
         break;
       case 'EVOLUCAO': {
         if (!isSource) break;

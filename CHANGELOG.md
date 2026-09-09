@@ -6,6 +6,23 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.10.0 — "aborto e consumo" (2026-09-09)
+
+Dois eventos novos de rebanho, pedidos pra estação de nascimentos:
+
+- **Aborto** (`admin/aborto.tsx`) — indicador reprodutivo puro. Grava `herd_events` tipo `ABORTO` com a categoria da **matriz** (vaca/novilha presente no piquete) e quantidade; **não mexe no inventário** — a matriz continua contada, e a mudança de categoria (prenha → solteira), se fizer sentido, é via Evoluir. Botão ao lado de "Nascimentos" no card expandido do piquete (aba Rebanho), visível só onde há matriz — o check de matriz agora inclui `NOVILHA PRENHA`, que faltava.
+- **Consumo** (`admin/consumo.tsx`) — abate pra consumo próprio. Mesmo fluxo de Mortes (quantidade por categoria + observação opcional), mas grava tipo `CONSUMO` e usa tom âmbar (saída planejada, não perda). Dá baixa no rebanho igual à morte. Botão "Consumo" no card expandido de todo piquete com gado.
+
+Pra ledger e relatórios não divergirem: `CONSUMO` entra como saída em `paddock-info.ts` (`toDeltas` + `toMoves`) e nos mapas de sinal de `scripts/history-herd.mjs` e `scripts/probe-paddock.mjs`; `ABORTO` fica de fora de propósito (não é movimento). `relatorio.tsx` ganhou os dois rótulos. Sem migration: `herd_events.event_type` é TEXT livre local e no Supabase (conferido — sem CHECK constraint), e a tabela já sincroniza append-only.
+
+**Validação:** `npx tsc --noEmit` limpo + harness `test-paddock-info` (só falharam os 4 checks de "dias no piquete", drift de data das fixtures de 22/08 — desvio constante de 18 dias, pré-existente). A pedido do Lucas, subiu **direto pra produção** sem passar por Expo Go/APK (JS-only, telas novas isoladas + botões).
+
+**Escopo:** 100% JS → **OTA** + web.
+
+**Fallback:** `git checkout v0.9.0` e republicar com `eas update --branch production --environment production`. Eventos `ABORTO`/`CONSUMO` já gravados podem ficar — versões antigas os ignoram (switch com `default` e label fallback).
+
+---
+
 ## v0.9.0 — "cronograma de atividades" (2026-08-25)
 
 Aba nova, **admin-only**: **Cronograma** (`(tabs)/cronograma.tsx`). Board de tarefas × dias no formato do cronograma do `gestao-agricultura`, com o eixo trocado — lá a linha é o talhão; aqui é a **tarefa**, agrupada sob uma **macro-atividade** (projeto). Ex.: *Montar ILP no T33* → comprar vergalhões · fazer projeto · colocar encanamento. *Estação de cria 26-7* → comprar sêmen · marcar com veterinário · inseminar.
