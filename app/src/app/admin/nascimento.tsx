@@ -9,7 +9,7 @@ import { NSA, Fonts, Radius } from '@/theme/nsa';
 interface PaddockOption { id: number; name: string; has_parents: number }
 
 // Nascimento só faz sentido em piquete com VACA ou NOVILHA.
-const PARENT_CATEGORIES = ['VACA PARIDA', 'VACA PRENHA', 'VACA SOLTEIRA', 'NOVILHA'];
+const PARENT_CATEGORIES = ['VACA PARIDA', 'VACA PRENHA', 'VACA SOLTEIRA', 'NOVILHA', 'NOVILHA PRENHA'];
 const CALF_OPTIONS = [
   { value: 'BEZERRO MAMANDO', label: 'Bezerro mamando (macho)' },
   { value: 'BEZERRA MAMANDO', label: 'Bezerra mamando (fêmea)' },

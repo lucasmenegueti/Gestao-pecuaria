@@ -10,7 +10,7 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 Dois eventos novos de rebanho, pedidos pra estação de nascimentos:
 
-- **Aborto** (`admin/aborto.tsx`) — indicador reprodutivo puro. Grava `herd_events` tipo `ABORTO` com a categoria da **matriz** (vaca/novilha presente no piquete) e quantidade; **não mexe no inventário** — a matriz continua contada, e a mudança de categoria (prenha → solteira), se fizer sentido, é via Evoluir. Botão ao lado de "Nascimentos" no card expandido do piquete (aba Rebanho), visível só onde há matriz — o check de matriz agora inclui `NOVILHA PRENHA`, que faltava.
+- **Aborto** (`admin/aborto.tsx`) — indicador reprodutivo puro. Grava `herd_events` tipo `ABORTO` com a categoria da **matriz** (vaca/novilha presente no piquete) e quantidade; **não mexe no inventário** — a matriz continua contada, e a mudança de categoria (prenha → solteira), se fizer sentido, é via Evoluir. Botão ao lado de "Nascimentos" no card expandido do piquete (aba Rebanho), visível só onde há matriz — o check de matriz agora inclui `NOVILHA PRENHA`, que faltava (e `nascimento.tsx` ganhou `NOVILHA PRENHA` em `PARENT_CATEGORIES` pelo mesmo motivo: novilha prenha pare, e sem isso o botão "Nascimentos" apontaria pra uma tela que não acha o piquete).
 - **Consumo** (`admin/consumo.tsx`) — abate pra consumo próprio. Mesmo fluxo de Mortes (quantidade por categoria + observação opcional), mas grava tipo `CONSUMO` e usa tom âmbar (saída planejada, não perda). Dá baixa no rebanho igual à morte. Botão "Consumo" no card expandido de todo piquete com gado.
 
 Pra ledger e relatórios não divergirem: `CONSUMO` entra como saída em `paddock-info.ts` (`toDeltas` + `toMoves`) e nos mapas de sinal de `scripts/history-herd.mjs` e `scripts/probe-paddock.mjs`; `ABORTO` fica de fora de propósito (não é movimento). `relatorio.tsx` ganhou os dois rótulos. Sem migration: `herd_events.event_type` é TEXT livre local e no Supabase (conferido — sem CHECK constraint), e a tabela já sincroniza append-only.
@@ -18,6 +18,8 @@ Pra ledger e relatórios não divergirem: `CONSUMO` entra como saída em `paddoc
 **Validação:** `npx tsc --noEmit` limpo + harness `test-paddock-info` (só falharam os 4 checks de "dias no piquete", drift de data das fixtures de 22/08 — desvio constante de 18 dias, pré-existente). A pedido do Lucas, subiu **direto pra produção** sem passar por Expo Go/APK (JS-only, telas novas isoladas + botões).
 
 **Escopo:** 100% JS → **OTA** + web.
+
+**No ar (OTA, 2026-09-09):** runtime `1.0.1`, android+ios. Production update group `40541275-5540-46e1-b806-5ccd53721a3f`. Web: https://nsa-gestao-pecuaria.netlify.app.
 
 **Fallback:** `git checkout v0.9.0` e republicar com `eas update --branch production --environment production`. Eventos `ABORTO`/`CONSUMO` já gravados podem ficar — versões antigas os ignoram (switch com `default` e label fallback).
 
