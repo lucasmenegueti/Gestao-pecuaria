@@ -74,7 +74,7 @@ export function Sidebar({ username, role, pendenciasPreco = 0 }: Props) {
   return (
     <>
       <header
-        className="sticky top-0 z-30 flex items-center gap-3 bg-nsa-green-800 px-4 text-fg-inverse md:hidden"
+        className="sticky top-0 z-30 flex items-center gap-3 bg-nsa-green-800 px-4 text-fg-inverse md:hidden print:hidden"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         <div className="flex h-14 w-full items-center gap-3">
@@ -111,7 +111,7 @@ export function Sidebar({ username, role, pendenciasPreco = 0 }: Props) {
 
       <aside
         className={
-          'fixed left-0 top-0 z-50 flex h-dvh w-[232px] flex-shrink-0 flex-col bg-nsa-green-800 text-fg-inverse transition-transform duration-200 md:sticky md:top-0 md:translate-x-0 ' +
+          'fixed left-0 top-0 z-50 flex h-dvh w-[232px] flex-shrink-0 flex-col bg-nsa-green-800 text-fg-inverse transition-transform duration-200 md:sticky md:top-0 md:translate-x-0 print:hidden ' +
           (open ? 'translate-x-0' : '-translate-x-full')
         }
         style={{

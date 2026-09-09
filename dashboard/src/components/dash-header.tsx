@@ -1,4 +1,5 @@
 import { PeriodPicker } from './period-picker';
+import { PrintButton } from './print-button';
 import type { Period } from '@/lib/period';
 
 export function DashHeader({
@@ -22,7 +23,10 @@ export function DashHeader({
           {period.kind === 'custom' ? '' : null}
         </p>
       </div>
-      <PeriodPicker value={period.kind} />
+      <div className="flex items-center gap-2 print:hidden">
+        <PrintButton />
+        <PeriodPicker value={period.kind} />
+      </div>
     </div>
   );
 }

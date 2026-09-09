@@ -1,4 +1,5 @@
 import { AlertCard, Card, EmptyState, KPICard, StatusPill } from '@/components/ui-primitives';
+import { PrintButton } from '@/components/print-button';
 import { loadNascimentosData } from '@/lib/nascimentos';
 import { getSessionOrRedirect } from '@/lib/auth/session-server';
 import { Baby } from 'lucide-react';
@@ -28,16 +29,19 @@ export default async function NascimentosPage() {
     <main className="px-4 py-6 md:px-8 md:py-8">
       {/* A estação de cria não cabe no recorte de período das outras abas:
           aqui a janela é sempre do primeiro parto registrado até hoje. */}
-      <div className="mb-6">
-        <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">
-          Pecuária · estação de cria
-        </p>
-        <h1 className="mt-1 text-h2 font-semibold tracking-tight text-fg md:text-h1">Nascimentos</h1>
-        <p className="mt-1 text-small text-fg-muted">
-          {c.inicioEstacao
-            ? `Estação inteira — do primeiro parto registrado (${fmtData(c.inicioEstacao)}) até hoje`
-            : 'Nenhum nascimento registrado no app de campo ainda'}
-        </p>
+      <div className="mb-6 flex items-end justify-between gap-4">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">
+            Pecuária · estação de cria
+          </p>
+          <h1 className="mt-1 text-h2 font-semibold tracking-tight text-fg md:text-h1">Nascimentos</h1>
+          <p className="mt-1 text-small text-fg-muted">
+            {c.inicioEstacao
+              ? `Estação inteira — do primeiro parto registrado (${fmtData(c.inicioEstacao)}) até hoje`
+              : 'Nenhum nascimento registrado no app de campo ainda'}
+          </p>
+        </div>
+        <PrintButton />
       </div>
 
       {c.eventosDuplicados > 0 ? (
