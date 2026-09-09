@@ -13,6 +13,13 @@ interface CategoryRow { category: string; head_count: number }
 // o inventário não rastreia prenhez com precisão, então qualquer vaca/novilha vale.
 const PARENT_CATEGORIES = ['VACA PARIDA', 'VACA PRENHA', 'VACA SOLTEIRA', 'NOVILHA', 'NOVILHA PRENHA'];
 
+// Quem aborta deixa de estar prenha: a matriz evolui junto com o registro
+// (mesma convenção do Evoluir — evento EVOLUCAO com "ORIGEM → DESTINO" nas notes).
+const POST_ABORT: Record<string, string> = {
+  'VACA PRENHA': 'VACA SOLTEIRA',
+  'NOVILHA PRENHA': 'NOVILHA',
+};
+
 export default function AbortoScreen() {
   const db = useDatabase();
   const params = useLocalSearchParams<{ paddockId?: string }>();
@@ -59,13 +66,38 @@ export default function AbortoScreen() {
     submittingRef.current = true;
     setSubmitting(true);
     try {
-      // Só o evento: o aborto é indicador reprodutivo, a matriz continua no
-      // inventário. Mudança de categoria (prenha → solteira) é via Evoluir.
-      await db.runAsync(
-        `INSERT INTO herd_events (paddock_id, event_type, category, head_count, notes, date)
-         VALUES (?, 'ABORTO', ?, ?, ?, date('now','localtime'))`,
-        [Number(paddockId), category, count, notes.trim() || null]
-      );
+      // O aborto é indicador reprodutivo: a matriz continua no inventário.
+      // Mas prenha que aborta vira solteira — a evolução sai na mesma transação.
+      const to = POST_ABORT[category];
+      await db.withTransactionAsync(async () => {
+        await db.runAsync(
+          `INSERT INTO herd_events (paddock_id, event_type, category, head_count, notes, date)
+           VALUES (?, 'ABORTO', ?, ?, ?, date('now','localtime'))`,
+          [Number(paddockId), category, count, notes.trim() || null]
+        );
+        if (!to) return;
+        await db.runAsync(
+          'UPDATE herd SET head_count = MAX(0, head_count - ?) WHERE paddock_id = ? AND category = ?',
+          [count, Number(paddockId), category]
+        );
+        const existing = await db.getFirstAsync<{ id: number }>(
+          'SELECT id FROM herd WHERE paddock_id = ? AND category = ?',
+          [Number(paddockId), to]
+        );
+        if (existing) {
+          await db.runAsync('UPDATE herd SET head_count = head_count + ? WHERE id = ?', [count, existing.id]);
+        } else {
+          await db.runAsync(
+            'INSERT INTO herd (paddock_id, category, head_count) VALUES (?, ?, ?)',
+            [Number(paddockId), to, count]
+          );
+        }
+        await db.runAsync(
+          `INSERT INTO herd_events (paddock_id, event_type, category, head_count, notes, date)
+           VALUES (?, 'EVOLUCAO', ?, ?, ?, date('now','localtime'))`,
+          [Number(paddockId), category, count, `${category} → ${to} · aborto`]
+        );
+      });
       if (router.canGoBack()) router.back();
       else router.replace('/(tabs)/rebanho');
     } catch (err: any) {
@@ -139,8 +171,13 @@ export default function AbortoScreen() {
                 <SummaryRow label="Piquete" value={paddockName} />
                 <SummaryRow label="Matriz" value={category ?? '—'} />
                 <SummaryRow label="Abortos" value={`${count}`} valueColor={NSA.dangerFg} />
+                {category && POST_ABORT[category] ? (
+                  <SummaryRow label="Após o registro" value={`${category} → ${POST_ABORT[category]}`} />
+                ) : null}
                 <Text style={styles.note}>
-                  A matriz continua no inventário — nada é descontado. Se a categoria mudar (prenha → solteira), use Evoluir.
+                  {category && POST_ABORT[category]
+                    ? `A matriz continua no inventário — só muda de categoria: quem aborta deixa de estar prenha e vira ${POST_ABORT[category]!.toLowerCase()}.`
+                    : 'A matriz continua no inventário — nada é descontado.'}
                 </Text>
               </Card>
 
