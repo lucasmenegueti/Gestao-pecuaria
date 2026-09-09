@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
   AlertTriangle,
+  Baby,
   BarChart3,
   Beef,
   ClipboardCheck,
@@ -33,6 +34,7 @@ const NAV: ReadonlyArray<NavItemDef> = [
   { href: '/talhoes', label: 'Talhões', icon: Grid2x2, group: 'Pecuária' },
   { href: '/mapa', label: 'Mapa', icon: Map, group: 'Pecuária' },
   { href: '/rebanho', label: 'Rebanho', icon: Beef, group: 'Pecuária' },
+  { href: '/nascimentos', label: 'Nascimentos', icon: Baby, group: 'Pecuária' },
   { href: '/estoque', label: 'Estoque', icon: Package, group: 'Pecuária' },
   { href: '/consumo', label: 'Consumo & Custo', icon: Wheat, group: 'Pecuária' },
   { href: '/equipe', label: 'Equipe', icon: Users, group: 'Operação' },
