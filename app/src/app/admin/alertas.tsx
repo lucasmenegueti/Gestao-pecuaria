@@ -53,6 +53,18 @@ export default function AlertasConfigScreen() {
       Alert.alert('Erro', 'Em sanidade: warn deve ser menor que danger.');
       return;
     }
+    if (s.rondaAtrasada.enabled && s.rondaAtrasada.warnDays >= s.rondaAtrasada.dangerDays) {
+      Alert.alert('Erro', 'Em ronda atrasada: warn deve ser menor que danger.');
+      return;
+    }
+    if (s.rotaAberta.enabled && s.rotaAberta.warnDays >= s.rotaAberta.dangerDays) {
+      Alert.alert('Erro', 'Em rota aberta: warn deve ser menor que danger.');
+      return;
+    }
+    if (s.sync.enabled && s.sync.warnHours >= s.sync.dangerHours) {
+      Alert.alert('Erro', 'Em sincronização: warn deve ser menor que danger.');
+      return;
+    }
     setSaving(true);
     try {
       await setSetting(db, 'alert.bombona.enabled', s.bombona.enabled);
@@ -73,6 +85,16 @@ export default function AlertasConfigScreen() {
       await setSetting(db, 'alert.desalocados.enabled', s.desalocados.enabled);
       await setSetting(db, 'alert.biologico.enabled', s.biologico.enabled);
       await setSetting(db, 'alert.biologico.weekday', s.biologico.weekday);
+      await setSetting(db, 'alert.ronda_atrasada.enabled', s.rondaAtrasada.enabled);
+      await setSetting(db, 'alert.ronda_atrasada.warn_days', s.rondaAtrasada.warnDays);
+      await setSetting(db, 'alert.ronda_atrasada.danger_days', s.rondaAtrasada.dangerDays);
+      await setSetting(db, 'alert.rota_aberta.enabled', s.rotaAberta.enabled);
+      await setSetting(db, 'alert.rota_aberta.warn_days', s.rotaAberta.warnDays);
+      await setSetting(db, 'alert.rota_aberta.danger_days', s.rotaAberta.dangerDays);
+      await setSetting(db, 'alert.sync.enabled', s.sync.enabled);
+      await setSetting(db, 'alert.sync.warn_hours', s.sync.warnHours);
+      await setSetting(db, 'alert.sync.danger_hours', s.sync.dangerHours);
+      await setSetting(db, 'alert.bombona_ledger.enabled', s.bombonaLedger.enabled);
       router.back();
     } catch (err: any) {
       Alert.alert('Erro', err?.message ?? 'Falha ao salvar.');
@@ -164,6 +186,50 @@ export default function AlertasConfigScreen() {
               activeColor={NSA.danger}
             />
             <Text style={styles.hint}>Cerca "não evita mistura" sempre gera danger (não é configurável).</Text>
+          </Card>
+        )}
+
+        {/* RONDA ATRASADA */}
+        <SectionHeader title="Ronda atrasada" enabled={s.rondaAtrasada.enabled} onToggle={(v) => patch('rondaAtrasada', { ...s.rondaAtrasada, enabled: v })} />
+        {s.rondaAtrasada.enabled && (
+          <Card>
+            <Label text="WARN · piquete com gado sem ronda há ≥ dias" />
+            <SliderInput value={s.rondaAtrasada.warnDays} onValueChange={(v) => patch('rondaAtrasada', { ...s.rondaAtrasada, warnDays: v })} min={1} max={14} step={1} unit="dias" />
+            <Label text="DANGER · ≥ dias" style={{ marginTop: 10 }} />
+            <SliderInput value={s.rondaAtrasada.dangerDays} onValueChange={(v) => patch('rondaAtrasada', { ...s.rondaAtrasada, dangerDays: v })} min={Math.min(30, s.rondaAtrasada.warnDays + 1)} max={30} step={1} unit="dias" />
+            <Text style={styles.hint}>Conta dias corridos desde a última avaliação gravada. Warn de 4 dias absorve fim de semana sem ronda.</Text>
+          </Card>
+        )}
+
+        {/* ROTA ABERTA */}
+        <SectionHeader title="Rota de reabastecimento aberta" enabled={s.rotaAberta.enabled} onToggle={(v) => patch('rotaAberta', { ...s.rotaAberta, enabled: v })} />
+        {s.rotaAberta.enabled && (
+          <Card>
+            <Label text="WARN · rota aberta há ≥ dias" />
+            <SliderInput value={s.rotaAberta.warnDays} onValueChange={(v) => patch('rotaAberta', { ...s.rotaAberta, warnDays: v })} min={1} max={14} step={1} unit="dias" />
+            <Label text="DANGER · ≥ dias" style={{ marginTop: 10 }} />
+            <SliderInput value={s.rotaAberta.dangerDays} onValueChange={(v) => patch('rotaAberta', { ...s.rotaAberta, dangerDays: v })} min={Math.min(30, s.rotaAberta.warnDays + 1)} max={30} step={1} unit="dias" />
+            <Text style={styles.hint}>Rota esquecida em andamento prende os sacos "no trator" e some das outras telas.</Text>
+          </Card>
+        )}
+
+        {/* SINCRONIZAÇÃO */}
+        <SectionHeader title="Sincronização parada" enabled={s.sync.enabled} onToggle={(v) => patch('sync', { ...s.sync, enabled: v })} />
+        {s.sync.enabled && (
+          <Card>
+            <Label text="WARN · sem sync há ≥ horas" />
+            <SliderInput value={s.sync.warnHours} onValueChange={(v) => patch('sync', { ...s.sync, warnHours: v })} min={1} max={72} step={1} unit="h" />
+            <Label text="DANGER · ≥ horas" style={{ marginTop: 10 }} />
+            <SliderInput value={s.sync.dangerHours} onValueChange={(v) => patch('sync', { ...s.sync, dangerHours: v })} min={Math.min(96, s.sync.warnHours + 1)} max={96} step={1} unit="h" />
+            <Text style={styles.hint}>O daemon sincroniza sozinho — se passou tanto tempo sem, algo travou. A barra do Painel muda de cor.</Text>
+          </Card>
+        )}
+
+        {/* BOMBONA COM CONTA PERDIDA */}
+        <SectionHeader title="Bombona com conta perdida" enabled={s.bombonaLedger.enabled} onToggle={(v) => patch('bombonaLedger', { enabled: v })} />
+        {s.bombonaLedger.enabled && (
+          <Card>
+            <Text style={styles.hint}>Saiu mais ração pro cocho do que a bombona recebeu — o saldo não é confiável. Só a contagem da ronda de Bombona corrige. Visível só pro admin.</Text>
           </Card>
         )}
 

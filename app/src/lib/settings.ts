@@ -25,6 +25,18 @@ export const DEFAULT_SETTINGS = {
   'alert.desalocados.enabled': 1,
   'alert.biologico.enabled': 1,
   'alert.biologico.weekday': 4, // 0=dom ... 4=qui (default) ... 6=sáb
+  // Staleness: warn < danger (quanto maior o atraso, pior). O warn de 4 dias
+  // absorve fim de semana sem ronda (cadência real: mediana 1 dia, p90 3).
+  'alert.ronda_atrasada.enabled': 1,
+  'alert.ronda_atrasada.warn_days': 4,
+  'alert.ronda_atrasada.danger_days': 7,
+  'alert.rota_aberta.enabled': 1,
+  'alert.rota_aberta.warn_days': 1,
+  'alert.rota_aberta.danger_days': 3,
+  'alert.sync.enabled': 1,
+  'alert.sync.warn_hours': 12,
+  'alert.sync.danger_hours': 48,
+  'alert.bombona_ledger.enabled': 1,
 } as const;
 
 export type SettingKey = keyof typeof DEFAULT_SETTINGS;
@@ -39,6 +51,10 @@ export interface AppSettings {
   cerca: { enabled: boolean; warnClassifications: string[]; dangerClassifications: string[] };
   desalocados: { enabled: boolean };
   biologico: { enabled: boolean; weekday: number };
+  rondaAtrasada: { enabled: boolean; warnDays: number; dangerDays: number };
+  rotaAberta: { enabled: boolean; warnDays: number; dangerDays: number };
+  sync: { enabled: boolean; warnHours: number; dangerHours: number };
+  bombonaLedger: { enabled: boolean };
 }
 
 function num(v: string | undefined, def: number): number {
@@ -104,6 +120,24 @@ export async function loadSettings(db: SQLite.SQLiteDatabase): Promise<AppSettin
     biologico: {
       enabled: bool(m['alert.biologico.enabled'], DEFAULT_SETTINGS['alert.biologico.enabled']),
       weekday: Math.min(6, Math.max(0, num(m['alert.biologico.weekday'], DEFAULT_SETTINGS['alert.biologico.weekday']))),
+    },
+    rondaAtrasada: {
+      enabled: bool(m['alert.ronda_atrasada.enabled'], DEFAULT_SETTINGS['alert.ronda_atrasada.enabled']),
+      warnDays: num(m['alert.ronda_atrasada.warn_days'], DEFAULT_SETTINGS['alert.ronda_atrasada.warn_days']),
+      dangerDays: num(m['alert.ronda_atrasada.danger_days'], DEFAULT_SETTINGS['alert.ronda_atrasada.danger_days']),
+    },
+    rotaAberta: {
+      enabled: bool(m['alert.rota_aberta.enabled'], DEFAULT_SETTINGS['alert.rota_aberta.enabled']),
+      warnDays: num(m['alert.rota_aberta.warn_days'], DEFAULT_SETTINGS['alert.rota_aberta.warn_days']),
+      dangerDays: num(m['alert.rota_aberta.danger_days'], DEFAULT_SETTINGS['alert.rota_aberta.danger_days']),
+    },
+    sync: {
+      enabled: bool(m['alert.sync.enabled'], DEFAULT_SETTINGS['alert.sync.enabled']),
+      warnHours: num(m['alert.sync.warn_hours'], DEFAULT_SETTINGS['alert.sync.warn_hours']),
+      dangerHours: num(m['alert.sync.danger_hours'], DEFAULT_SETTINGS['alert.sync.danger_hours']),
+    },
+    bombonaLedger: {
+      enabled: bool(m['alert.bombona_ledger.enabled'], DEFAULT_SETTINGS['alert.bombona_ledger.enabled']),
     },
   };
 }

@@ -424,7 +424,19 @@ INSERT OR IGNORE INTO app_settings (key, value) VALUES
   -- Se, a partir do último dia agendado, algum piquete com gado não recebeu
   -- biológico (applied=1), gera warn. Alerta só sai quando é aplicado.
   ('alert.biologico.enabled', '1'),
-  ('alert.biologico.weekday', '4');
+  ('alert.biologico.weekday', '4'),
+  -- Staleness (warn < danger; atraso maior = pior). Ronda: warn 4 absorve fim
+  -- de semana sem ronda. Sync: horas desde o último ciclo bem-sucedido.
+  ('alert.ronda_atrasada.enabled', '1'),
+  ('alert.ronda_atrasada.warn_days', '4'),
+  ('alert.ronda_atrasada.danger_days', '7'),
+  ('alert.rota_aberta.enabled', '1'),
+  ('alert.rota_aberta.warn_days', '1'),
+  ('alert.rota_aberta.danger_days', '3'),
+  ('alert.sync.enabled', '1'),
+  ('alert.sync.warn_hours', '12'),
+  ('alert.sync.danger_hours', '48'),
+  ('alert.bombona_ledger.enabled', '1');
 
 -- activity_log: registro de cada ação do app + resposta do servidor.
 -- Usado p/ debug e rastreamento. Rolling window (últimas 1000 entries).

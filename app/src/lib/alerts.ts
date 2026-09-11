@@ -1,7 +1,7 @@
 import type * as SQLite from 'expo-sqlite';
 import { SUPPLEMENT_EXCLUDED_CATEGORIES } from '@/constants';
 import { loadSettings } from '@/lib/settings';
-import { loadBombonaExpectations, loadMeasuredConsumption } from '@/lib/bombona';
+import { loadBombonaExpectations, loadMeasuredConsumption, daysBetween } from '@/lib/bombona';
 
 // Alertas agregados pra o Painel. Cada função é autônoma e retorna lista pronta.
 // Todas as seções podem ficar vazias — UI mostra "Sem alertas" quando for o caso.
@@ -9,7 +9,7 @@ import { loadBombonaExpectations, loadMeasuredConsumption } from '@/lib/bombona'
 export interface RondaIssue {
   paddockName: string;
   paddockId: number;
-  kind: 'agua' | 'sanidade' | 'cerca' | 'biologico';
+  kind: 'agua' | 'sanidade' | 'cerca' | 'biologico' | 'ronda_atrasada';
   detail: string;
   severity: 'warning' | 'danger';
 }
@@ -35,6 +35,25 @@ export interface CentralLowEntry {
   severity: 'warning' | 'danger';
 }
 
+export interface OpenRouteEntry {
+  routeId: number;
+  daysOpen: number;
+  severity: 'warning' | 'danger';
+}
+
+export interface BombonaLedgerEntry {
+  paddockId: number;
+  paddockName: string;
+  formulaName: string;
+}
+
+export interface HerdKpi {
+  totalHeads: number;
+  paddocksWithCattle: number;
+  /** Cabeças alocadas ÷ hectares dos piquetes com gado. 0 sem área. */
+  cabPerHa: number;
+}
+
 export interface AlertsData {
   /** Piquetes com gado que receberam ≥1 avaliação hoje (completa OU incompleta). */
   rondasToday: number;
@@ -48,6 +67,14 @@ export interface AlertsData {
   desalocatedTotal: number;
   bombonas: BombonaRisk[];
   central: CentralLowEntry[];
+  /** Rotas de reabastecimento abertas há tempo demais (guarda contra rota fantasma). */
+  rotasAbertas: OpenRouteEntry[];
+  /** Horas desde o último sync bem-sucedido, quando acima do limiar. */
+  syncStale: { hours: number; severity: 'warning' | 'danger' } | null;
+  /** Bombonas cujo ledger ficou negativo — o sistema perdeu a conta (admin). */
+  bombonasSemConta: BombonaLedgerEntry[];
+  /** Números do rebanho pro painel do admin. */
+  herdKpi: HerdKpi;
 }
 
 function todayIsoDate(): string {
@@ -266,6 +293,53 @@ export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData>
     }
   }
 
+  // --- Ronda: piquete com gado sem ronda há N dias ---
+  // "Ronda" = pelo menos 1 avaliação gravada. MAX(rondas.date) não serve:
+  // abrir o menu já INSERTa uma ronda vazia (menu.tsx), que seria um falso
+  // "visitei". A régua conta dias corridos; o warn default (4) absorve fim de
+  // semana sem ronda.
+  if (settings.rondaAtrasada.enabled) {
+    const lastEvalRows = await db.getAllAsync<{
+      paddock_id: number; paddock_name: string; last_eval: string | null;
+    }>(`
+      WITH evald AS (
+        SELECT ronda_id FROM supplement_evals WHERE deleted_at IS NULL
+        UNION SELECT ronda_id FROM bombona_evals WHERE deleted_at IS NULL
+        UNION SELECT ronda_id FROM forage_evals WHERE deleted_at IS NULL
+        UNION SELECT ronda_id FROM water_evals WHERE deleted_at IS NULL
+        UNION SELECT ronda_id FROM health_evals WHERE deleted_at IS NULL
+        UNION SELECT ronda_id FROM fence_evals WHERE deleted_at IS NULL
+        UNION SELECT ronda_id FROM visual_weight_evals WHERE deleted_at IS NULL
+        UNION SELECT ronda_id FROM washing_evals WHERE deleted_at IS NULL
+        UNION SELECT ronda_id FROM biological_water_evals WHERE deleted_at IS NULL
+      )
+      SELECT p.id AS paddock_id, p.name AS paddock_name, MAX(r.date) AS last_eval
+      FROM paddocks p
+      JOIN herd h ON h.paddock_id = p.id AND h.head_count > 0
+      LEFT JOIN rondas r ON r.paddock_id = p.id AND r.id IN (SELECT ronda_id FROM evald)
+      WHERE p.active = 1
+      GROUP BY p.id
+      ORDER BY p.name
+    `);
+    for (const row of lastEvalRows) {
+      if (!row.last_eval) {
+        ronda.push({
+          paddockId: row.paddock_id, paddockName: row.paddock_name,
+          kind: 'ronda_atrasada', detail: 'nunca registrada', severity: 'warning',
+        });
+        continue;
+      }
+      const days = daysBetween(row.last_eval, today);
+      if (days < settings.rondaAtrasada.warnDays) continue;
+      ronda.push({
+        paddockId: row.paddock_id, paddockName: row.paddock_name,
+        kind: 'ronda_atrasada',
+        detail: `atrasada há ${days} dias`,
+        severity: days >= settings.rondaAtrasada.dangerDays ? 'danger' : 'warning',
+      });
+    }
+  }
+
   // --- Rebanho: gado desalocado ---
 
   let desalocated: DesalocatedEntry[] = [];
@@ -304,14 +378,26 @@ export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData>
   };
 
   const bombonas: BombonaRisk[] = [];
-  if (settings.bombona.enabled) {
+  const bombonasSemConta: BombonaLedgerEntry[] = [];
+  if (settings.bombona.enabled || settings.bombonaLedger.enabled) {
     // Quanto ainda tem: ledger da Suplementação (fonte única em lib/bombona.ts).
     // Quanto dura: consumo do lote deste piquete. Antes o "quanto ainda tem"
     // também era estimado pelo consumo — o alerta e a ronda derivavam o saldo
     // por caminhos diferentes e podiam discordar sobre o mesmo piquete.
     const bombonaRows = await loadBombonaExpectations(db);
 
-    for (const b of bombonaRows) {
+    // Ledger negativo = saiu mais ração do que a bombona recebeu; o sistema
+    // perdeu a conta e só uma contagem na ronda de Bombona re-ancora.
+    if (settings.bombonaLedger.enabled) {
+      for (const b of bombonaRows) {
+        if (!b.ledgerNegative) continue;
+        bombonasSemConta.push({
+          paddockId: b.paddockId, paddockName: b.paddockName, formulaName: b.formulaName,
+        });
+      }
+    }
+
+    for (const b of settings.bombona.enabled ? bombonaRows : []) {
       const dailyKg = dailyKgFor(b.paddockId, b.formulaId, b.gPerKgBodyDay);
       if (dailyKg <= 0) continue;
       const remainingKg = b.expectedSacks * b.kgPerSack;
@@ -372,6 +458,69 @@ export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData>
     central.sort((a, b) => a.daysLeft - b.daysLeft);
   }
 
+  // --- Rota de reabastecimento esquecida aberta ---
+  // start_time é gravado no device que abriu a rota (created_at é reescrito no
+  // pull — REMOTE_ONLY — e mentiria pra rotas vindas de outro aparelho).
+  const rotasAbertas: OpenRouteEntry[] = [];
+  if (settings.rotaAberta.enabled) {
+    const openRoutes = await db.getAllAsync<{ id: number; start_time: string }>(
+      `SELECT id, start_time FROM resupply_routes WHERE status = 'in_progress' AND deleted_at IS NULL`
+    );
+    for (const r of openRoutes) {
+      const daysOpen = daysBetween(r.start_time.slice(0, 10), today);
+      if (daysOpen < settings.rotaAberta.warnDays) continue;
+      rotasAbertas.push({
+        routeId: r.id,
+        daysOpen,
+        severity: daysOpen >= settings.rotaAberta.dangerDays ? 'danger' : 'warning',
+      });
+    }
+    rotasAbertas.sort((a, b) => b.daysOpen - a.daysOpen);
+  }
+
+  // --- Sem sincronizar há N horas ---
+  // Estado local do device (sync_state não sincroniza). last_sync_at null =
+  // device recém-instalado antes do primeiro ciclo — sem alerta pra não gritar
+  // no primeiro boot.
+  let syncStale: AlertsData['syncStale'] = null;
+  if (settings.sync.enabled) {
+    const ss = await db.getFirstAsync<{ last_sync_at: string | null }>(
+      'SELECT last_sync_at FROM sync_state WHERE id = 1'
+    );
+    if (ss?.last_sync_at) {
+      const ms = Date.now() - new Date(ss.last_sync_at).getTime();
+      if (Number.isFinite(ms)) {
+        const hours = Math.floor(ms / 3600000);
+        if (hours >= settings.sync.warnHours) {
+          syncStale = {
+            hours,
+            severity: hours >= settings.sync.dangerHours ? 'danger' : 'warning',
+          };
+        }
+      }
+    }
+  }
+
+  // --- KPI do rebanho (linha compacta do admin) ---
+  const herdTotals = await db.getFirstAsync<{
+    total: number; allocated: number; area: number | null;
+  }>(`
+    SELECT
+      COALESCE(SUM(h.head_count), 0) AS total,
+      COALESCE(SUM(CASE WHEN h.paddock_id IS NOT NULL THEN h.head_count END), 0) AS allocated,
+      (SELECT SUM(p.area_hectares) FROM paddocks p
+        WHERE p.active = 1 AND p.id IN (SELECT paddock_id FROM herd WHERE head_count > 0 AND paddock_id IS NOT NULL)
+      ) AS area
+    FROM herd h
+    WHERE h.head_count > 0
+  `);
+  const area = herdTotals?.area ?? 0;
+  const herdKpi: HerdKpi = {
+    totalHeads: herdTotals?.total ?? 0,
+    paddocksWithCattle: paddocksWithCattleRow?.count ?? 0,
+    cabPerHa: area > 0 ? (herdTotals?.allocated ?? 0) / area : 0,
+  };
+
   return {
     rondasToday,
     rondasCompletas,
@@ -382,5 +531,9 @@ export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData>
     desalocatedTotal,
     bombonas,
     central,
+    rotasAbertas,
+    syncStale,
+    bombonasSemConta,
+    herdKpi,
   };
 }

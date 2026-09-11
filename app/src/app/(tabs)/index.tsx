@@ -27,7 +27,7 @@ import { getSyncStatus } from '@/lib/sync/engine';
 import { forceSync, isOnline } from '@/lib/sync/daemon';
 import { getActiveRoute, type ActiveRoute } from '@/lib/reabastecimento/active-route';
 import { listPendingTop, EVAL_KIND_LABELS, type InspectionRequest } from '@/lib/inspection-requests';
-import { sacos, dias } from '@/constants';
+import { sacos, dias, cabecas, piquetes, decimal } from '@/constants';
 
 export default function DashboardScreen() {
   const db = useDatabase();
@@ -132,7 +132,7 @@ export default function DashboardScreen() {
 
       {/* Sync bar */}
       <TouchableOpacity onPress={handleSync} disabled={syncing} style={styles.syncBar} activeOpacity={0.85}>
-        <SyncContent syncing={syncing} offlineMode={offlineMode} pending={syncStatus?.pending ?? 0} lastSync={syncStatus?.last_sync_at} />
+        <SyncContent syncing={syncing} offlineMode={offlineMode} pending={syncStatus?.pending ?? 0} lastSync={syncStatus?.last_sync_at} stale={alerts?.syncStale ?? null} />
         <TouchableOpacity onPress={() => router.push('/admin/logs')} hitSlop={8} style={styles.logsBtn}>
           <Text style={styles.logsBtnText}>LOGS</Text>
         </TouchableOpacity>
@@ -168,6 +168,13 @@ export default function DashboardScreen() {
         <View style={styles.progressWrap}>
           <ProgressBar pct={progressPct} tone={progressPct >= 70 ? 'ok' : progressPct >= 30 ? 'warn' : 'default'} />
         </View>
+
+        {isAdmin && alerts && alerts.herdKpi.totalHeads > 0 && (
+          <Text style={styles.herdKpiLine}>
+            {cabecas(alerts.herdKpi.totalHeads)} · {piquetes(alerts.herdKpi.paddocksWithCattle)} com gado
+            {alerts.herdKpi.cabPerHa > 0 ? ` · ${decimal(Math.round(alerts.herdKpi.cabPerHa * 100) / 100)} cab/ha` : ''}
+          </Text>
+        )}
 
         {/* Solicitações sob demanda — admin delega, peão executa */}
         <Section
@@ -240,13 +247,31 @@ export default function DashboardScreen() {
           Icon={Package}
           emptyMsg="Sem alertas de suprimento"
           onHeaderPress={() => router.push('/(tabs)/estoque')}
-          items={(alerts?.central ?? []).map((c) => ({
-            kind: severityToKind(c.severity),
-            left: `Central · ${c.formulaName}`,
-            right: `${sacos(c.have)} · ${dias(c.daysLeft)}`,
-            Icon: Package,
-            onPress: () => router.push('/(tabs)/estoque'),
-          }))}
+          items={[
+            ...(alerts?.central ?? []).map((c) => ({
+              kind: severityToKind(c.severity),
+              left: `Central · ${c.formulaName}`,
+              right: `${sacos(c.have)} · ${dias(c.daysLeft)}`,
+              Icon: Package,
+              onPress: () => router.push('/(tabs)/estoque'),
+            })),
+            ...(alerts?.rotasAbertas ?? []).map((r) => ({
+              kind: severityToKind(r.severity),
+              left: 'Rota de reabastecimento',
+              right: `Aberta há ${dias(r.daysOpen)} · finalizar ou cancelar`,
+              Icon: Truck,
+              onPress: () => router.push(`/reabastecimento/rota?routeId=${r.routeId}`),
+            })),
+            ...(isAdmin
+              ? (alerts?.bombonasSemConta ?? []).map((b) => ({
+                  kind: 'warn' as const,
+                  left: b.paddockName,
+                  right: `Conta da bombona perdida · ${b.formulaName} · conferir na ronda`,
+                  Icon: Package,
+                  onPress: () => router.push(`/ronda/${b.paddockId}/menu`),
+                }))
+              : []),
+          ]}
         />
         <View style={{ height: 24 }} />
       </ScrollView>
@@ -255,8 +280,11 @@ export default function DashboardScreen() {
 }
 
 function SyncContent({
-  syncing, offlineMode, pending, lastSync,
-}: { syncing: boolean; offlineMode: boolean; pending: number; lastSync: string | null | undefined }) {
+  syncing, offlineMode, pending, lastSync, stale,
+}: {
+  syncing: boolean; offlineMode: boolean; pending: number; lastSync: string | null | undefined;
+  stale: { hours: number; severity: 'warning' | 'danger' } | null;
+}) {
   if (syncing) {
     return (
       <View style={styles.syncRow}>
@@ -278,6 +306,21 @@ function SyncContent({
       <View style={styles.syncRow}>
         <WifiOff size={14} color={NSA.dangerFg} strokeWidth={1.75} />
         <Text style={[styles.syncText, { color: NSA.dangerFg }]}>Offline · {pending} pra subir quando reconectar</Text>
+      </View>
+    );
+  }
+  // Sync parado há tempo demais grita antes de qualquer outro estado "online":
+  // o daemon já deveria ter sincronizado sozinho — se não sincronizou, tem
+  // coisa errada (histórico: sessão anônima matando o sync em silêncio).
+  if (stale) {
+    const c = stale.severity === 'danger' ? NSA.dangerFg : NSA.warnFg;
+    const staleLabel = stale.hours >= 48 ? `${Math.floor(stale.hours / 24)}d` : `${stale.hours}h`;
+    return (
+      <View style={styles.syncRow}>
+        <RefreshCw size={14} color={c} strokeWidth={1.75} />
+        <Text style={[styles.syncText, { color: c }]}>
+          Sem sincronizar há {staleLabel} · toque pra sincronizar
+        </Text>
       </View>
     );
   }
@@ -308,10 +351,11 @@ function formatSince(iso: string | null | undefined): string {
   return `há ${Math.floor(h / 24)}d`;
 }
 
-function labelKind(k: 'agua' | 'sanidade' | 'cerca' | 'biologico') {
+function labelKind(k: 'agua' | 'sanidade' | 'cerca' | 'biologico' | 'ronda_atrasada') {
   if (k === 'agua') return 'Água';
   if (k === 'sanidade') return 'Sanidade';
   if (k === 'biologico') return 'Biológico';
+  if (k === 'ronda_atrasada') return 'Ronda';
   return 'Cerca';
 }
 
@@ -321,10 +365,11 @@ function severityToKind(s: 'warning' | 'danger'): 'warn' | 'danger' {
 
 type LucideIcon = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
 
-function iconForKind(k: 'agua' | 'sanidade' | 'cerca' | 'biologico'): LucideIcon {
+function iconForKind(k: 'agua' | 'sanidade' | 'cerca' | 'biologico' | 'ronda_atrasada'): LucideIcon {
   if (k === 'agua') return Droplets;
   if (k === 'sanidade') return Stethoscope;
   if (k === 'biologico') return FlaskConical;
+  if (k === 'ronda_atrasada') return Footprints;
   return Zap;
 }
 
@@ -427,6 +472,12 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { padding: 20, paddingBottom: 8 },
   progressWrap: { marginTop: 12 },
+  herdKpiLine: {
+    marginTop: 10,
+    fontSize: 12,
+    fontFamily: Fonts.medium,
+    color: NSA.inkSecondary,
+  },
   section: { marginTop: 22 },
   sectionHeader: {
     flexDirection: 'row',
