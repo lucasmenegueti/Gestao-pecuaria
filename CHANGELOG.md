@@ -6,6 +6,41 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.11.0 — "alertas calibrados + bombona debitada na hora" (2026-09-10)
+
+Revisão geral dos alertas do Painel (briefing: `BRIEFING-alertas-painel.md`) + fix do bug relatado pelo Lucas: "fazemos o reabastecimento, depois colocamos no cocho, e a contagem da bombona não conta corretamente".
+
+### 1. Contagem da bombona consertada (2 vazamentos)
+
+- **A entrega da rota somava sobre o saldo BRUTO e re-ancorava** (`rota.tsx`): os sacos que a Suplementação tirou desde a âncora anterior eram descartados e o saldo inflava a cada ciclo. Agora todo fluxo que escreve saldo passa por **`settleBombona()`** (`lib/bombona.ts`): materializa o consumo pendente como evento `CONSUMO_COCHO` (no servidor o saldo É a soma dos eventos — trigger `inventory_force_ledger`), desce o saldo pro real e só então soma a entrega. A tela da rota também passou a exibir o saldo **esperado**, não o bruto.
+- **A Suplementação passou a debitar a bombona na hora**, na mesma transação da avaliação (`supplement/summary.tsx`). O caso "entrega e cocho no mesmo dia", que o cursor de DATE não conseguia ordenar (limite documentado da v0.7.16), deixa de existir: o débito é aplicado direto, e a âncora movida pra hoje impede o `r.date > âncora` de descontar a mesma avaliação de novo. Compatível com devices na versão antiga (avaliações deles continuam entrando pela ponte da leitura).
+- ⚠️ **Saldos já inflados não se corrigem sozinhos** — o código estanca o vazamento daqui pra frente. Corrigir o passado = uma rodada de contagem (ronda de Bombona) nos piquetes; dá pra empurrar via Solicitações.
+
+### 2. Consumo por CABEÇA, não por kg PV (~400× de erro)
+
+`dailyConsumptionKg` tratava o alvo da fórmula como g/kg PV/dia, mas o cadastro real é **g/CABEÇA/dia** (gotcha documentado). Com peso médio 415 kg, superestimava ~400× — bombona e central berravam danger permanente e o alerta tinha virado ruído. Agora: cabeças que comem do cocho (mamando fora) × alvo; alvo < 1 (unidade legado) não serve de régua. Os alertas do Painel preferem o **consumo MEDIDO** pelo ledger de abastecimentos (`loadMeasuredConsumption`, janela 60d cortada na última movimentação de lote do piquete); o alvo é fallback. Corrige de uma vez: alertas de bombona e central, lista da aba Ronda e previsão do resumo de Suplementação.
+
+No Supabase de produção, os alvos legado das 2 fórmulas ativas foram convertidos pra g/cab (legado × 400 kg de referência): **Probeef Topmost Golden 0,5 → 200** e **Probeef Reprodução 0,25 → 100**. Sem uso recente pra calibrar pelo medido (último abastecimento delas: jul/2026) — ajustável em Admin › Formulações.
+
+### 3. Alertas novos de ATRASO (o Painel só enxergava "hoje")
+
+Todos configuráveis em Admin › Alertas (`app_settings`, sincronizam entre devices):
+
+- **Ronda atrasada** (`alert.ronda_atrasada.*`, warn 4d / danger 7d): piquete com gado sem avaliação há N dias. Régua calibrada no histórico real (gap mediano 1 dia, p90 3; warn em 3 dispararia falso toda segunda — domingo só teve ronda em 8 de ~19 semanas). Conta **avaliações**, não `rondas` — abrir o menu já cria uma ronda vazia.
+- **Rota aberta esquecida** (`alert.rota_aberta.*`, warn 1d / danger 3d): guarda contra a rota fantasma (v0.7.5). Idade via `start_time` (`created_at` é reescrito no pull).
+- **Sincronização parada** (`alert.sync.*`, warn 12h / danger 48h): a barra de sync do Painel muda de cor e vira chamada pra ação — histórico de sync morrendo em silêncio (sessão anônima).
+- **Bombona com conta perdida** (`alert.bombona_ledger.enabled`, admin): ledger negativo já era calculado (`ledgerNegative`) e nunca virava alerta; aponta pra contagem na ronda.
+
+KPI novo do admin sob a barra de rondas: **total de cabeças · piquetes com gado · cab/ha média**.
+
+**Validação:** `npx tsc --noEmit` limpo. **Pendente validação em Expo Go antes de OTA** (estágio 1 do fluxo de release).
+
+**Escopo quando publicar:** 100% JS + seed de `app_settings` (INSERT OR IGNORE roda em todo boot) → **OTA** + web, sem rebuild.
+
+**Fallback:** `git checkout v0.10.0` e republicar com `eas update --branch production --environment production`. Eventos `CONSUMO_COCHO` já gravados podem ficar — a versão antiga os ignora na leitura local, e no servidor eles são exatamente o débito que faltava no ledger. Reverter os alvos das fórmulas: `UPDATE formulas SET target_g_per_kg_body_day = 0.5 WHERE name = 'Probeef Topmost Golden'` (e 0,25 pra 'Probeef Reprodução').
+
+---
+
 ## v0.10.0 — "aborto e consumo" (2026-09-09)
 
 Dois eventos novos de rebanho, pedidos pra estação de nascimentos:
