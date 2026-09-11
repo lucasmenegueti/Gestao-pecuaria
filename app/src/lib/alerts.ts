@@ -1,5 +1,5 @@
 import type * as SQLite from 'expo-sqlite';
-import { SUPPLEMENT_EXCLUDED_CATEGORIES } from '@/constants';
+import { SUPPLEMENT_EXCLUDED_CATEGORIES, CONFINEMENT_GRASS } from '@/constants';
 import { loadSettings } from '@/lib/settings';
 import { loadBombonaExpectations, loadMeasuredConsumption, daysBetween } from '@/lib/bombona';
 
@@ -119,6 +119,16 @@ export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData>
   const today = todayIsoDate();
   const settings = await loadSettings(db);
 
+  // Currais de confinamento são tratados à parte (decisão do Lucas, 09/2026):
+  // nenhum alerta POR PIQUETE do Painel considera piquete cujo capim é
+  // "Confinamento". O KPI de rondas e o estoque central (fazenda inteira)
+  // continuam contando com eles.
+  const confinementRows = await db.getAllAsync<{ id: number }>(
+    `SELECT p.id FROM paddocks p JOIN grass_types gt ON gt.id = p.grass_type_id WHERE gt.name = ?`,
+    [CONFINEMENT_GRASS]
+  );
+  const confinement = new Set(confinementRows.map((r) => r.id));
+
   // Regra: piquetes "ronda completa" = TODAS as 3 obrigatórias avaliadas hoje
   // (Suplementação + Aguada + Cerca, alinhadas com EVAL_ITEMS.category=obrigatorio
   // em app/src/app/ronda/[paddockId]/menu.tsx). Sob-demanda (bombona, forragem,
@@ -196,6 +206,7 @@ export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData>
 
   if (settings.agua.enabled) {
     lastWater.forEach((w) => {
+      if (confinement.has(w.paddock_id)) return;
       // Lavagem posterior ao último water_eval ruim limpa o alerta.
       const washingAt = lastWashByPaddock[w.paddock_id];
       const washedAfter = washingAt && washingAt > w.created_at;
@@ -224,6 +235,7 @@ export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData>
 
   if (settings.sanidade.enabled) {
     lastHealth.forEach((h) => {
+      if (confinement.has(h.paddock_id)) return;
       const pct = h.affected_pct ?? 0;
       if (h.parasite_free && pct <= settings.sanidade.warnPct) return;
       const severity: 'danger' | 'warning' = pct >= settings.sanidade.dangerPct ? 'danger' : 'warning';
@@ -238,6 +250,7 @@ export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData>
 
   if (settings.cerca.enabled) {
     lastFence.forEach((f) => {
+      if (confinement.has(f.paddock_id)) return;
       if (f.prevents_mixing === 0) {
         ronda.push({
           paddockId: f.paddock_id, paddockName: nameOf[f.paddock_id] || `#${f.paddock_id}`,
@@ -282,6 +295,7 @@ export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData>
       `, [lastScheduled]);
       const label = WEEKDAY_LABELS_PT[settings.biologico.weekday];
       pending.forEach((p) => {
+        if (confinement.has(p.paddock_id)) return;
         ronda.push({
           paddockId: p.paddock_id,
           paddockName: p.paddock_name,
@@ -322,6 +336,7 @@ export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData>
       ORDER BY p.name
     `);
     for (const row of lastEvalRows) {
+      if (confinement.has(row.paddock_id)) continue;
       if (!row.last_eval) {
         ronda.push({
           paddockId: row.paddock_id, paddockName: row.paddock_name,
@@ -390,7 +405,7 @@ export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData>
     // perdeu a conta e só uma contagem na ronda de Bombona re-ancora.
     if (settings.bombonaLedger.enabled) {
       for (const b of bombonaRows) {
-        if (!b.ledgerNegative) continue;
+        if (!b.ledgerNegative || confinement.has(b.paddockId)) continue;
         bombonasSemConta.push({
           paddockId: b.paddockId, paddockName: b.paddockName, formulaName: b.formulaName,
         });
@@ -398,6 +413,7 @@ export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData>
     }
 
     for (const b of settings.bombona.enabled ? bombonaRows : []) {
+      if (confinement.has(b.paddockId)) continue;
       const dailyKg = dailyKgFor(b.paddockId, b.formulaId, b.gPerKgBodyDay);
       if (dailyKg <= 0) continue;
       const remainingKg = b.expectedSacks * b.kgPerSack;

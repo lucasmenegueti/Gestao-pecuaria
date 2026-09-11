@@ -126,6 +126,9 @@ export function calculateSupplementDays(sacks: number, kgPerSack: number, dailyC
 /** Categorias que mamam e não comem do cocho — fora de toda conta de consumo por cabeça. */
 export const SUPPLEMENT_EXCLUDED_CATEGORIES = new Set(['BEZERRO MAMANDO', 'BEZERRA MAMANDO']);
 
+/** Tipo de capim que marca curral de confinamento (ver `docs/ARQUITETURA-E-DADOS.md`). */
+export const CONFINEMENT_GRASS = 'Confinamento';
+
 /**
  * Consumo diário de ração de um lote em kg.
  *

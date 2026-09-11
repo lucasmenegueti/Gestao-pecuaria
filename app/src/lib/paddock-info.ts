@@ -1,5 +1,5 @@
 import type * as SQLite from 'expo-sqlite';
-import { effectiveWeightKg, SUPPLEMENT_EXCLUDED_CATEGORIES } from '@/constants';
+import { effectiveWeightKg, SUPPLEMENT_EXCLUDED_CATEGORIES, CONFINEMENT_GRASS } from '@/constants';
 import { loadBombonaExpectations, daysBetween, type BombonaExpectation } from '@/lib/bombona';
 
 // Retrato de um piquete e do lote que está nele hoje — a Ficha do Piquete.
@@ -28,8 +28,7 @@ const KG_PER_ARROBA_LIVE = 30;
 // Bezerro mamando não come do cocho — no P47 são 6 de 13 cabeças, o que separa
 // 533 de 989 g/cab/dia. O Set vive em `constants` (dailyConsumptionKg usa o mesmo).
 
-/** Tipo de capim que marca curral de confinamento (ver `docs/ARQUITETURA-E-DADOS.md`). */
-const CONFINEMENT_GRASS = 'Confinamento';
+// CONFINEMENT_GRASS vive em `constants` (alerts.ts também filtra por ele).
 
 /** Abaixo disso a média de consumo ganha selo de "estimativa inicial". */
 const RESTOCKS_FOR_CONFIDENCE = 4;

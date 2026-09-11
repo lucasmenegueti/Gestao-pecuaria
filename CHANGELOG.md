@@ -6,6 +6,20 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.11.1 — "confinamento fora dos alertas por piquete" (2026-09-11)
+
+Currais de confinamento (capim "Confinamento") são tratados à parte na operação — decisão do Lucas. Nenhum alerta **por piquete** do Painel os considera mais: água, sanidade, cerca, biológico, ronda atrasada, cocho (bombona) e bombona com conta perdida. Filtro central em `loadAlerts` (`alerts.ts`), por `grass_types.name = CONFINEMENT_GRASS` (constante movida pra `constants/index.ts`; `paddock-info.ts` importa de lá).
+
+**O que continua contando com confinamento**, de propósito: o KPI "Rondas completas hoje" (e seu denominador de piquetes com gado) e o alerta de **estoque central** (a projeção de consumo é da fazenda inteira — excluir o confinamento subestimaria a necessidade). Se o KPI também deve ignorar confinamento, é um ajuste pequeno no mesmo filtro.
+
+**Validação:** `npx tsc --noEmit` limpo. Direto pra produção (mesmo regime da v0.11.0).
+
+**Escopo:** 100% JS → **OTA** + web.
+
+**Fallback:** `git checkout v0.11.0` e republicar com `eas update --branch production --environment production`.
+
+---
+
 ## v0.11.0 — "alertas calibrados + bombona debitada na hora" (2026-09-10)
 
 Revisão geral dos alertas do Painel (briefing: `BRIEFING-alertas-painel.md`) + fix do bug relatado pelo Lucas: "fazemos o reabastecimento, depois colocamos no cocho, e a contagem da bombona não conta corretamente".
