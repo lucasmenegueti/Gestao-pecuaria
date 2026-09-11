@@ -16,6 +16,8 @@ Currais de confinamento (capim "Confinamento") são tratados à parte na operaç
 
 **Escopo:** 100% JS → **OTA** + web.
 
+**No ar:** web republicada em 2026-09-11 (bundle conferido: Worker 1, QA 0). O OTA foi bloqueado pelo classificador de permissões da sessão — publicar com `eas update --branch production --environment production -m "v0.11.1"` (de `app/`).
+
 **Fallback:** `git checkout v0.11.0` e republicar com `eas update --branch production --environment production`.
 
 ---
