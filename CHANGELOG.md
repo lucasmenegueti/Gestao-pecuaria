@@ -33,9 +33,11 @@ Todos configuráveis em Admin › Alertas (`app_settings`, sincronizam entre dev
 
 KPI novo do admin sob a barra de rondas: **total de cabeças · piquetes com gado · cab/ha média**.
 
-**Validação:** `npx tsc --noEmit` limpo. **Pendente validação em Expo Go antes de OTA** (estágio 1 do fluxo de release).
+**Validação:** `npx tsc --noEmit` limpo. A pedido do Lucas, subiu **direto pra produção** sem passar por Expo Go/APK ("pode subir direto, confio que vc fez os checks").
 
-**Escopo quando publicar:** 100% JS + seed de `app_settings` (INSERT OR IGNORE roda em todo boot) → **OTA** + web, sem rebuild.
+**Escopo:** 100% JS + seed de `app_settings` (INSERT OR IGNORE roda em todo boot) → **OTA** + web, sem rebuild.
+
+**No ar (OTA, 2026-09-10):** runtime `1.0.1`, android+ios. Production update group `a37b5aef-9981-459b-ad62-7172881a83a8`. Web: https://nsa-gestao-pecuaria.netlify.app (bundle conferido: Worker 1, QA 0).
 
 **Fallback:** `git checkout v0.10.0` e republicar com `eas update --branch production --environment production`. Eventos `CONSUMO_COCHO` já gravados podem ficar — a versão antiga os ignora na leitura local, e no servidor eles são exatamente o débito que faltava no ledger. Reverter os alvos das fórmulas: `UPDATE formulas SET target_g_per_kg_body_day = 0.5 WHERE name = 'Probeef Topmost Golden'` (e 0,25 pra 'Probeef Reprodução').
 
