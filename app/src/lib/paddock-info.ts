@@ -1,5 +1,5 @@
 import type * as SQLite from 'expo-sqlite';
-import { effectiveWeightKg } from '@/constants';
+import { effectiveWeightKg, SUPPLEMENT_EXCLUDED_CATEGORIES } from '@/constants';
 import { loadBombonaExpectations, daysBetween, type BombonaExpectation } from '@/lib/bombona';
 
 // Retrato de um piquete e do lote que está nele hoje — a Ficha do Piquete.
@@ -25,12 +25,8 @@ import { loadBombonaExpectations, daysBetween, type BombonaExpectation } from '@
  */
 const KG_PER_ARROBA_LIVE = 30;
 
-/**
- * Categorias que NÃO entram na conta de consumo por cabeça: bezerro mamando
- * ainda mama e não come do cocho. Incluí-los dilui a média — no P47 são 6 de 13
- * cabeças, o que separa 533 de 989 g/cab/dia.
- */
-const SUPPLEMENT_EXCLUDED_CATEGORIES = new Set(['BEZERRO MAMANDO', 'BEZERRA MAMANDO']);
+// Bezerro mamando não come do cocho — no P47 são 6 de 13 cabeças, o que separa
+// 533 de 989 g/cab/dia. O Set vive em `constants` (dailyConsumptionKg usa o mesmo).
 
 /** Tipo de capim que marca curral de confinamento (ver `docs/ARQUITETURA-E-DADOS.md`). */
 const CONFINEMENT_GRASS = 'Confinamento';

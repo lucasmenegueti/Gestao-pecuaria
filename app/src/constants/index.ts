@@ -123,19 +123,30 @@ export function calculateSupplementDays(sacks: number, kgPerSack: number, dailyC
   return Math.floor(totalKg / dailyConsumptionKg);
 }
 
+/** Categorias que mamam e não comem do cocho — fora de toda conta de consumo por cabeça. */
+export const SUPPLEMENT_EXCLUDED_CATEGORIES = new Set(['BEZERRO MAMANDO', 'BEZERRA MAMANDO']);
+
 /**
- * Consumo diário de ração de um lote em kg, considerando peso vivo por cabeça.
- * Se `avg_weight_kg` não existe, cai em {@link DEFAULT_WEIGHT_KG} para a categoria.
+ * Consumo diário de ração de um lote em kg.
+ *
+ * O alvo da fórmula (`target_g_per_kg_body_day`) é **gramas por CABEÇA/dia** —
+ * o nome da coluna mente (ver gotcha no CLAUDE.md). A versão anterior desta
+ * função multiplicava pelo peso vivo total e superestimava o consumo em ~400×
+ * pras fórmulas cadastradas por cabeça, zerando toda previsão de dias de cocho.
+ * Alvo < 1 é resquício da unidade antiga (g/kg PV) e não serve de régua —
+ * devolve 0 (chamadores tratam 0 como "sem previsão").
  */
 export function dailyConsumptionKg(
   lots: Array<{ category: string; head_count: number; avg_weight_kg?: number | null }>,
-  targetGPerKgBodyDay: number,
+  targetGPerHeadDay: number,
 ): number {
-  let totalBodyKg = 0;
+  if (targetGPerHeadDay < 1) return 0;
+  let heads = 0;
   for (const l of lots) {
-    totalBodyKg += l.head_count * effectiveWeightKg(l.category, l.avg_weight_kg ?? null);
+    if (SUPPLEMENT_EXCLUDED_CATEGORIES.has(l.category)) continue;
+    heads += l.head_count;
   }
-  return (totalBodyKg * targetGPerKgBodyDay) / 1000;
+  return (heads * targetGPerHeadDay) / 1000;
 }
 
 export function calculateStockingRate(heads: number, hectares: number): number {

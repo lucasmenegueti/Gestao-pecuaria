@@ -2,14 +2,15 @@ import type * as SQLite from 'expo-sqlite';
 
 // Quanto DEVERIA ter na bombona (reservatório do cocho) de um piquete.
 //
-// `inventory` guarda o que a rota ENTREGOU e nada nunca debita: a ronda de
-// Suplementação registra os sacos que foram pro cocho, mas esses sacos saem da
-// bombona e ninguém subtrai. Então o saldo gravado é o da última entrega, não o
-// de hoje.
+// Desde 09/2026 a Suplementação DEBITA a bombona na hora (evento CONSUMO_COCHO
+// via `settleBombona` + débito direto) — o saldo gravado tende a ser o real e
+// `usedSacks` tende a 0. A conta abaixo continua necessária como ponte:
 //
-// A conta aqui fecha essa lacuna pelo próprio ledger da ronda:
+//     deveria ter = saldo na âncora − sacos que a Suplementação tirou depois dela
 //
-//     deveria ter = saldo da última entrega − sacos que a Suplementação tirou desde então
+// porque avaliações vindas de devices com versão antiga (que não debitam) só
+// aparecem aqui, e porque a âncora ordena o dia — avaliação com `r.date` igual
+// à âncora já está embutida no saldo e não pode ser descontada de novo.
 //
 // Fonte única: o alerta do Painel (`alerts.ts`) e a ronda de Bombona leem daqui.
 // Se cada um derivasse a sua, os dois mostrariam números diferentes pro mesmo
@@ -96,6 +97,7 @@ export async function loadBombonaExpectations(
               WHERE r.paddock_id = i.paddock_id
                 AND se.formula_id = i.formula_id
                 AND se.restocked = 1
+                AND se.deleted_at IS NULL AND r.deleted_at IS NULL
                 AND (i.last_resupply_date IS NULL OR r.date > i.last_resupply_date)
             ) AS used
      FROM inventory i
@@ -127,6 +129,129 @@ export async function loadBombonaExpectations(
       ledgerNegative: raw < 0,
     };
   });
+}
+
+export interface SettledBombona {
+  inventoryId: number;
+  /** Saldo real após liquidar o consumo pendente (sem arredondar, piso 0). */
+  expectedSacks: number;
+}
+
+/**
+ * Liquida o consumo pendente de uma bombona ANTES de qualquer escrita de saldo.
+ *
+ * O que "liquidar" significa: os sacos que a Suplementação tirou desde a âncora
+ * viram um evento `CONSUMO_COCHO` (o servidor deriva o saldo da soma dos
+ * eventos — sem o evento, o débito não existe lá), o saldo local desce pro
+ * valor real e a âncora anda pra hoje.
+ *
+ * Por que antes de escrever: a entrega da rota fazia `novo = saldo_bruto +
+ * entregue` e re-ancorava — o consumo desde a âncora anterior era descartado e
+ * o saldo inflava a cada ciclo (bug reportado em 09/2026: "a contagem da
+ * bombona não conta corretamente"). Qualquer fluxo que re-ancora sem liquidar
+ * repete esse bug; este helper é a única porta pra isso.
+ *
+ * Devolve null quando o piquete não tem bombona dessa fórmula (nada a liquidar).
+ */
+export async function settleBombona(
+  db: SQLite.SQLiteDatabase,
+  paddockId: number,
+  formulaId: number,
+  userId: string | null,
+): Promise<SettledBombona | null> {
+  const row = await db.getFirstAsync<{ id: number; quantity_sacks: number; last_resupply_date: string | null }>(
+    `SELECT id, quantity_sacks, last_resupply_date FROM inventory
+     WHERE location = 'bombona' AND paddock_id = ? AND formula_id = ?`,
+    [paddockId, formulaId]
+  );
+  if (!row) return null;
+
+  const usedRow = await db.getFirstAsync<{ used: number | null }>(
+    `SELECT SUM(se.sacks_in_trough) AS used
+       FROM supplement_evals se JOIN rondas r ON r.id = se.ronda_id
+      WHERE r.paddock_id = ? AND se.formula_id = ? AND se.restocked = 1
+        AND se.deleted_at IS NULL AND r.deleted_at IS NULL
+        AND (? IS NULL OR r.date > ?)`,
+    [paddockId, formulaId, row.last_resupply_date, row.last_resupply_date]
+  );
+  const used = usedRow?.used ?? 0;
+  const expected = Math.max(0, row.quantity_sacks - used);
+  const delta = expected - row.quantity_sacks;
+
+  if (delta !== 0) {
+    await db.runAsync(
+      `INSERT INTO inventory_events (event_type, formula_id, paddock_id, sacks_delta, reason, user_id)
+       VALUES ('CONSUMO_COCHO', ?, ?, ?, ?, ?)`,
+      [formulaId, paddockId, delta, 'Suplementação desde a última âncora', userId]
+    );
+  }
+  // Âncora SEMPRE anda pra hoje, mesmo com delta 0: quem chamou vai escrever
+  // saldo/eventos referentes a hoje, e uma avaliação de hoje com âncora antiga
+  // seria contada de novo pelo `r.date > âncora` (débito em dobro).
+  await db.runAsync(
+    `UPDATE inventory SET quantity_sacks = ?, last_resupply_date = date('now','localtime') WHERE id = ?`,
+    [expected, row.id]
+  );
+  return { inventoryId: row.id, expectedSacks: expected };
+}
+
+/**
+ * Consumo MEDIDO em kg/dia por (piquete, fórmula), a partir dos abastecimentos
+ * do ledger da Suplementação — mesma âncora conceitual do `supplementRate` da
+ * Ficha do Piquete: soma tudo menos o último abastecimento (ainda no cocho)
+ * dividido pelo intervalo entre o primeiro e o último.
+ *
+ * Janela: últimos 60 dias, cortada no último `herd_event` que tocou o piquete
+ * (entrada/saída de lote muda o consumo — medir através da troca leria o lote
+ * anterior). Precisa de ≥2 datas de abastecimento dentro da janela; sem isso a
+ * chave não aparece no mapa e o chamador cai no alvo por cabeça.
+ */
+export async function loadMeasuredConsumption(
+  db: SQLite.SQLiteDatabase,
+): Promise<Map<string, number>> {
+  const lotBoundRows = await db.getAllAsync<{ paddock_id: number; last: string }>(
+    `SELECT paddock_id, MAX(date) AS last FROM (
+       SELECT paddock_id, date FROM herd_events WHERE paddock_id IS NOT NULL AND deleted_at IS NULL
+       UNION ALL
+       SELECT target_paddock_id AS paddock_id, date FROM herd_events WHERE target_paddock_id IS NOT NULL AND deleted_at IS NULL
+     ) GROUP BY paddock_id`
+  );
+  const lotBound = new Map<number, string>();
+  for (const r of lotBoundRows) lotBound.set(r.paddock_id, r.last);
+
+  const fills = await db.getAllAsync<{ paddock_id: number; formula_id: number; d: string; kg: number }>(
+    `SELECT r.paddock_id, se.formula_id, r.date AS d,
+            SUM(se.sacks_in_trough * f.kg_per_sack) AS kg
+       FROM supplement_evals se
+       JOIN rondas r ON r.id = se.ronda_id
+       JOIN formulas f ON f.id = se.formula_id
+      WHERE se.restocked = 1 AND se.sacks_in_trough > 0
+        AND se.deleted_at IS NULL AND r.deleted_at IS NULL
+        AND r.date >= date('now','localtime','-60 days')
+      GROUP BY r.paddock_id, se.formula_id, r.date
+      ORDER BY r.paddock_id, se.formula_id, r.date`
+  );
+
+  const byKey = new Map<string, Array<{ d: string; kg: number }>>();
+  for (const f of fills) {
+    const bound = lotBound.get(f.paddock_id);
+    if (bound && f.d < bound) continue;
+    const key = `${f.paddock_id}:${f.formula_id}`;
+    const arr = byKey.get(key) || [];
+    arr.push({ d: f.d, kg: f.kg });
+    byKey.set(key, arr);
+  }
+
+  const out = new Map<string, number>();
+  for (const [key, rows] of byKey) {
+    if (rows.length < 2) continue;
+    const span = daysBetween(rows[0].d, rows[rows.length - 1].d);
+    if (span <= 0) continue;
+    const kgCounted = rows.slice(0, -1).reduce((s, r) => s + r.kg, 0);
+    if (kgCounted <= 0) continue;
+    out.set(key, kgCounted / span);
+  }
+  return out;
 }
 
 /**

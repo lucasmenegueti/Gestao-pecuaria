@@ -235,7 +235,7 @@ export default function EstoqueScreen() {
                   </View>
                   <Text style={styles.itemQty}>{item.formula_name} · {sacos(item.quantity_sacks)}</Text>
                   {item.last_resupply_date && (
-                    <Text style={styles.itemMin}>Últ. reab {item.last_resupply_date}</Text>
+                    <Text style={styles.itemMin}>Últ. mov {item.last_resupply_date}</Text>
                   )}
                 </Card>
               );

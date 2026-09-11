@@ -8,6 +8,7 @@ import { Card, Button, SliderInput, BrandHeader, KeyboardAvoider } from '@/compo
 import { useAuthStore } from '@/stores/authStore';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 import { cancelActiveRoute } from '@/lib/reabastecimento/active-route';
+import { loadBombonaExpectations, settleBombona } from '@/lib/bombona';
 import { confirm } from '@/lib/confirm';
 import { sacos } from '@/constants';
 
@@ -89,21 +90,14 @@ export default function RotaScreen() {
       `SELECT id, name FROM paddocks WHERE active=1 AND deleted_at IS NULL ORDER BY name`
     );
 
-    const bombonaRows = await db.getAllAsync<{
-      paddock_id: number;
-      formula_id: number;
-      formula_name: string;
-      quantity_sacks: number;
-    }>(
-      `SELECT i.paddock_id, i.formula_id, f.name as formula_name, i.quantity_sacks
-       FROM inventory i JOIN formulas f ON f.id=i.formula_id
-       WHERE i.location='bombona' AND i.deleted_at IS NULL`
-    );
+    // Saldo ESPERADO (bruto − consumo desde a âncora), não o bruto: é o que a
+    // bombona tem de verdade hoje e a base sobre a qual a entrega soma.
+    const expectations = await loadBombonaExpectations(db);
     const bombMap = new Map<number, PaddockRow['bombonas']>();
-    bombonaRows.forEach((b) => {
-      const arr = bombMap.get(b.paddock_id) || [];
-      arr.push({ formula_id: b.formula_id, formula_name: b.formula_name, db_sacks: b.quantity_sacks });
-      bombMap.set(b.paddock_id, arr);
+    expectations.forEach((b) => {
+      const arr = bombMap.get(b.paddockId) || [];
+      arr.push({ formula_id: b.formulaId, formula_name: b.formulaName, db_sacks: b.expectedSacks });
+      bombMap.set(b.paddockId, arr);
     });
 
     const delivRows = await db.getAllAsync<{ paddock_id: number; total: number }>(
@@ -186,54 +180,56 @@ export default function RotaScreen() {
       return;
     }
     try {
-      // Nova quantidade = (estoque DB + ajuste manual) + o que foi entregue agora.
-      // Ajuste manual (positivo ou negativo) é contabilizado como evento separado.
-      const adjustedCurrent = delivering.currentDbSacks + delivering.manualAdjust;
-      const newTotal = adjustedCurrent + delivering.toDeliver;
+      await db.withTransactionAsync(async () => {
+        // Liquida o consumo pendente ANTES de somar a entrega: a base é o saldo
+        // real (esperado), não o bruto. Somar sobre o bruto — como era feito —
+        // ressuscitava os sacos já consumidos desde a âncora anterior e inflava
+        // a contagem a cada ciclo de reabastecimento (bug de 09/2026).
+        const settled = await settleBombona(db, delivering.paddockId, delivering.formulaId, user?.id ?? null);
+        // Nova quantidade = (saldo esperado + ajuste manual) + o que foi entregue agora.
+        // Ajuste manual (positivo ou negativo) é contabilizado como evento separado.
+        const newTotal = (settled?.expectedSacks ?? 0) + delivering.manualAdjust + delivering.toDeliver;
 
-      const existing = await db.getFirstAsync<{ id: number }>(
-        `SELECT id FROM inventory WHERE paddock_id=? AND formula_id=? AND location='bombona'`,
-        [delivering.paddockId, delivering.formulaId]
-      );
-      if (existing) {
-        await db.runAsync(
-          `UPDATE inventory SET quantity_sacks=?, last_resupply_date=date('now','localtime') WHERE id=?`,
-          [newTotal, existing.id]
-        );
-      } else {
-        await db.runAsync(
-          `INSERT INTO inventory (formula_id, quantity_sacks, min_sacks, location, paddock_id, last_resupply_date)
-           VALUES (?, ?, 2, 'bombona', ?, date('now','localtime'))`,
-          [delivering.formulaId, newTotal, delivering.paddockId]
-        );
-      }
+        if (settled) {
+          await db.runAsync(
+            `UPDATE inventory SET quantity_sacks=?, last_resupply_date=date('now','localtime') WHERE id=?`,
+            [newTotal, settled.inventoryId]
+          );
+        } else {
+          await db.runAsync(
+            `INSERT INTO inventory (formula_id, quantity_sacks, min_sacks, location, paddock_id, last_resupply_date)
+             VALUES (?, ?, 2, 'bombona', ?, date('now','localtime'))`,
+            [delivering.formulaId, newTotal, delivering.paddockId]
+          );
+        }
 
-      if (delivering.toDeliver > 0) {
-        await db.runAsync(
-          `INSERT INTO resupply_deliveries (route_id, paddock_id, formula_id, sacks_delivered)
-           VALUES (?,?,?,?)`,
-          [Number(routeId), delivering.paddockId, delivering.formulaId, delivering.toDeliver]
-        );
-        await db.runAsync(
-          `UPDATE resupply_loads SET sacks_distributed = sacks_distributed + ?
-           WHERE route_id=? AND formula_id=?`,
-          [delivering.toDeliver, Number(routeId), delivering.formulaId]
-        );
-        await db.runAsync(
-          `INSERT INTO inventory_events (event_type, formula_id, paddock_id, sacks_delta, reason, user_id)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          ['ENTREGA_BOMBONA', delivering.formulaId, delivering.paddockId, delivering.toDeliver, `Rota #${routeId}`, user?.id ?? null]
-        );
-      }
+        if (delivering.toDeliver > 0) {
+          await db.runAsync(
+            `INSERT INTO resupply_deliveries (route_id, paddock_id, formula_id, sacks_delivered)
+             VALUES (?,?,?,?)`,
+            [Number(routeId), delivering.paddockId, delivering.formulaId, delivering.toDeliver]
+          );
+          await db.runAsync(
+            `UPDATE resupply_loads SET sacks_distributed = sacks_distributed + ?
+             WHERE route_id=? AND formula_id=?`,
+            [delivering.toDeliver, Number(routeId), delivering.formulaId]
+          );
+          await db.runAsync(
+            `INSERT INTO inventory_events (event_type, formula_id, paddock_id, sacks_delta, reason, user_id)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            ['ENTREGA_BOMBONA', delivering.formulaId, delivering.paddockId, delivering.toDeliver, `Rota #${routeId}`, user?.id ?? null]
+          );
+        }
 
-      // Ajuste manual vira evento de perda (ou recontagem)
-      if (delivering.manualAdjust !== 0) {
-        await db.runAsync(
-          `INSERT INTO inventory_events (event_type, formula_id, paddock_id, sacks_delta, reason, user_id)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          ['AJUSTE_PERDA_BOMBONA', delivering.formulaId, delivering.paddockId, delivering.manualAdjust, 'Ajuste na rota de reabastecimento', user?.id ?? null]
-        );
-      }
+        // Ajuste manual vira evento de perda (ou recontagem)
+        if (delivering.manualAdjust !== 0) {
+          await db.runAsync(
+            `INSERT INTO inventory_events (event_type, formula_id, paddock_id, sacks_delta, reason, user_id)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            ['AJUSTE_PERDA_BOMBONA', delivering.formulaId, delivering.paddockId, delivering.manualAdjust, 'Ajuste na rota de reabastecimento', user?.id ?? null]
+          );
+        }
+      });
 
       setDelivering(null);
       loadData();

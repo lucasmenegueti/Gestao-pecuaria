@@ -1,7 +1,7 @@
 import type * as SQLite from 'expo-sqlite';
-import { effectiveWeightKg } from '@/constants';
+import { SUPPLEMENT_EXCLUDED_CATEGORIES } from '@/constants';
 import { loadSettings } from '@/lib/settings';
-import { loadBombonaExpectations } from '@/lib/bombona';
+import { loadBombonaExpectations, loadMeasuredConsumption } from '@/lib/bombona';
 
 // Alertas agregados pra o Painel. Cada função é autônoma e retorna lista pronta.
 // Todas as seções podem ficar vazias — UI mostra "Sem alertas" quando for o caso.
@@ -278,18 +278,30 @@ export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData>
     desalocatedTotal = desalocated.reduce((s, d) => s + d.heads, 0);
   }
 
-  // --- Ronda: bombonas em risco (curva de consumo por peso vivo) ---
+  // --- Ronda: bombonas em risco ---
 
-  // Peso vivo total por piquete: alimenta tanto o risco de bombona quanto o central.
+  // Consumo diário: MEDIDO pelo ledger de abastecimentos quando há histórico
+  // (≥2 abastecimentos no lote atual — lib/bombona.ts); senão, cabeças que
+  // comem do cocho × alvo da fórmula. O alvo é g por CABEÇA/dia — o nome da
+  // coluna mente (gotcha no CLAUDE.md). A versão anterior multiplicava pelo
+  // peso vivo total e superestimava ~400×, deixando bombona e central em
+  // danger permanente pras fórmulas cadastradas por cabeça.
   const allLots = await db.getAllAsync<{
-    paddock_id: number; category: string; head_count: number; avg_weight_kg: number | null;
-  }>(`SELECT paddock_id, category, head_count, avg_weight_kg FROM herd WHERE paddock_id IS NOT NULL AND head_count > 0`);
+    paddock_id: number; category: string; head_count: number;
+  }>(`SELECT paddock_id, category, head_count FROM herd WHERE paddock_id IS NOT NULL AND head_count > 0`);
 
-  const bodyKgByPaddock: Record<number, number> = {};
+  const headsByPaddock: Record<number, number> = {};
   for (const l of allLots) {
-    bodyKgByPaddock[l.paddock_id] = (bodyKgByPaddock[l.paddock_id] || 0) +
-      l.head_count * effectiveWeightKg(l.category, l.avg_weight_kg);
+    if (SUPPLEMENT_EXCLUDED_CATEGORIES.has(l.category)) continue;
+    headsByPaddock[l.paddock_id] = (headsByPaddock[l.paddock_id] || 0) + l.head_count;
   }
+  const measured = await loadMeasuredConsumption(db);
+  const dailyKgFor = (paddockId: number, formulaId: number, gPerHeadDay: number): number => {
+    const m = measured.get(`${paddockId}:${formulaId}`);
+    if (m && m > 0) return m;
+    if (gPerHeadDay < 1) return 0; // resquício da unidade antiga — sem régua utilizável
+    return ((headsByPaddock[paddockId] || 0) * gPerHeadDay) / 1000;
+  };
 
   const bombonas: BombonaRisk[] = [];
   if (settings.bombona.enabled) {
@@ -300,9 +312,7 @@ export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData>
     const bombonaRows = await loadBombonaExpectations(db);
 
     for (const b of bombonaRows) {
-      const bodyKg = bodyKgByPaddock[b.paddockId] || 0;
-      if (bodyKg <= 0) continue;
-      const dailyKg = (bodyKg * b.gPerKgBodyDay) / 1000;
+      const dailyKg = dailyKgFor(b.paddockId, b.formulaId, b.gPerKgBodyDay);
       if (dailyKg <= 0) continue;
       const remainingKg = b.expectedSacks * b.kgPerSack;
       const daysLeft = Math.floor(remainingKg / dailyKg);
@@ -326,9 +336,9 @@ export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData>
       formula_id: number; paddock_id: number;
     }>(`SELECT formula_id, paddock_id FROM inventory WHERE location = 'bombona'`);
 
-    const bodyKgByFormula: Record<number, number> = {};
+    const paddocksByFormula: Record<number, number[]> = {};
     for (const u of formulaUsage) {
-      bodyKgByFormula[u.formula_id] = (bodyKgByFormula[u.formula_id] || 0) + (bodyKgByPaddock[u.paddock_id] || 0);
+      (paddocksByFormula[u.formula_id] ||= []).push(u.paddock_id);
     }
 
     const formulaRows = await db.getAllAsync<{
@@ -342,9 +352,10 @@ export async function loadAlerts(db: SQLite.SQLiteDatabase): Promise<AlertsData>
     `);
 
     for (const f of formulaRows) {
-      const bodyKg = bodyKgByFormula[f.id] || 0;
-      if (bodyKg <= 0) continue;
-      const dailyKg = (bodyKg * f.g_per_kg_body_day) / 1000;
+      let dailyKg = 0;
+      for (const pid of paddocksByFormula[f.id] || []) {
+        dailyKg += dailyKgFor(pid, f.id, f.g_per_kg_body_day);
+      }
       if (dailyKg <= 0) continue;
       const dailySacks = dailyKg / f.kg_per_sack;
       const needForWindow = dailySacks * settings.central.warnDays;

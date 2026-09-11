@@ -52,7 +52,7 @@ export default function BombonaStep3() {
         <Text style={styles.expectedValue}>{sacos(exp.expectedSacks)}</Text>
         <Text style={styles.expectedFormula}>{exp.formulaName}</Text>
         <Text style={styles.expectedBasis}>
-          {sacos(exp.balanceSacks)} {exp.balanceSacks === 1 ? 'entregue' : 'entregues'} em {formatDate(exp.balanceDate)}
+          {sacos(exp.balanceSacks)} no sistema em {formatDate(exp.balanceDate)}
           {exp.usedSacks > 0 ? ` · ${decimal(exp.usedSacks)} ${exp.usedSacks === 1 ? 'foi' : 'foram'} pro cocho desde então` : ' · nada foi pro cocho desde então'}
         </Text>
       </View>
