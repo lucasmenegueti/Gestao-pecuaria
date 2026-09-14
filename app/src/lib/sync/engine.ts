@@ -491,6 +491,9 @@ async function pushOne(
           );
           payload.photo_path = photoPath;
         }
+        // Sem foto, não mandar a coluna: evento sobe mesmo antes da migration
+        // remota criar `photo_path` (só evento COM foto espera a coluna).
+        if (table.name === 'herd_events' && payload.photo_path == null) delete payload.photo_path;
         const { data, error } = await supabase
           .from(table.name)
           .upsert({ ...payload, id: stableId }, { onConflict: 'id' })

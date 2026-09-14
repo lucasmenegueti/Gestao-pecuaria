@@ -22,7 +22,14 @@ Pedido do Lucas: ao lançar morte, perguntar se é **bezerro/a nascido** ou **ou
 
 ### Schema
 - Local: `SCHEMA_VERSION` 25 (`ALTER TABLE herd_events ADD COLUMN photo_local_uri/photo_path`, aditivo).
-- Remoto: `app/supabase/migrations/2026-09-14_herd_events_photo.sql` — coluna `photo_path`, bucket `herd-photos`, policies select/insert/update pra `authenticated`. **Aplicar em prod E na branch QA ANTES de publicar o OTA**: sem a coluna, o payload de `herd_events` (que sai de `SELECT *`) leva `photo_path` e **todo** push de `herd_events` falha, com ou sem foto. O classificador da sessão bloqueou o `apply_migration` — pendente de o Lucas rodar.
+- Remoto: `app/supabase/migrations/2026-09-14_herd_events_photo.sql` — coluna `photo_path`, bucket `herd-photos`, policies select/insert/update pra `authenticated` (idempotente). O classificador da sessão bloqueou o `apply_migration` — pendente de o Lucas rodar.
+
+### Ordem de deploy (importa)
+1. **OTA v0.12.0 primeiro**, e confirmar que os Tab A9 reabriram o app (schema local v25).
+2. **Só então a migration em prod.** Motivo: device em v24 recebe `herd_events` com `photo_path` no pull, o INSERT local falha por coluna inexistente, `localInsertFromRemote` engole o erro e `last_pull_at` avança — **todo evento de rebanho lançado por outros devices some em silêncio** naquele aparelho. Remédio se a ordem escapar: `UPDATE sync_state SET last_pull_at = NULL WHERE id = 1` no device afetado.
+3. QA pode receber a migration a qualquer hora (só o device de dev está lá).
+
+A ordem inversa é segura pelo lado do push: evento **sem** foto não manda `photo_path` (a chave é removida do payload quando nula), então sobe mesmo antes da coluna existir; evento **com** foto fica `pending_sync=1` e retenta quando a coluna chegar.
 
 **Validação:** `npx tsc --noEmit` limpo. Pendente: fim a fim no Tab A9 (Expo Go, QA) — registrar morte com foto, forçar sync, conferir `storage.objects` com `size > 0` e `photo_path` preenchido. Web não serve pra isso (`PhotoButton` usa `Alert` de 3 botões, que não abre no react-native-web).
 
