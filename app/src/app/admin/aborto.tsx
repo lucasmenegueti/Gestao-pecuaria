@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Alert, TextInput } from 'react-nati
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDatabase } from '@/lib/db/provider';
-import { Card, Button, MultiChoice, SliderInput, SummaryRow, BrandHeader, KeyboardAvoider } from '@/components/ui';
+import { Card, Button, MultiChoice, SliderInput, SummaryRow, BrandHeader, KeyboardAvoider, PhotoButton } from '@/components/ui';
 import { NSA, Fonts, Radius } from '@/theme/nsa';
 
 interface PaddockOption { id: number; name: string }
@@ -29,6 +29,7 @@ export default function AbortoScreen() {
   const [category, setCategory] = useState<string | null>(null);
   const [count, setCount] = useState(1);
   const [notes, setNotes] = useState('');
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
 
@@ -71,9 +72,9 @@ export default function AbortoScreen() {
       const to = POST_ABORT[category];
       await db.withTransactionAsync(async () => {
         await db.runAsync(
-          `INSERT INTO herd_events (paddock_id, event_type, category, head_count, notes, date)
-           VALUES (?, 'ABORTO', ?, ?, ?, date('now','localtime'))`,
-          [Number(paddockId), category, count, notes.trim() || null]
+          `INSERT INTO herd_events (paddock_id, event_type, category, head_count, notes, photo_local_uri, date)
+           VALUES (?, 'ABORTO', ?, ?, ?, ?, date('now','localtime'))`,
+          [Number(paddockId), category, count, notes.trim() || null, photoUri]
         );
         if (!to) return;
         await db.runAsync(
@@ -167,10 +168,14 @@ export default function AbortoScreen() {
                 multiline
               />
 
+              <Text style={[styles.label, { marginTop: 22 }]}>FOTO (OPCIONAL)</Text>
+              <PhotoButton uri={photoUri} onPhoto={setPhotoUri} />
+
               <Card borderColor={NSA.danger}>
                 <SummaryRow label="Piquete" value={paddockName} />
                 <SummaryRow label="Matriz" value={category ?? '—'} />
                 <SummaryRow label="Abortos" value={`${count}`} valueColor={NSA.dangerFg} />
+                {photoUri ? <SummaryRow label="Foto" value="anexada" /> : null}
                 {category && POST_ABORT[category] ? (
                   <SummaryRow label="Após o registro" value={`${category} → ${POST_ABORT[category]}`} />
                 ) : null}

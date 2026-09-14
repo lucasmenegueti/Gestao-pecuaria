@@ -3,6 +3,7 @@ import * as Crypto from 'expo-crypto';
 import { supabase } from '@/lib/supabase/client';
 import { SYNCED_TABLES } from '@/lib/db/schema';
 import { logInfo, logWarn, logError } from '@/lib/log';
+import { uploadHerdPhoto } from '@/lib/photos';
 
 // ---------------------------------------------------------------------
 // Tipos
@@ -32,6 +33,7 @@ interface TableConfig {
 const LOCAL_ONLY_COLS = new Set([
   'id', 'supabase_id', 'local_updated_at', 'pending_sync', 'sync_rev',
   'weight_kg',
+  'photo_local_uri',
 ]);
 
 // Colunas que o servidor tem mas o SQLite local não — precisamos ignorá-las
@@ -472,6 +474,22 @@ async function pushOne(
         if (!stableId) {
           stableId = Crypto.randomUUID();
           await db.runAsync(`UPDATE ${table.name} SET supabase_id = ? WHERE id = ?`, [stableId, row.id]);
+        }
+        // Foto de morte/aborto: sobe o arquivo ANTES do row, chaveado pelo mesmo
+        // UUID estável (retry re-envia pra mesma chave, upsert no Storage).
+        // Falha de upload = falha do row (circuit breaker cuida do retry).
+        if (table.name === 'herd_events' && row.photo_local_uri && !row.photo_path) {
+          const photoPath = await uploadHerdPhoto(row.photo_local_uri, stableId);
+          if (photoPath === undefined) {
+            stats.failed++;
+            markPushFail(table.name, row.id);
+            continue;
+          }
+          await db.runAsync(
+            `UPDATE ${table.name} SET photo_path = ? WHERE id = ?`,
+            [photoPath, row.id]
+          );
+          payload.photo_path = photoPath;
         }
         const { data, error } = await supabase
           .from(table.name)

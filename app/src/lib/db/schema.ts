@@ -298,6 +298,8 @@ CREATE TABLE IF NOT EXISTS herd_events (
   target_paddock_id INTEGER,
   notes TEXT,
   weight_kg REAL,
+  photo_local_uri TEXT,
+  photo_path TEXT,
   date TEXT NOT NULL DEFAULT (date('now','localtime')),
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),${SYNC},
   FOREIGN KEY (paddock_id) REFERENCES paddocks(id)

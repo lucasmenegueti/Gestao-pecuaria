@@ -6,6 +6,32 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.12.0 — "morte de bezerro evolui a vaca + foto em morte/aborto" (2026-09-14)
+
+Pedido do Lucas: ao lançar morte, perguntar se é **bezerro/a nascido** ou **outras mortes**; morte de bezerro nascido evolui a vaca parida pra solteira (mesma mecânica do aborto). Morte e aborto ganham **foto opcional, salva no servidor**.
+
+### Morte (`admin/morte.tsx`)
+- Primeira pergunta: "Que tipo de morte?" — *Bezerro/a nascido* ou *Outras mortes*. "Outras" é o fluxo antigo, intocado.
+- *Bezerro/a nascido* mostra só `BEZERRO MAMANDO` / `BEZERRA MAMANDO` (é quem forma par com `VACA PARIDA`; desmamado não conta). Cada bezerro morto evolui **1 `VACA PARIDA → VACA SOLTEIRA`**, limitado ao `head_count` de vaca parida no piquete (se tiver 0, registra só a morte e o card de revisão avisa). Evento `EVOLUCAO` com notes `VACA PARIDA → VACA SOLTEIRA · morte de bezerro` (formato que `paddock-info.ts` parseia). Tudo numa `withTransactionAsync`.
+
+### Foto (morte e aborto)
+- `PhotoButton` antes do botão de revisar/confirmar. Hoje as fotos das rondas gravam só o caminho local (`photo_uri`) — o arquivo nunca subia. Aqui o arquivo **sobe de verdade**: `herd_events.photo_local_uri` (local-only, entra em `LOCAL_ONLY_COLS`) + `herd_events.photo_path` (sincroniza; chave no bucket privado `herd-photos`, `herd_events/<uuid>.jpg`).
+- Upload acontece no `pushOne` (`engine.ts`, ramo append-only), **antes** do upsert do row, chaveado pelo mesmo UUID estável → retry re-envia pra mesma chave (`upsert:true` no Storage). Upload falha = row falha (circuit breaker retenta). Arquivo local sumiu (cache do ImagePicker é purgável) = evento sobe **sem** foto, com `photo_missing` no log — morte não fica presa no device por causa de arquivo perdido. Helper em `src/lib/photos.ts`; lê como `ArrayBuffer` (Blob/FormData em RN gera objeto de 0 bytes).
+- Worker verificado: `/storage/v1/*` passa (resposta JSON do Storage API).
+- Tamanho: `quality: 0.7` sem redimensionar (3–5 MB em câmera moderna). Redimensionar exige `expo-image-manipulator` = módulo nativo = EAS Build. Deixado de fora pra manter OTA.
+
+### Schema
+- Local: `SCHEMA_VERSION` 25 (`ALTER TABLE herd_events ADD COLUMN photo_local_uri/photo_path`, aditivo).
+- Remoto: `app/supabase/migrations/2026-09-14_herd_events_photo.sql` — coluna `photo_path`, bucket `herd-photos`, policies select/insert/update pra `authenticated`. **Aplicar em prod E na branch QA ANTES de publicar o OTA**: sem a coluna, o payload de `herd_events` (que sai de `SELECT *`) leva `photo_path` e **todo** push de `herd_events` falha, com ou sem foto. O classificador da sessão bloqueou o `apply_migration` — pendente de o Lucas rodar.
+
+**Validação:** `npx tsc --noEmit` limpo. Pendente: fim a fim no Tab A9 (Expo Go, QA) — registrar morte com foto, forçar sync, conferir `storage.objects` com `size > 0` e `photo_path` preenchido. Web não serve pra isso (`PhotoButton` usa `Alert` de 3 botões, que não abre no react-native-web).
+
+**Escopo:** 100% JS → **OTA** + web, depois da migration.
+
+**Fallback:** `git checkout v0.11.1` e republicar com `eas update --branch production --environment production`. A coluna e o bucket podem ficar (aditivos).
+
+---
+
 ## v0.11.1 — "confinamento fora dos alertas por piquete" (2026-09-11)
 
 Currais de confinamento (capim "Confinamento") são tratados à parte na operação — decisão do Lucas. Nenhum alerta **por piquete** do Painel os considera mais: água, sanidade, cerca, biológico, ronda atrasada, cocho (bombona) e bombona com conta perdida. Filtro central em `loadAlerts` (`alerts.ts`), por `grass_types.name = CONFINEMENT_GRASS` (constante movida pra `constants/index.ts`; `paddock-info.ts` importa de lá).

@@ -6,7 +6,7 @@ import { setLogDb, logInfo, logWarn } from '@/lib/log';
 // Deixar seed local criaria duplicatas / conflitos ao sincronizar.
 
 const DB_NAME = 'gestao_pecuaria.db';
-const SCHEMA_VERSION = 24;
+const SCHEMA_VERSION = 25;
 
 const DatabaseContext = createContext<SQLite.SQLiteDatabase | null>(null);
 
@@ -229,6 +229,18 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         if (currentVersion < 24) {
           // v24: schedule_projects + schedule_tasks (cronograma de atividades).
           // Tabelas novas — CREATE_TABLES_SQL cria com IF NOT EXISTS. Nada a dropar.
+        }
+        if (currentVersion < 25) {
+          // v25: herd_events ganha foto (morte/aborto). photo_local_uri = arquivo
+          // no device (local-only); photo_path = chave no Storage, preenchida no
+          // push. ALTER aditivo, tolerante como o v17.
+          for (const col of ['photo_local_uri TEXT', 'photo_path TEXT']) {
+            try {
+              await database.execAsync(`ALTER TABLE herd_events ADD COLUMN ${col}`);
+            } catch {
+              // coluna já existe ou tabela não existe ainda — CREATE_TABLES_SQL cuida.
+            }
+          }
         }
         if (currentVersion < 21) {
           // v21: Reset pra produção — Supabase foi limpo (migration
