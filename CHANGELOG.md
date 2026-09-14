@@ -31,9 +31,11 @@ Pedido do Lucas: ao lançar morte, perguntar se é **bezerro/a nascido** ou **ou
 
 A ordem inversa é segura pelo lado do push: evento **sem** foto não manda `photo_path` (a chave é removida do payload quando nula), então sobe mesmo antes da coluna existir; evento **com** foto fica `pending_sync=1` e retenta quando a coluna chegar.
 
-**Validação:** `npx tsc --noEmit` limpo. Pendente: fim a fim no Tab A9 (Expo Go, QA) — registrar morte com foto, forçar sync, conferir `storage.objects` com `size > 0` e `photo_path` preenchido. Web não serve pra isso (`PhotoButton` usa `Alert` de 3 botões, que não abre no react-native-web).
+**Validação:** `npx tsc --noEmit` limpo. Lucas deu por testado (2026-09-14) e mandou subir. Web não serve pra testar foto (`PhotoButton` usa `Alert` de 3 botões, que não abre no react-native-web).
 
-**Escopo:** 100% JS → **OTA** + web, depois da migration.
+**Escopo:** 100% JS → **OTA** + web.
+
+**No ar (2026-09-14):** OTA production, runtime `1.0.1`, android+ios, update group `e9f0def5-6025-41df-8e74-2bfa1acdd87c`. Web republicada (bundle conferido: Worker 1, QA 0). Migration aplicada em **QA e prod** logo após o OTA (bucket, 3 policies e coluna conferidos em prod) — ou seja, a ordem "todos os devices no OTA antes da migration" **não** foi esperada, por decisão do Lucas. Device que ainda não reabriu o app pode ter perdido eventos de rebanho no pull até atualizar; remédio acima.
 
 **Fallback:** `git checkout v0.11.1` e republicar com `eas update --branch production --environment production`. A coluna e o bucket podem ficar (aditivos).
 
