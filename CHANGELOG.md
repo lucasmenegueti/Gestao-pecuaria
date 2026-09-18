@@ -24,12 +24,13 @@ Suspeita do Lucas: rondas marcadas no escritório, sem passar no piquete. A audi
 
 ### Schema
 - Local: `SCHEMA_VERSION` 26 (`ALTER TABLE rondas ADD COLUMN gps_*`, aditivo — dropar `rondas` perderia avaliação não sincronizada).
-- Remoto: `app/supabase/migrations/2026-09-17_rondas_gps.sql`. O classificador da sessão bloqueou o `apply_migration` — **pendente de o Lucas rodar**.
+- Remoto: `app/supabase/migrations/2026-09-17_rondas_gps.sql`. **Aplicada em prod e em QA em 17/09/2026**, nesta ordem, depois do OTA.
 
-### Ordem de deploy (mesma da v0.12.0: OTA primeiro)
-1. **OTA v0.13.0 primeiro.**
-2. **Confirmar que os devices reabriram o app duas vezes** — `expo-updates` baixa numa abertura e aplica na seguinte. Schema local tem que estar em v26.
-3. **Só então a migration em prod**, no mesmo dia.
+### Ordem de deploy (mesma da v0.12.0: OTA primeiro) — EXECUTADA EM 17/09/2026
+1. **OTA v0.13.0** — branch `production`, runtime 1.0.1, update group `779d0886-90bf-4b48-a69e-7ccd0d13cb05` (android + ios), commit `32efa3c`.
+2. **Migration em prod** (`fxtescythawmbwkthbyb`) e em **QA** (`zmetxajiimsclhuhaykv`), colunas conferidas via `information_schema`.
+
+O passo intermediário do roteiro — *confirmar que os devices reabriram o app duas vezes* (`expo-updates` baixa numa abertura e aplica na seguinte) — **não foi cumprido**: a migration entrou minutos depois do OTA, a pedido. Janela de risco enquanto houver aparelho em v0.12.0: ronda criada por **outro** device desce no pull com as chaves `gps_*`, o INSERT local estoura por coluna inexistente, o `catch` engole e `last_pull_at` avança — aquela ronda some naquele aparelho. Não há perda no servidor. **Remédio, por device afetado:** `UPDATE sync_state SET last_pull_at = NULL WHERE id = 1` e deixar ressincronizar. A janela fecha sozinha assim que cada aparelho abrir o app duas vezes.
 
 O engine tolerante a coluna desconhecida **não** protege este deploy: ele só existe em device que já recebeu o OTA, e na hora da migration todo aparelho ainda roda a v0.12.0 com o engine antigo. Ele protege a *próxima* migration, não esta.
 
