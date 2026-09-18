@@ -121,7 +121,15 @@ CREATE TABLE IF NOT EXISTS rondas (
   paddock_id INTEGER NOT NULL,
   user_id TEXT NOT NULL,
   date TEXT NOT NULL DEFAULT (date('now','localtime')),
-  completed INTEGER NOT NULL DEFAULT 0,${SYNC},
+  completed INTEGER NOT NULL DEFAULT 0,
+  -- Onde o aparelho estava quando a ronda foi aberta. Tudo nullable: o peão pode
+  -- negar a permissão e o GPS pode não dar fix no tempo limite — a ronda funciona
+  -- sem isso. gps_mocked = flag de posição falsa do Android (NULL no iOS).
+  gps_lat REAL,
+  gps_lng REAL,
+  gps_accuracy_m REAL,
+  gps_mocked INTEGER,
+  gps_at TEXT,${SYNC},
   FOREIGN KEY (paddock_id) REFERENCES paddocks(id)
 );
 

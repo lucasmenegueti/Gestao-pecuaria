@@ -6,6 +6,45 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.13.0 — "ronda grava onde o aparelho estava" (2026-09-17)
+
+Suspeita do Lucas: rondas marcadas no escritório, sem passar no piquete. A auditoria dos dados existentes (ver abaixo) confirmou o padrão e mostrou o limite: **sem posição, não dá pra separar "não foi ao piquete" de "foi e lançou tudo depois na sede"**. Esta versão fecha esse buraco.
+
+### Captura (`src/lib/ronda-location.ts`)
+- Ao abrir o menu de avaliação de um piquete, o app registra em `rondas` a posição do aparelho: `gps_lat`, `gps_lng`, `gps_accuracy_m`, `gps_mocked`, `gps_at`. Um ponto por ronda (a ronda dura o dia); não regrava se já tem `gps_at`.
+- **Nunca bloqueia o peão.** A ronda já foi criada quando a captura roda, e todo caminho de falha (permissão negada, GPS frio, timeout de 15 s, web) sai em silêncio deixando as colunas NULL. Ronda sem satélite continua valendo.
+- `gps_mocked` é a flag de posição falsa do Android (mock location provider). No iOS vem NULL — a plataforma não expõe equivalente.
+- **Sem build nativo**: `expo-location` já era dependência (mapa), `ACCESS_FINE_LOCATION` já estava no `app.json` e `NSLocationWhenInUseUsageDescription` já sai no plist resolvido. Verificado com `npx expo config --type introspect`.
+- `pending_sync = 1` setado na mão no UPDATE: `rondas` é `appendOnly` e portanto **não** está em `MUTABLE_TABLES` — não existe trigger de dirty. Sem isso o fix nunca subiria. O push re-envia a linha com o mesmo UUID estável e o upsert colapsa no mesmo row.
+
+### Engine tolerante a coluna desconhecida (`sync/engine.ts`)
+- `localInsertFromRemote` e `localUpdateFromRemote` agora filtram as chaves do row remoto pelas colunas que a tabela local realmente tem (`PRAGMA table_info`, cache módulo-level em `localColumns`).
+- Motivo: servidor uma migration à frente do device fazia `select *` trazer a coluna nova, o INSERT local estourar "no column named X", o `catch` engolir e `last_pull_at` avançar — **o row sumia em silêncio naquele aparelho**. É o risco que a v0.12.0 documentou e contornou com ordem de deploy; agora está resolvido na origem.
+- No push, ronda sem fix não manda as colunas `gps_*` (mesmo padrão do `photo_path`), pra ronda continuar subindo se um device receber o OTA antes da migration.
+
+### Schema
+- Local: `SCHEMA_VERSION` 26 (`ALTER TABLE rondas ADD COLUMN gps_*`, aditivo — dropar `rondas` perderia avaliação não sincronizada).
+- Remoto: `app/supabase/migrations/2026-09-17_rondas_gps.sql`. O classificador da sessão bloqueou o `apply_migration` — **pendente de o Lucas rodar**.
+
+### Ordem de deploy (mesma da v0.12.0: OTA primeiro)
+1. **OTA v0.13.0 primeiro.**
+2. **Confirmar que os devices reabriram o app duas vezes** — `expo-updates` baixa numa abertura e aplica na seguinte. Schema local tem que estar em v26.
+3. **Só então a migration em prod**, no mesmo dia.
+
+O engine tolerante a coluna desconhecida **não** protege este deploy: ele só existe em device que já recebeu o OTA, e na hora da migration todo aparelho ainda roda a v0.12.0 com o engine antigo. Ele protege a *próxima* migration, não esta.
+
+Por que não o inverso, já que a coluna sobe: com a migration primeiro, todo device ativo faz pull de `rondas` com `gps_lat: null`, o INSERT local estoura, o `catch` engole e `last_pull_at` avança — a ronda e suas avaliações (por FK) somem em silêncio naquele aparelho, com remédio manual (`UPDATE sync_state SET last_pull_at = NULL WHERE id = 1`) device a device. Com o OTA primeiro, o pior caso é ronda **com** fix falhando o push com PGRST204 e entrando no circuit breaker: ela fica local com `pending_sync=1` e sobe sozinha depois da migration. As avaliações dessa ronda esperam junto (FK pro UUID que não chegou), então o admin não enxerga essas rondas no servidor nesse intervalo. Degradação visível e limitada, sem perda — melhor que perda silenciosa.
+
+### Auditoria (`app/scripts/auditoria-rondas.sql`)
+Consulta em 3 blocos, reproduzível: (1) plausibilidade por usuário/dia sem GPS — `*_evals.created_at` é o relógio do device, cruzado com a distância entre centróides dos piquetes; (2) variação do conteúdo entre dias suspeitos e normais; (3) distância do fix ao centro do piquete, que só devolve linhas depois desta versão rodando em campo.
+
+Achados de 21/08 a 17/09 (Pedro): dos 22 dias com piquetes de pasto suficientes, **12 compatíveis com ronda em campo e 9 com deslocamento que exigiria de 58 a 214 km/h**. Currais de confinamento ficam fora do teste geográfico — estão todos na sede. Em todo o histórico do app há **1 medição de forragem em 3.279 rondas**.
+
+### Fallback
+`git checkout v0.12.0` — reverte a captura e o filtro de colunas do engine. As colunas no Supabase podem ficar (nullable, ninguém as lê).
+
+---
+
 ## v0.12.0 — "morte de bezerro evolui a vaca + foto em morte/aborto" (2026-09-14)
 
 Pedido do Lucas: ao lançar morte, perguntar se é **bezerro/a nascido** ou **outras mortes**; morte de bezerro nascido evolui a vaca parida pra solteira (mesma mecânica do aborto). Morte e aborto ganham **foto opcional, salva no servidor**.

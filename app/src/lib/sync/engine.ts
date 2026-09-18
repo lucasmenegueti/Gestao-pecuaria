@@ -42,6 +42,22 @@ const LOCAL_ONLY_COLS = new Set([
 // têm contraparte local (supabase_id/default local/local_updated_at).
 const REMOTE_ONLY_COLS = new Set(['id', 'client_id', 'created_by', 'created_at', 'updated_at', 'deleted_at']);
 
+// Colunas que a tabela local realmente tem, por tabela. O servidor pode estar uma
+// migration à frente do device: `select *` traz a coluna nova (com null), o INSERT
+// local estoura "no column named X", o catch engole e `last_pull_at` avança — o row
+// some em silêncio naquele aparelho. Foi o risco documentado na v0.12.0
+// (herd_events.photo_path); aqui a gente filtra em vez de depender da ordem de deploy.
+const localColsCache = new Map<string, Set<string>>();
+
+async function localColumns(db: SQLite.SQLiteDatabase, table: string): Promise<Set<string>> {
+  const cached = localColsCache.get(table);
+  if (cached) return cached;
+  const rows = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`);
+  const cols = new Set(rows.map((r) => r.name));
+  localColsCache.set(table, cols);
+  return cols;
+}
+
 // ---------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------
@@ -142,8 +158,10 @@ async function localInsertFromRemote(
 ): Promise<number | null> {
   const cols: string[] = [];
   const vals: any[] = [];
+  const known = await localColumns(db, table);
   for (const [k, v] of Object.entries(remoteRow)) {
     if (REMOTE_ONLY_COLS.has(k)) continue;
+    if (!known.has(k)) continue; // servidor à frente do device — ver localColumns
     if (k in localFks) {
       cols.push(k);
       vals.push(localFks[k]);
@@ -203,8 +221,10 @@ async function localUpdateFromRemote(
   const vals: any[] = [];
   // Propaga deleted_at localmente (diferente do insert, que já o seta via metadata de sync).
   const updateSkip = new Set(['id', 'client_id', 'created_by', 'created_at', 'updated_at']);
+  const known = await localColumns(db, table);
   for (const [k, v] of Object.entries(remoteRow)) {
     if (updateSkip.has(k)) continue;
+    if (!known.has(k)) continue; // servidor à frente do device — ver localColumns
     if (k in localFks) {
       sets.push(`${k} = ?`);
       vals.push(localFks[k]);
@@ -494,6 +514,17 @@ async function pushOne(
         // Sem foto, não mandar a coluna: evento sobe mesmo antes da migration
         // remota criar `photo_path` (só evento COM foto espera a coluna).
         if (table.name === 'herd_events' && payload.photo_path == null) delete payload.photo_path;
+        // Ronda sem fix de GPS não manda as colunas — assim ela continua subindo
+        // mesmo se o OTA chegar antes da migration `2026-09-17_rondas_gps.sql`.
+        // (Ronda COM fix contra servidor sem a coluna falha; por isso a migration
+        // é pré-requisito do deploy, não uma etapa posterior.)
+        if (table.name === 'rondas' && payload.gps_at == null) {
+          delete payload.gps_lat;
+          delete payload.gps_lng;
+          delete payload.gps_accuracy_m;
+          delete payload.gps_mocked;
+          delete payload.gps_at;
+        }
         const { data, error } = await supabase
           .from(table.name)
           .upsert({ ...payload, id: stableId }, { onConflict: 'id' })

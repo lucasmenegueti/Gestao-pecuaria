@@ -6,7 +6,7 @@ import { setLogDb, logInfo, logWarn } from '@/lib/log';
 // Deixar seed local criaria duplicatas / conflitos ao sincronizar.
 
 const DB_NAME = 'gestao_pecuaria.db';
-const SCHEMA_VERSION = 25;
+const SCHEMA_VERSION = 26;
 
 const DatabaseContext = createContext<SQLite.SQLiteDatabase | null>(null);
 
@@ -237,6 +237,21 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           for (const col of ['photo_local_uri TEXT', 'photo_path TEXT']) {
             try {
               await database.execAsync(`ALTER TABLE herd_events ADD COLUMN ${col}`);
+            } catch {
+              // coluna já existe ou tabela não existe ainda — CREATE_TABLES_SQL cuida.
+            }
+          }
+        }
+        if (currentVersion < 26) {
+          // v26: rondas ganha a posição do aparelho na abertura da ronda.
+          // ALTER aditivo, tolerante como o v17/v25 — dropar rondas perderia
+          // avaliação ainda não sincronizada.
+          for (const col of [
+            'gps_lat REAL', 'gps_lng REAL', 'gps_accuracy_m REAL',
+            'gps_mocked INTEGER', 'gps_at TEXT',
+          ]) {
+            try {
+              await database.execAsync(`ALTER TABLE rondas ADD COLUMN ${col}`);
             } catch {
               // coluna já existe ou tabela não existe ainda — CREATE_TABLES_SQL cuida.
             }

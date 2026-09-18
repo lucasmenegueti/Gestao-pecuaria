@@ -9,6 +9,7 @@ import { useDatabase } from '@/lib/db/provider';
 import { BrandHeader } from '@/components/ui';
 import { NSA, DOMAIN, Fonts, Radius } from '@/theme/nsa';
 import { confirm } from '@/lib/confirm';
+import { captureRondaLocation } from '@/lib/ronda-location';
 
 type LucideIcon = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
 
@@ -83,7 +84,12 @@ export default function EvalMenuScreen() {
   useEffect(() => {
     if (!user?.id || !paddockId) return;
     ensureRondaId(db, Number(paddockId), user.id)
-      .then((id) => store.setRondaId(id))
+      .then((id) => {
+        store.setRondaId(id);
+        // Posição do aparelho ao abrir a ronda. Roda solta de propósito: o GPS
+        // pode levar segundos e o menu não espera por ele.
+        captureRondaLocation(db, id);
+      })
       .catch(() => {});
     hydratePaddock();
     // user.id (string estável) em vez de user (objeto novo a cada hidratação)
