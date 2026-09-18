@@ -24,7 +24,8 @@ Suspeita do Lucas: rondas marcadas no escritório, sem passar no piquete. A audi
 
 ### Schema
 - Local: `SCHEMA_VERSION` 26 (`ALTER TABLE rondas ADD COLUMN gps_*`, aditivo — dropar `rondas` perderia avaliação não sincronizada).
-- Remoto: `app/supabase/migrations/2026-09-17_rondas_gps.sql`. **Aplicada em prod e em QA em 17/09/2026**, nesta ordem, depois do OTA.
+- Remoto: `app/supabase/migrations/2026-09-17_rondas_gps.sql`. **Aplicada em prod e em QA em 17/09/2026**, depois do OTA.
+- Web (Netlify): republicada em 17/09/2026 — deploy `6aac8e0661025a62e1e8c3ab`. Obrigatório junto com a migration: a web tem o mesmo SQLite local (OPFS) e ficaria no schema v25 contra um servidor já migrado.
 
 ### Ordem de deploy (mesma da v0.12.0: OTA primeiro) — EXECUTADA EM 17/09/2026
 1. **OTA v0.13.0** — branch `production`, runtime 1.0.1, update group `779d0886-90bf-4b48-a69e-7ccd0d13cb05` (android + ios), commit `32efa3c`.
