@@ -48,6 +48,17 @@ Doc de referência pra entender **onde o dado vive, como chega no device, e como
 - **`LOCAL_ONLY_COLS`** (`id, supabase_id, local_updated_at, pending_sync, sync_rev, weight_kg`) nunca sobem. `weight_kg` em `herd_events` é local-only **porque o Supabase ainda não tem a coluna** — se subir, o INSERT remoto quebra.
 - **`REMOTE_ONLY_COLS`** (`id, client_id, created_by, created_at, updated_at, deleted_at`) são ignoradas ao inserir localmente.
 - **`geometry`**: `TEXT` (JSON string) no local ↔ `jsonb` no Supabase. Conversão em `toLocalValue`/`toRemotePayload`.
+- **Coluna que o device não conhece é descartada no pull.** `localInsertFromRemote`/`localUpdateFromRemote` filtram as chaves do row remoto pelas colunas que a tabela local tem de fato (`localColumns`, cache de `PRAGMA table_info`). Sem isso, servidor uma migration à frente fazia o INSERT local estourar, o `catch` engolir e `last_pull_at` avançar — o row sumia em silêncio naquele aparelho.
+
+### `created_at` das avaliações é o relógio do DEVICE, não do servidor
+
+Vale pra `*_evals` e qualquer tabela cujo `CREATE TABLE` local tenha `created_at TEXT DEFAULT (datetime('now','localtime'))`. A coluna **não** está em `LOCAL_ONLY_COLS`, então sobe crua e cai num `timestamptz` — chega ao Postgres como **hora de Brasília rotulada de UTC**. Consequências:
+
+- `created_at` (lido como naive) = a hora que o peão viu no relógio ao salvar a tela. É o dado mais fiel de *quando* a avaliação foi feita.
+- `updated_at` = `now()` do servidor no push. Então **`updated_at − created_at − 3h` = quanto tempo o registro ficou no aparelho antes de sincronizar** (proxy de tempo sem sinal). O piso é 3h exatas; valor diferente disso é relógio do device errado.
+- `rondas` **não** tem `created_at` local, só `date`. Pra hora de uma ronda, use o `min(created_at)` das avaliações dela.
+
+Não "corrija" o offset com `at time zone` sem checar: o valor gravado não é UTC de verdade.
 
 ### Resolução de conflito
 - **`tryHealOrphan`**: `INSERT` que bate `UNIQUE` no servidor → **deleta a órfã local + reseta `last_pull_at`** (próximo pull baixa a versão canônica). **Não soma** — foi o fix do "gado fantasma" (v0.7.10, contagem dobrava).
@@ -160,6 +171,24 @@ node_modules/leaflet ──bundle-leaflet-inline.mjs──▶ src/components/map
 - **Local:** bump `SCHEMA_VERSION` em `provider.tsx` + bloco `if (currentVersion < N) { DROP TABLE ... }` listando as tabelas cuja forma mudou. Seed tables não precisam drop se a mudança for **aditiva** (`ALTER TABLE ADD COLUMN` — SQLite só permite aditivo).
 - **Remoto:** migration `.sql` aplicada no Supabase (MCP `apply_migration` ou SQL editor). **Local e remoto são independentes** — `SCHEMA_VERSION` é `PRAGMA user_version`, não sincroniza.
 - **Nova tabela sincronizada:** (1) `CREATE TABLE` em `schema.ts` com o bloco de colunas SYNC; (2) adicione a `SYNCED_TABLES` com `appendOnly` e `fkCols` na ordem certa; (3) se `appendOnly:false`, adicione também a `MUTABLE_TABLES` (senão UPDATEs não sobem).
+- **Coluna nova em `appendOnly:true`** (sem trigger de dirty) só sobe se quem escreve setar `pending_sync = 1` na mão. O upsert por UUID estável cuida do resto — re-envio colapsa no mesmo row. Ver `src/lib/ronda-location.ts`.
+
+> **Ordem OTA × migration: olhe a DIREÇÃO da coluna.**
+>
+> - **Coluna que DESCE** (o servidor passa a mandar algo novo no pull): **OTA primeiro**, confirmar que os aparelhos reabriram o app **duas vezes** (`expo-updates` baixa numa abertura e aplica na seguinte), migration depois. Migration antes = o pull estoura no device antigo e o row **some em silêncio** ali, com remédio manual por aparelho (`last_pull_at = NULL`).
+> - **Coluna que SOBE** (o app passa a mandar algo novo no push): o servidor teria de estar pronto primeiro — mas isso conflita com a regra acima, porque toda coluna que sobe também desce no pull seguinte. **Na prática: OTA primeiro também.** O pior caso vira push falhando com `PGRST204` e entrando no circuit breaker — a row fica local com `pending_sync=1` e sobe sozinha depois da migration. Degradação visível e sem perda, melhor que perda silenciosa. Para encurtar a janela, faça como a v0.13.0: no push, não mande a coluna quando ela estiver vazia.
+> - O filtro de coluna desconhecida do pull (§2) **não** salva o deploy que o introduz — ele só existe em device já atualizado. Protege a migration seguinte.
+> - **Republicar a web junto** (ver `CLAUDE.md` › Web): ela roda o mesmo SQLite local e sofre o mesmo descasamento.
+
+### Auditar se a ronda foi lançada no piquete
+
+`app/scripts/auditoria-rondas.sql` (3 blocos, comentados). Desde a v0.13.0 `rondas` guarda `gps_lat/lng/accuracy_m/mocked/at`, capturados ao abrir o menu de avaliação — um ponto por ronda, tudo nullable (permissão negada ou GPS frio não podem travar o peão).
+
+Antes disso, e como reforço depois, a leitura vem do `created_at` (seção acima) cruzado com `center_lat/center_lng`: distância entre piquetes consecutivos na ordem de gravação ÷ tempo = velocidade que o trajeto exigiria.
+
+Duas armadilhas ao ler esses números:
+- **Currais de confinamento (`CF%`) ficam todos na sede.** Distância entre eles não diz nada sobre presença — "no escritório" e "no curral" são o mesmo ponto. Só piquetes de pasto entram no teste geográfico.
+- **A ordem alfabética da lista não acusa nada.** `(tabs)/ronda.tsx` ordena por `p.name`, e o peão segue a tela também nos dias legítimos. O que discrimina é a velocidade exigida, não a ordem.
 
 ### Forçar repull total
 - `UPDATE sync_state SET last_pull_at = NULL WHERE id = 1;` → próximo `pullDelta` traz tudo.

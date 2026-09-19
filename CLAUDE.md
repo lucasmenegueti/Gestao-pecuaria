@@ -65,6 +65,8 @@ npx netlify-cli deploy --prod --dir dist --site e635475a-b815-4b63-882e-5a771cdb
 
 `app/public/_redirects` (fallback SPA do expo-router) e `app/public/_headers` (COOP/COEP, que o wa-sqlite exige pra OPFS) são copiados pro `dist` pelo próprio export — não deletar.
 
+**Migration de schema exige republicar a web junto.** A web roda o mesmo SQLite local (via OPFS), com o mesmo `SCHEMA_VERSION`. Ficar numa versão atrás do servidor dá o mesmo descasamento de um Tab A9 desatualizado: o pull traz coluna que a tabela local não tem. O `eas update` não alcança a web — é build + deploy separados.
+
 ## Known gotchas
 
 - **`expo-sqlite` + Web**: requer `.wasm` como bundled asset. `app/metro.config.js` adiciona `wasm` a `resolver.assetExts`. Não remover — SQLite web worker falha em resolver `wa-sqlite.wasm`.
