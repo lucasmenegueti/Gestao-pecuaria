@@ -15,21 +15,14 @@ Usado por peões em tratores/cavalos em piquetes remotos com conectividade ruim 
 
 ## Repository Layout
 
-- `app/` — Expo/React Native app (primary work)
 - `prototipo/` — Historical HTML/CSS prototype (deployado em `gh-pages` pra UX research; ref only)
 - `CHANGELOG.md` — **sempre atualizar** quando fizer mudança user-visible. Cada entry tem **Fallback** apontando pro tag anterior pra rollback.
 
 ## Dev Commands (de `app/`)
 
 ```bash
-npm start                    # Metro interativo (QR pro Expo Go)
-npm run web                  # http://localhost:8081
-npm run android              # emulador ou USB
-npm run ios                  # Mac only
 npx expo start --tunnel      # fallback p/ LAN/firewall bloqueando Expo Go
 ```
-
-Sem testes nem lint script configurados. Type check via `npx tsc --noEmit` em `app/`.
 
 **`--tunnel` precisa de duas coisas.** O pacote: `npm install -g @expo/ngrok@^4.1.0` (sem ele o Expo pede confirmação interativa e morre em modo não-interativo). E o caminho: o npm instala em `/opt/homebrew/lib/node_modules`, que a resolução do Expo **não** varre — subir com `NODE_PATH=/opt/homebrew/lib/node_modules npx expo start --tunnel`. Sem o `NODE_PATH` o erro é idêntico ao de pacote ausente.
 
@@ -84,40 +77,7 @@ npx netlify-cli deploy --prod --dir dist --site e635475a-b815-4b63-882e-5a771cdb
 
 ### Routing (expo-router, file-based)
 
-```
-app/src/app/
-├── (auth)/login.tsx              Auth gate (first login online, cached after)
-├── (tabs)/                       7 tabs: index(Painel)/ronda/rebanho/estoque/mapa/relatorio/cronograma
-│                                 (rebanho, relatorio e cronograma só pra admin — `href: null` esconde)
-├── ronda/[paddockId]/
-│   ├── menu.tsx                  Menu de Avaliação — usa <BottomNav/>
-│   └── {supplement,bombona,forage,water,biological,health,fence,weight,washing}/
-│       └── step1..N.tsx + summary.tsx
-├── admin/                        Formulações, tipos de capim, lotação, mover rebanho
-├── estoque/                      Entrada/saída
-└── reabastecimento/              3-phase: carregar → rota → resumo
-```
-
 Wizards routam sequencialmente. `summary.tsx` salva em SQLite e `router.replace`s. **Não** adicionar `<BottomNav/>` dentro de wizard steps — quebra integridade de fluxo. Só telas principais e menu de avaliação carregam bottom nav.
-
-### State — Zustand (`app/src/stores/`)
-
-- `authStore` — usuário, login/logout
-- `rondaStore` — wizard state por ronda section. Cada section tem slice + `updateX`/`resetX`. `resetAll` limpa entre rondas.
-- `syncStore` — estado do daemon de sync. Engine real em `app/src/lib/sync/engine.ts` + `daemon.ts`.
-
-Pattern: step1 chama `resetX()` em `useEffect`, cada step chama `updateX({ field })`, summary lê slice e dá INSERT.
-
-### DB (`app/src/lib/db/`)
-
-- `schema.ts` — `CREATE_TABLES_SQL` único + `SEED_SQL`. Seed roda só quando `users` está vazia.
-- `provider.tsx` — `DatabaseProvider` + `useDatabase()` hook. WAL mode, FK enforcement, versioning, seed bootstrap.
-
-Cada ronda section tem `*_evals` table FK pra `rondas.id`. Menu screen busca cada uma pra mostrar "Últ: DATA" por card.
-
-### UI Components (`app/src/components/ui/`)
-
-Primitivos reusáveis = design system. Não introduzir novos estilos de botão/input — estender existentes: `WizardFlow`, `BinaryChoice`, `MultiChoice`, `SliderInput`, `PhotoButton`, `ResultCard`, `SummaryRow`, `Badge`, `Card`, `Button`, `BottomNav`.
 
 ## Domain
 
@@ -131,13 +91,7 @@ Primitivos reusáveis = design system. Não introduzir novos estilos de botão/i
 - **Arroba (@) = 30 kg de PESO VIVO** — convenção da fazenda, definida pelo Lucas. Equivale a 15 kg de carcaça com 50% de rendimento; usar peso vivo direto evita carregar premissa de rendimento. Efeito prático: GMD em kg/dia é numericamente o ganho em @/mês.
 - **Bezerro mamando não entra em conta de consumo por cabeça** (BEZERRO/BEZERRA MAMANDO): mama, não come do cocho. Dividir suplemento pelo total de cabeças subestima pela metade em lote de pares.
 - **Tipos de Capim**: grass types com entry/exit height targets (cm).
-
-### Key calculations (`app/src/constants/index.ts`)
-
-- `calculateSupplementDays(sacks, kgPerSack, heads, gPerDay)` → dias até zerar o cocho
-- `calculateStockingRate(heads, ha)` → cab/ha
-- `calculateForageAverage(m1, m2, m3)` → média das 3 medidas de altura
-- `classifyFenceWith(volts, settings.fence)` (em `lib/settings.ts`) → FORTE ≥4000 / ADEQUADO ≥2000 / FRACO ≥1 / SEM CHOQUE =0 — limites configuráveis via `app_settings`
+- **Sanidade** armazena `affected_pct` (REAL, 0–100), não count.
 
 ### Cronograma (`(tabs)/cronograma.tsx`, admin-only)
 
@@ -147,15 +101,6 @@ Board de **tarefas × dias**, portado do `gestao-agricultura` com o eixo trocado
 - **Invariantes de touch portados verbatim** (bugs vc7–vc9 da agricultura, causa provada em emulador): container com `onMoveShouldSetPanResponder: false` (senão rouba o tap da barra-filha no 1º micro-move), barra com `onPanResponderTerminationRequest: () => false`, ambos com `onShouldBlockNativeResponder: () => false` (senão o board não rola), `scrollLock` desligando os 2 ScrollViews durante o drag armado, tap de 12px no touch / 5px no mouse. **Não "limpar".**
 - **Exceção consciente às UX Principles**: alvos de 26px e texto de 10px. É tela de admin no escritório, não do peão com luva. Mesmo desvio já aceito na agricultura.
 - Detalhes e pendências: `BRIEFING-cronograma-pecuaria.md`.
-
-### Ronda sections
-
-Ordem em `menu.tsx`: Suplementação → Bombona → Forragem → Aguada → Biológico → Sanidade → Cerca → Peso visual → Lavagem.
-
-- **Sanidade** armazena `affected_pct` (REAL, 0–100), não count.
-- **Cerca** pergunta "evita mistura?" primeiro, voltagem depois.
-- **Lavagem** = "lavou agora?" — não: volta sem salvar; sim: 2 screens (foto opcional + confirm).
-- **Bombona**: has_stock? → formula → sacks → summary.
 
 ## UX Principles (hard rules — quebrar regride a experiência do peão)
 
@@ -172,7 +117,6 @@ Ordem em `menu.tsx`: Suplementação → Bombona → Forragem → Aguada → Bio
 - Número fracionário user-facing passa por `decimal()` (`constants/index.ts`) — vírgula, não ponto. Nunca interpolar `${n}` cru; o erro é silencioso e só aparece quando o valor deixa de ser inteiro.
 - Wizard files: `step1.tsx` ... `stepN.tsx` + `summary.tsx` por pasta.
 - Removendo step: manter filename original, só atualizar `step=` prop e `router.push` target (evita rename churn).
-- Atualizar `CHANGELOG.md` + git tag pra mudança user-visible.
 
 ## Auth
 
