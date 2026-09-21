@@ -10,11 +10,6 @@ Predominantemente **leitura**. A única escrita hoje é o preço de compra da ra
 
 ## Comandos
 
-```bash
-npm run dev        # localhost:3000
-npm run build      # portão real de CI (Netlify roda isso)
-npm run typecheck  # tsc --noEmit
-```
 
 **`npm run lint` está quebrado** (`esutils` corrompido em `node_modules`) — não é erro de código, não tente consertar sem pedido. Use `build` + `typecheck` como portão.
 
