@@ -6,6 +6,20 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## Dados — T33 como piquete único (2026-09-29)
+
+Mudança de **dado**, não de código — sem versão, sem tag, sem build. Devices puxam no próximo sync.
+
+Inserido o piquete `T33` (286,63 ha) em produção e no QA, com o mesmo UUID (`f20ee0e4-…`) nos dois. Origem: `planejamento-de-areas/kml/Talhao 33.kml`. O KML traz o talhão inteiro num polígono só, sem divisão em piquetes, e por decisão do Lucas ele entra assim, com o nome `T33`, sem sufixo `- Pxx`. Capim **Braquiarão**. Área calculada por shoelace equirretangular local; `center_lat`/`center_lng` = centroide; geometria GeoJSON `[lon, lat]` com 7 casas. Os dois ambientes conferem pelo fingerprint md5 de `id+name+area+geometry`: `b93c07d8…` igual em prod e QA. SQL em `app/supabase/migrations/2026-09-29_t33_piquete.sql`.
+
+**Tiles:** os 180 tiles (z12–z17) que cobrem o bbox do T33 já estão empacotados, nenhum faltando.
+
+**Atenção à lotação:** com 286 ha num piquete só, o cab/ha do T33 sai bem mais baixo que o dos talhões divididos (12–18 ha por piquete). Quando o talhão for dividido, dar soft-delete neste piquete e criar os novos.
+
+**Fallback:** `UPDATE paddocks SET deleted_at = now(), updated_at = now() WHERE id = 'f20ee0e4-4e30-4582-9bc8-25f388210bad';` rodado em prod **e** no QA (sincroniza para os devices).
+
+---
+
 ## v0.13.0 — "ronda grava onde o aparelho estava" (2026-09-17)
 
 Suspeita do Lucas: rondas marcadas no escritório, sem passar no piquete. A auditoria dos dados existentes (ver abaixo) confirmou o padrão e mostrou o limite: **sem posição, não dá pra separar "não foi ao piquete" de "foi e lançou tudo depois na sede"**. Esta versão fecha esse buraco.
