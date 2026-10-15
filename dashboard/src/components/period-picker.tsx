@@ -15,7 +15,8 @@ const OPTS = [
 
 type PeriodId = typeof OPTS[number]['id'];
 
-export function PeriodPicker({ value }: { value: string }) {
+/** `allLabel`: opção extra no topo que tira o período da URL (a página decide o que "tudo" significa). */
+export function PeriodPicker({ value, allLabel }: { value: string; allLabel?: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const ref = useRef<HTMLDivElement>(null);
@@ -23,7 +24,9 @@ export function PeriodPicker({ value }: { value: string }) {
   const [customStart, setCustomStart] = useState(searchParams.get('inicio') ?? '');
   const [customEnd, setCustomEnd] = useState(searchParams.get('fim') ?? '');
 
-  const current = OPTS.find((o) => o.id === value) ?? OPTS[0];
+  const opts: ReadonlyArray<{ id: PeriodId | ''; label: string }> =
+    allLabel ? [{ id: '', label: allLabel }, ...OPTS] : OPTS;
+  const current = opts.find((o) => o.id === value) ?? opts[0]!;
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -33,9 +36,10 @@ export function PeriodPicker({ value }: { value: string }) {
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, [open]);
 
-  function pick(id: PeriodId) {
+  function pick(id: PeriodId | '') {
     const params = new URLSearchParams(searchParams.toString());
-    params.set('periodo', id);
+    if (id) params.set('periodo', id);
+    else params.delete('periodo');
     if (id !== 'custom') {
       params.delete('inicio');
       params.delete('fim');
@@ -67,7 +71,7 @@ export function PeriodPicker({ value }: { value: string }) {
       </button>
       {open ? (
         <div className="absolute right-0 top-[calc(100%+4px)] z-20 min-w-[200px] rounded-lg border border-border bg-bg-elevated p-1 shadow-lg">
-          {OPTS.map((o) => (
+          {opts.map((o) => (
             <button
               key={o.id}
               onClick={() => pick(o.id)}

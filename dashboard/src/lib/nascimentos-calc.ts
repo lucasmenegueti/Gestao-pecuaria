@@ -77,13 +77,29 @@ function grupoDaMorte(category: string): MorteNaEstacao['grupo'] | null {
   return null;
 }
 
-export function calcularCenarioNascimentos(eventosBrutos: HerdEventRow[]): CenarioNascimentos {
+/** Recorte opcional de datas (YYYY-MM-DD, inclusivo). Sem ele, a estação inteira. */
+export interface JanelaNascimentos {
+  start: string;
+  end: string;
+}
+
+export function calcularCenarioNascimentos(
+  eventosBrutos: HerdEventRow[],
+  janela?: JanelaNascimentos,
+): CenarioNascimentos {
   // Dedupe (mesma regra do consumo) só sobre o que a aba conta — descartar
   // duplicata de evento que nem aparece aqui geraria aviso sobre nada.
-  const { eventos: nascimentos, descartados: dupNascimentos } =
+  const { eventos: todosNascimentos, descartados: dupNascimentos } =
     dedupEventos(eventosBrutos.filter((e) => e.event_type === 'NASCIMENTO'));
 
-  const inicioEstacao = nascimentos.length > 0
+  const inicioEstacao = todosNascimentos.length > 0
+    ? todosNascimentos.reduce((min, e) => (e.date < min ? e.date : min), todosNascimentos[0]!.date)
+    : null;
+
+  // O início da estação é sempre o global; a janela só recorta o que é contado.
+  const naJanela = (date: string) => !janela || (date >= janela.start && date <= janela.end);
+  const nascimentos = todosNascimentos.filter((e) => naJanela(e.date));
+  const primeiroNascimento = nascimentos.length > 0
     ? nascimentos.reduce((min, e) => (e.date < min ? e.date : min), nascimentos[0]!.date)
     : null;
   const ultimoNascimento = nascimentos.length > 0
@@ -120,9 +136,9 @@ export function calcularCenarioNascimentos(eventosBrutos: HerdEventRow[]): Cenar
   // Semanas contíguas da primeira à última — buraco sem parto aparece zerado,
   // senão a curva esconde o vazio entre o início tímido e o pico da estação.
   const porSemana: SemanaNascimentos[] = [];
-  if (inicioEstacao && ultimoNascimento) {
+  if (primeiroNascimento && ultimoNascimento) {
     const fim = inicioDaSemana(ultimoNascimento);
-    for (let s = inicioDaSemana(inicioEstacao); s <= fim; s = proximaSemana(s)) {
+    for (let s = inicioDaSemana(primeiroNascimento); s <= fim; s = proximaSemana(s)) {
       porSemana.push(porSemanaMap.get(s) ?? { semana: s, machos: 0, femeas: 0 });
     }
   }
@@ -131,7 +147,7 @@ export function calcularCenarioNascimentos(eventosBrutos: HerdEventRow[]): Cenar
     eventosBrutos.filter(
       (e) =>
         e.event_type === 'MORTE' &&
-        inicioEstacao != null && e.date >= inicioEstacao &&
+        inicioEstacao != null && e.date >= inicioEstacao && naJanela(e.date) &&
         grupoDaMorte(e.category) != null,
     ),
   );

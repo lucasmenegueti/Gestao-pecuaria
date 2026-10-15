@@ -9,6 +9,7 @@ import {
   CATEGORIAS_MATRIZ_PRENHA,
   calcularCenarioNascimentos,
   type CenarioNascimentos,
+  type JanelaNascimentos,
 } from './nascimentos-calc';
 
 // Estação de cria: nascimentos, mortalidade e maternidade por piquete.
@@ -46,7 +47,10 @@ export interface NascimentosData {
   matrizes: { prenhas: number; paridas: number };
 }
 
-export async function loadNascimentosData(accessToken?: string): Promise<NascimentosData> {
+export async function loadNascimentosData(
+  accessToken?: string,
+  janela?: JanelaNascimentos,
+): Promise<NascimentosData> {
   const auth = { accessToken };
 
   const [paddocks, herd, eventos] = await Promise.all([
@@ -64,7 +68,7 @@ export async function loadNascimentosData(accessToken?: string): Promise<Nascime
     }),
   ]);
 
-  const cenario = calcularCenarioNascimentos(eventos);
+  const cenario = calcularCenarioNascimentos(eventos, janela);
   const paddockNameById = new Map(paddocks.map((p) => [p.id, p.name]));
 
   const maternidadeMap = new Map<string, MaternidadePiquete>();

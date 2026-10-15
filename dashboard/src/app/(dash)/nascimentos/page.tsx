@@ -1,6 +1,8 @@
 import { AlertCard, Card, EmptyState, KPICard, StatusPill } from '@/components/ui-primitives';
+import { PeriodPicker } from '@/components/period-picker';
 import { PrintButton } from '@/components/print-button';
 import { loadNascimentosData } from '@/lib/nascimentos';
+import { parsePeriodFromSearchParams } from '@/lib/period';
 import { getSessionOrRedirect } from '@/lib/auth/session-server';
 import { Baby } from 'lucide-react';
 
@@ -15,9 +17,19 @@ const fmtDia = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 const fmtData = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 const pct = (x: number) => `${(x * 100).toFixed(1).replace('.', ',')}%`;
 
-export default async function NascimentosPage() {
+interface PageProps {
+  searchParams: Promise<{ periodo?: string; inicio?: string; fim?: string }>;
+}
+
+export default async function NascimentosPage({ searchParams }: PageProps) {
+  const params = await searchParams;
+  // Sem ?periodo na URL = estação inteira (o padrão desta aba).
+  const period = params.periodo ? parsePeriodFromSearchParams(params) : null;
   const session = await getSessionOrRedirect();
-  const data = await loadNascimentosData(session.accessToken);
+  const data = await loadNascimentosData(
+    session.accessToken,
+    period ? { start: period.start, end: period.end } : undefined,
+  );
   const c = data.cenario;
   const nomeDe = (id: string | null) => (id ? data.paddockNameById.get(id) ?? '—' : '—');
 
@@ -27,8 +39,9 @@ export default async function NascimentosPage() {
 
   return (
     <main className="px-4 py-6 md:px-8 md:py-8">
-      {/* A estação de cria não cabe no recorte de período das outras abas:
-          aqui a janela é sempre do primeiro parto registrado até hoje. */}
+      {/* Padrão é a estação inteira (do primeiro parto registrado até hoje);
+          o filtro de datas recorta nascimentos e mortes. Os cards de estado
+          de hoje (parição, onde estão as crias) não são recortados. */}
       <div className="mb-6 flex items-end justify-between gap-4">
         <div>
           <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">
@@ -36,12 +49,17 @@ export default async function NascimentosPage() {
           </p>
           <h1 className="mt-1 text-h2 font-semibold tracking-tight text-fg md:text-h1">Nascimentos</h1>
           <p className="mt-1 text-small text-fg-muted">
-            {c.inicioEstacao
+            {period
+              ? period.label
+              : c.inicioEstacao
               ? `Estação inteira — do primeiro parto registrado (${fmtData(c.inicioEstacao)}) até hoje`
               : 'Nenhum nascimento registrado no app de campo ainda'}
           </p>
         </div>
-        <PrintButton />
+        <div className="flex items-center gap-2 print:hidden">
+          <PrintButton />
+          <PeriodPicker value={period?.kind ?? ''} allLabel="Estação inteira" />
+        </div>
       </div>
 
       {c.eventosDuplicados > 0 ? (
@@ -58,15 +76,19 @@ export default async function NascimentosPage() {
         <Card>
           <EmptyState
             icon={Baby}
-            title="Sem nascimentos registrados"
-            body="Quando o peão registrar o primeiro parto no app, a estação aparece aqui."
+            title={period ? 'Sem nascimentos no período' : 'Sem nascimentos registrados'}
+            body={
+              period
+                ? 'Nenhum parto registrado entre as datas escolhidas.'
+                : 'Quando o peão registrar o primeiro parto no app, a estação aparece aqui.'
+            }
           />
         </Card>
       ) : (
         <>
           <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
             <KPICard
-              label="Nascimentos na estação"
+              label={period ? 'Nascimentos no período' : 'Nascimentos na estação'}
               value={c.total.toLocaleString('pt-BR')}
               unit="cab"
               accent="ok"
@@ -91,7 +113,7 @@ export default async function NascimentosPage() {
               accent={c.mortesCriasCab > 0 ? 'warn' : undefined}
               hint={
                 c.taxaMortalidadeCrias != null
-                  ? `${pct(c.taxaMortalidadeCrias)} dos nascidos na estação`
+                  ? `${pct(c.taxaMortalidadeCrias)} dos nascidos ${period ? 'no período' : 'na estação'}`
                   : undefined
               }
             />
@@ -100,7 +122,7 @@ export default async function NascimentosPage() {
           <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card
               title="Nascimentos por semana"
-              subtitle={`Semana começando na segunda · ${c.porSemana.length} semanas de estação`}
+              subtitle={`Semana começando na segunda · ${c.porSemana.length} semanas ${period ? 'no período' : 'de estação'}`}
             >
               <BarrasSemanais semanas={c.porSemana} />
             </Card>
@@ -129,7 +151,7 @@ export default async function NascimentosPage() {
                   </div>
                   <p className="mt-3 text-[12px] text-fg-muted">
                     Ainda por parir: <span className="tabular font-medium text-fg">{prenhas.toLocaleString('pt-BR')}</span> matrizes
-                    prenhas (vacas e novilhas). Mortes de matrizes na estação:{' '}
+                    prenhas (vacas e novilhas). Mortes de matrizes {period ? 'no período' : 'na estação'}:{' '}
                     <span className="tabular font-medium text-fg">{c.mortesMatrizesCab}</span>.
                   </p>
                 </div>
@@ -140,7 +162,7 @@ export default async function NascimentosPage() {
           <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card
               title="Onde nasceram"
-              subtitle={`${c.porPiquete.length} piquetes com parto na estação`}
+              subtitle={`${c.porPiquete.length} piquetes com parto ${period ? 'no período' : 'na estação'}`}
               padding=""
             >
               <table className="w-full text-[13px]">
@@ -202,12 +224,16 @@ export default async function NascimentosPage() {
           </div>
 
           <Card
-            title="Mortalidade e abortos na estação"
-            subtitle="Mortes de crias e de matrizes desde o primeiro parto, com a causa anotada pelo peão"
+            title={period ? 'Mortalidade e abortos no período' : 'Mortalidade e abortos na estação'}
+            subtitle={
+              period
+                ? 'Mortes de crias e de matrizes no período (a partir do primeiro parto), com a causa anotada pelo peão'
+                : 'Mortes de crias e de matrizes desde o primeiro parto, com a causa anotada pelo peão'
+            }
             padding=""
           >
             {c.mortes.length === 0 ? (
-              <EmptyState title="Nenhuma morte de cria ou matriz na estação" />
+              <EmptyState title={`Nenhuma morte de cria ou matriz ${period ? 'no período' : 'na estação'}`} />
             ) : (
               <table className="w-full text-[13px]">
                 <thead>
