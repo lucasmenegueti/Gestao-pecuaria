@@ -89,7 +89,7 @@ export function calcularCenarioNascimentos(
 ): CenarioNascimentos {
   // Dedupe (mesma regra do consumo) só sobre o que a aba conta — descartar
   // duplicata de evento que nem aparece aqui geraria aviso sobre nada.
-  const { eventos: todosNascimentos, descartados: dupNascimentos } =
+  const { eventos: todosNascimentos } =
     dedupEventos(eventosBrutos.filter((e) => e.event_type === 'NASCIMENTO'));
 
   const inicioEstacao = todosNascimentos.length > 0
@@ -98,7 +98,10 @@ export function calcularCenarioNascimentos(
 
   // O início da estação é sempre o global; a janela só recorta o que é contado.
   const naJanela = (date: string) => !janela || (date >= janela.start && date <= janela.end);
-  const nascimentos = todosNascimentos.filter((e) => naJanela(e.date));
+  // Dedupe de novo só sobre a janela, pra o aviso de duplicata não citar parto fora dela.
+  const { eventos: nascimentos, descartados: dupNascimentos } = dedupEventos(
+    eventosBrutos.filter((e) => e.event_type === 'NASCIMENTO' && naJanela(e.date)),
+  );
   const primeiroNascimento = nascimentos.length > 0
     ? nascimentos.reduce((min, e) => (e.date < min ? e.date : min), nascimentos[0]!.date)
     : null;

@@ -1,7 +1,7 @@
 'use client';
 
 import { Calendar, Check, ChevronDown } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 const OPTS = [
@@ -18,6 +18,7 @@ type PeriodId = typeof OPTS[number]['id'];
 /** `allLabel`: opção extra no topo que tira o período da URL (a página decide o que "tudo" significa). */
 export function PeriodPicker({ value, allLabel }: { value: string; allLabel?: string }) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const ref = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -44,7 +45,8 @@ export function PeriodPicker({ value, allLabel }: { value: string; allLabel?: st
       params.delete('inicio');
       params.delete('fim');
     }
-    router.push(`?${params.toString()}`);
+    const qs = params.toString();
+    router.push(qs ? `?${qs}` : pathname);
     if (id !== 'custom') setOpen(false);
   }
 
