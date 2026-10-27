@@ -1,0 +1,23 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css"><style>
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.col h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--fg-muted); font-weight: 500; margin: 0 0 10px; }
+.label-eg { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-muted); display: block; margin-bottom: 4px; }
+.val { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; color: var(--fg); line-height: 1; }
+.unit { font-size: 14px; color: var(--fg-muted); font-weight: 400; }
+.cap { font-size: 11px; color: var(--fg-muted); margin-top: 4px; }
+.mono-block { font-family: var(--font-mono); font-size: 12px; background: var(--grey-50); padding: 10px 12px; border-radius: 6px; color: var(--fg); border: 1px solid var(--border-subtle); line-height: 1.6; }
+</style></head>
+<body><div class="card">
+  <div class="grid">
+    <div class="col">
+      <h4>KPI / números</h4>
+      <span class="label-eg">Receita 2024/5</span>
+      <div class="val">R$ 22.709.656 <span class="unit">· 65,8 sc/ha</span></div>
+      <div class="cap">tabular-nums · Inter 600</div>
+    </div>
+    <div class="col">
+      <h4>Mono — dados técnicos</h4>
+      <div class="mono-block">piquete: 12<br>ua_ha: 2.3<br>gmd_kg: 0.82</div>
+    </div>
+  </div>
+</div></body></html>

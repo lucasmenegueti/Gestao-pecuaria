@@ -1,0 +1,16 @@
+/* Shared styles for preview cards */
+@import url('../colors_and_type.css');
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  color: var(--fg);
+}
+.card {
+  padding: 24px;
+  background: var(--bg-elevated);
+  min-height: 100%;
+  box-sizing: border-box;
+}

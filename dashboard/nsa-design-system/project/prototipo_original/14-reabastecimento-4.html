@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reabastecimento - Devolucao</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="phone-frame">
+    <div class="header">
+      <a href="14-reabastecimento-2.html" class="back-btn">&#x2190;</a>
+      <div>
+        <h1>&#x1F3E0; ENCERRAR ROTA</h1>
+        <div class="subtitle">DEVOLUCAO E RESUMO</div>
+      </div>
+    </div>
+    <div class="content">
+
+      <div class="card" style="text-align: center; background: var(--primary-light);">
+        <div class="text-muted fs-14">Duracao da rota</div>
+        <div class="fw-bold" style="font-size: 22px;">07:30 - 15:45 (8h15min)</div>
+        <div class="fw-bold text-success mt-8" style="font-size: 20px;">7 piquetes abastecidos</div>
+      </div>
+
+      <!-- Distribution summary -->
+      <div class="section-title">DISTRIBUICAO</div>
+
+      <div class="summary-box" style="border-left: 4px solid var(--suplementacao);">
+        <div class="fw-bold mb-8">PROBEEF REPRODUCAO</div>
+        <div class="summary-row">
+          <span class="summary-label">Levou do central</span>
+          <span class="summary-value">30 sacos</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Distribuiu</span>
+          <span class="summary-value text-success">24 sacos</span>
+        </div>
+        <div style="padding: 8px 0; font-size: 14px; color: var(--text-muted);">
+          P.15: 8 &bull; P.14A: 5 &bull; P.17: 4 &bull; P.18: 3 &bull; P.19: 2 &bull; P.20: 2
+        </div>
+        <div class="summary-row" style="background: var(--warning-bg); border-radius: 8px; padding: 8px 12px;">
+          <span class="fw-bold">Sobrou no trator</span>
+          <span class="summary-value text-warning">6 sacos</span>
+        </div>
+      </div>
+
+      <div class="summary-box" style="border-left: 4px solid var(--aguada);">
+        <div class="fw-bold mb-8">SAL MINERAL</div>
+        <div class="summary-row">
+          <span class="summary-label">Levou do central</span>
+          <span class="summary-value">15 sacos</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Distribuiu</span>
+          <span class="summary-value text-success">12 sacos</span>
+        </div>
+        <div style="padding: 8px 0; font-size: 14px; color: var(--text-muted);">
+          P.16: 5 &bull; P.21: 4 &bull; P.14: 3
+        </div>
+        <div class="summary-row" style="background: var(--warning-bg); border-radius: 8px; padding: 8px 12px;">
+          <span class="fw-bold">Sobrou no trator</span>
+          <span class="summary-value text-warning">3 sacos</span>
+        </div>
+      </div>
+
+      <!-- Return to stock -->
+      <div class="section-title">DEVOLVER SOBRA AO CENTRAL</div>
+      <p class="text-muted fs-14 mb-16">Confira a quantidade. Edite se contou diferente.</p>
+
+      <div class="card" style="border: 2px solid var(--warning);">
+        <div class="flex-between mb-8">
+          <strong>PROBEEF REPRODUCAO</strong>
+          <span class="badge warning">SOBRA</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span>Devolver:</span>
+          <div style="display: flex; align-items: center; gap: 8px; flex: 1; justify-content: center;">
+            <button class="slider-btn" style="width: 36px; height: 36px; font-size: 16px;">-</button>
+            <span style="font-size: 28px; font-weight: 800;">6</span>
+            <span class="text-muted">sacos</span>
+            <button class="slider-btn" style="width: 36px; height: 36px; font-size: 16px;">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="border: 2px solid var(--warning);">
+        <div class="flex-between mb-8">
+          <strong>SAL MINERAL</strong>
+          <span class="badge warning">SOBRA</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span>Devolver:</span>
+          <div style="display: flex; align-items: center; gap: 8px; flex: 1; justify-content: center;">
+            <button class="slider-btn" style="width: 36px; height: 36px; font-size: 16px;">-</button>
+            <span style="font-size: 28px; font-weight: 800;">3</span>
+            <span class="text-muted">sacos</span>
+            <button class="slider-btn" style="width: 36px; height: 36px; font-size: 16px;">+</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Final stock impact -->
+      <div class="card mt-16" style="background: var(--primary-light);">
+        <div class="fw-bold mb-8">&#x1F4CA; RESULTADO NO ESTOQUE CENTRAL</div>
+        <div class="summary-row">
+          <span>PROBEEF</span>
+          <span>200 &#x2192; <strong>176 sacos</strong> (-24)</span>
+        </div>
+        <div class="summary-row">
+          <span>SAL MINERAL</span>
+          <span>45 &#x2192; <strong>33 sacos</strong> (-12)</span>
+        </div>
+      </div>
+
+      <a href="13-estoque.html" class="btn btn-success mt-16" style="font-size: 20px;">
+        &#x2705; FINALIZAR ROTA
+      </a>
+
+    </div>
+  </div>
+</body>
+</html>

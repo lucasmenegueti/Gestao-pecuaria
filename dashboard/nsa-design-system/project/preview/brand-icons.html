@@ -1,0 +1,29 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+.grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px; }
+.ico { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.ico svg { color: #1f1f1c; width: 20px; height: 20px; stroke-width: 1.75; }
+.ico span { font-size: 10px; color: #787873; font-family: var(--font-mono); }
+.label { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-muted); margin-bottom: 14px; }
+.sub { font-size: 11px; color: #787873; margin-bottom: 14px; margin-top: -6px; }
+</style></head>
+<body><div class="card">
+  <div class="label">Iconography — Lucide · 1.75 stroke</div>
+  <div class="sub">24×24 · linha fina · sem fill · cor herdada do texto</div>
+  <div class="grid">
+    <div class="ico"><i data-lucide="home"></i><span>home</span></div>
+    <div class="ico"><i data-lucide="sprout"></i><span>sprout</span></div>
+    <div class="ico"><i data-lucide="wheat"></i><span>wheat</span></div>
+    <div class="ico"><i data-lucide="tractor"></i><span>tractor</span></div>
+    <div class="ico"><i data-lucide="droplets"></i><span>droplets</span></div>
+    <div class="ico"><i data-lucide="beef"></i><span>beef</span></div>
+    <div class="ico"><i data-lucide="line-chart"></i><span>chart</span></div>
+    <div class="ico"><i data-lucide="file-text"></i><span>file</span></div>
+    <div class="ico"><i data-lucide="calendar"></i><span>calendar</span></div>
+    <div class="ico"><i data-lucide="settings"></i><span>settings</span></div>
+    <div class="ico"><i data-lucide="users"></i><span>users</span></div>
+    <div class="ico"><i data-lucide="map"></i><span>map</span></div>
+  </div>
+  <script>lucide.createIcons();</script>
+</div></body></html>

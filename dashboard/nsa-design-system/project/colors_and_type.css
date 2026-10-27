@@ -1,0 +1,215 @@
+/* ============================================================
+   NSA DESIGN SYSTEM — colors_and_type.css
+   Fazenda Nossa Senhora Aparecida
+   ------------------------------------------------------------
+   Minimal-modern palette. Brand = deep green + cream.
+   Use semantic tokens (--fg, --bg, --accent) not raw colors.
+   ============================================================ */
+
+@import url('https://rsms.me/inter/inter.css');
+
+:root {
+  /* ---------- BRAND ---------- */
+  --nsa-green-900: #0c1609;   /* darkest — headers, overlays */
+  --nsa-green-800: #172514;   /* primary brand green (user-specified) */
+  --nsa-green-700: #1f3520;
+  --nsa-green-600: #2d4a2e;
+  --nsa-green-500: #3f6340;   /* accent on cream bg — interactive */
+  --nsa-green-300: #8ba68c;
+  --nsa-green-100: #e8ede7;   /* subtle tint, hover states */
+  --nsa-green-50:  #f4f6f3;
+
+  --nsa-cream:     #FFFFE3;   /* brand cream (user-specified) */
+  --nsa-cream-dim: #fafae0;
+  --nsa-cream-100: #fdfdf4;   /* softened cream, easier on eyes */
+
+  /* ---------- NEUTRALS (grafite scale) ---------- */
+  --grey-0:   #ffffff;
+  --grey-25:  #fcfcfb;   /* off-white, default page bg */
+  --grey-50:  #f7f7f5;
+  --grey-100: #efefec;   /* light divider, zebra stripe */
+  --grey-200: #e5e5e1;   /* borders */
+  --grey-300: #d2d2cd;
+  --grey-400: #a8a8a2;
+  --grey-500: #787873;   /* muted text */
+  --grey-600: #54544f;
+  --grey-700: #363632;
+  --grey-800: #1f1f1c;   /* grafite — body text */
+  --grey-900: #0f0f0d;
+
+  /* ---------- SEMANTIC ---------- */
+  --success: #2e8c4f;
+  --success-bg: #eaf4ec;
+  --warning: #b88217;   /* âmbar — alerta */
+  --warning-bg: #faf1dc;
+  --danger:  #c0392b;
+  --danger-bg: #faeae7;
+  --info:    #3a6ea5;
+  --info-bg: #eaf0f6;
+
+  /* ---------- SURFACE TOKENS ---------- */
+  --bg:            var(--grey-25);
+  --bg-subtle:     var(--grey-50);
+  --bg-elevated:   var(--grey-0);
+  --bg-inverse:    var(--nsa-green-800);
+  --bg-brand:      var(--nsa-green-800);
+  --bg-brand-soft: var(--nsa-cream);
+
+  --fg:            var(--grey-800);     /* body */
+  --fg-muted:      var(--grey-500);     /* captions, labels */
+  --fg-subtle:     var(--grey-400);     /* placeholders */
+  --fg-inverse:    var(--nsa-cream);    /* on dark bg */
+  --fg-brand:      var(--nsa-green-800);
+
+  --border:        var(--grey-200);
+  --border-strong: var(--grey-300);
+  --border-subtle: var(--grey-100);
+  --border-inverse: rgba(255,255,227,0.12);
+
+  --accent:        var(--nsa-green-800);
+  --accent-hover:  var(--nsa-green-700);
+  --accent-active: var(--nsa-green-900);
+
+  /* ---------- TYPE ---------- */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Inter', -apple-system, 'SF Pro Display', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-serif: 'Lora', Georgia, serif; /* ONLY for N.S.A wordmark in logo contexts */
+
+  /* Inter variable font axes */
+  --font-feat: "cv11", "ss01", "ss03", "cv02", "cv03", "cv04";
+
+  /* Type scale — mobile-first, limited set */
+  --fs-display: 44px;   /* slide titles, hero */
+  --fs-h1:      32px;
+  --fs-h2:      24px;
+  --fs-h3:      18px;
+  --fs-body:    15px;
+  --fs-small:   13px;
+  --fs-micro:   11px;   /* labels, captions, table headers */
+
+  --lh-tight:   1.15;
+  --lh-snug:    1.3;
+  --lh-normal:  1.5;
+  --lh-relaxed: 1.65;
+
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-semibold: 600;
+
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.04em;
+  --tracking-caps: 0.08em;
+
+  /* ---------- SPACING (4px base) ---------- */
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  20px;
+  --sp-6:  24px;
+  --sp-8:  32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+  --sp-20: 80px;
+
+  /* ---------- RADIUS ---------- */
+  --r-sm: 4px;   /* buttons, inputs, small pills */
+  --r-md: 6px;   /* default */
+  --r-lg: 8px;   /* cards */
+  --r-xl: 12px;  /* large panels, modals */
+  --r-full: 999px;
+
+  /* ---------- SHADOWS — subtle only ---------- */
+  --shadow-xs: 0 1px 0 rgba(15,15,13,0.04), 0 0 0 1px rgba(15,15,13,0.04);
+  --shadow-sm: 0 1px 2px rgba(15,15,13,0.04), 0 0 0 1px rgba(15,15,13,0.05);
+  --shadow-md: 0 2px 6px rgba(15,15,13,0.06), 0 0 0 1px rgba(15,15,13,0.05);
+  --shadow-lg: 0 8px 24px rgba(15,15,13,0.08), 0 0 0 1px rgba(15,15,13,0.05);
+  --shadow-focus: 0 0 0 3px rgba(23,37,20,0.18);
+
+  /* ---------- MOTION ---------- */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.35, 0.64, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --dur-slow: 320ms;
+}
+
+/* ============================================================
+   SEMANTIC TYPE RULES
+   ============================================================ */
+
+html, body {
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-feat);
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+  color: var(--fg);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.display, h1.display {
+  font-family: var(--font-display);
+  font-size: var(--fs-display);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg);
+}
+
+h1 {
+  font-size: var(--fs-h1);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg);
+}
+h2 {
+  font-size: var(--fs-h2);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+  letter-spacing: -0.01em;
+  color: var(--fg);
+}
+h3 {
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+  color: var(--fg);
+}
+p, .body { font-size: var(--fs-body); line-height: var(--lh-normal); }
+
+.small     { font-size: var(--fs-small); }
+.micro     { font-size: var(--fs-micro); }
+.muted     { color: var(--fg-muted); }
+.subtle    { color: var(--fg-subtle); }
+
+.label, .eyebrow {
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-medium);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  color: var(--fg-muted);
+}
+
+.num, .tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum", "cv11";
+}
+
+.mono { font-family: var(--font-mono); }
+
+/* Logo wordmark — reserved use only */
+.wordmark-nsa {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: 0.14em;
+}
+
+/* Selection */
+::selection { background: var(--nsa-green-800); color: var(--nsa-cream); }

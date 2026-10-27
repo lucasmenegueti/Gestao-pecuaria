@@ -1,0 +1,139 @@
+@import 'tailwindcss';
+
+/* ============================================================
+   NSA Design System — tokens (source: nsa-design-system/project/colors_and_type.css)
+   Convertido para @theme do Tailwind v4. NÃO inventar tokens fora deste arquivo.
+   ============================================================ */
+
+@theme {
+  /* ---------- FONTS ---------- */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-serif: var(--font-lora), Georgia, serif; /* reservado só ao wordmark N.S.A */
+
+  /* ---------- COLORS · BRAND ---------- */
+  --color-nsa-green-900: #0c1609;
+  --color-nsa-green-800: #172514;
+  --color-nsa-green-700: #1f3520;
+  --color-nsa-green-600: #2d4a2e;
+  --color-nsa-green-500: #3f6340;
+  --color-nsa-green-300: #8ba68c;
+  --color-nsa-green-100: #e8ede7;
+  --color-nsa-green-50: #f4f6f3;
+
+  --color-nsa-cream: #ffffe3;
+  --color-nsa-cream-dim: #fafae0;
+  --color-nsa-cream-100: #fdfdf4;
+
+  /* ---------- COLORS · NEUTRAL (grafite) ---------- */
+  --color-grey-0: #ffffff;
+  --color-grey-25: #fcfcfb;
+  --color-grey-50: #f7f7f5;
+  --color-grey-100: #efefec;
+  --color-grey-200: #e5e5e1;
+  --color-grey-300: #d2d2cd;
+  --color-grey-400: #a8a8a2;
+  --color-grey-500: #787873;
+  --color-grey-600: #54544f;
+  --color-grey-700: #363632;
+  --color-grey-800: #1f1f1c;
+  --color-grey-900: #0f0f0d;
+
+  /* ---------- COLORS · SEMANTIC ---------- */
+  --color-success: #2e8c4f;
+  --color-success-bg: #eaf4ec;
+  --color-warning: #b88217;
+  --color-warning-bg: #faf1dc;
+  --color-danger: #c0392b;
+  --color-danger-bg: #faeae7;
+  --color-info: #3a6ea5;
+  --color-info-bg: #eaf0f6;
+
+  /* ---------- COLORS · SURFACE (aliases semânticos) ---------- */
+  --color-bg: var(--color-grey-25);
+  --color-bg-subtle: var(--color-grey-50);
+  --color-bg-elevated: var(--color-grey-0);
+  --color-bg-inverse: var(--color-nsa-green-800);
+  --color-bg-brand: var(--color-nsa-green-800);
+  --color-bg-brand-soft: var(--color-nsa-cream);
+
+  --color-fg: var(--color-grey-800);
+  --color-fg-muted: var(--color-grey-500);
+  --color-fg-subtle: var(--color-grey-400);
+  --color-fg-inverse: var(--color-nsa-cream);
+  --color-fg-brand: var(--color-nsa-green-800);
+
+  --color-border: var(--color-grey-200);
+  --color-border-strong: var(--color-grey-300);
+  --color-border-subtle: var(--color-grey-100);
+
+  --color-accent: var(--color-nsa-green-800);
+  --color-accent-hover: var(--color-nsa-green-700);
+  --color-accent-active: var(--color-nsa-green-900);
+
+  /* ---------- TYPE · SIZES ---------- */
+  --text-display: 44px;
+  --text-display--line-height: 1.15;
+  --text-display--letter-spacing: -0.02em;
+
+  --text-h1: 32px;
+  --text-h1--line-height: 1.15;
+  --text-h1--letter-spacing: -0.02em;
+
+  --text-h2: 24px;
+  --text-h2--line-height: 1.3;
+  --text-h2--letter-spacing: -0.01em;
+
+  --text-h3: 18px;
+  --text-h3--line-height: 1.3;
+
+  --text-body: 15px;
+  --text-body--line-height: 1.5;
+
+  --text-small: 13px;
+  --text-small--line-height: 1.5;
+
+  --text-micro: 11px;
+  --text-micro--line-height: 1.3;
+  --text-micro--letter-spacing: 0.08em;
+
+  /* ---------- SPACING (base 4) ---------- */
+  --spacing: 4px;
+
+  /* ---------- RADIUS ---------- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  /* ---------- SHADOWS (subtle only) ---------- */
+  --shadow-xs: 0 1px 0 rgba(15, 15, 13, 0.04), 0 0 0 1px rgba(15, 15, 13, 0.04);
+  --shadow-sm: 0 1px 2px rgba(15, 15, 13, 0.04), 0 0 0 1px rgba(15, 15, 13, 0.05);
+  --shadow-md: 0 2px 6px rgba(15, 15, 13, 0.06), 0 0 0 1px rgba(15, 15, 13, 0.05);
+  --shadow-lg: 0 8px 24px rgba(15, 15, 13, 0.08), 0 0 0 1px rgba(15, 15, 13, 0.05);
+}
+
+/* ============================================================
+   BASE — aplicado globalmente
+   ============================================================ */
+
+@layer base {
+  html,
+  body {
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv11', 'ss01', 'ss03', 'cv02', 'cv03', 'cv04';
+  }
+
+  .tabular,
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum', 'cv11';
+  }
+
+  ::selection {
+    background: var(--color-nsa-green-800);
+    color: var(--color-nsa-cream);
+  }
+}
+

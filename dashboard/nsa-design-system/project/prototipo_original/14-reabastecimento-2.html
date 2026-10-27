@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reabastecimento - Rota</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="phone-frame">
+    <div class="header" style="background: var(--warning);">
+      <a href="14-reabastecimento-1.html" class="back-btn">&#x2190;</a>
+      <div>
+        <h1>&#x1F69C; ROTA EM ANDAMENTO</h1>
+        <div class="subtitle">Inicio: 07:30</div>
+      </div>
+    </div>
+
+    <!-- Trator bar -->
+    <div class="trator-bar">
+      <div class="trator-title">&#x1F69C; NO TRATOR:</div>
+      <div>PROBEEF: <strong>22 restam</strong> (de 30) &bull; <span class="text-danger fw-bold">-8 distribuidos</span></div>
+      <div>SAL MIN: <strong>12 restam</strong> (de 15) &bull; <span class="text-danger fw-bold">-3 distribuidos</span></div>
+    </div>
+
+    <div class="content">
+
+      <div class="section-title">PIQUETES COM NECESSIDADE</div>
+      <p class="text-muted fs-14 mb-16">Ordenado por urgencia. Toque para abastecer.</p>
+
+      <!-- Urgent - empty -->
+      <a href="14-reabastecimento-3.html" class="card card-border-left danger">
+        <div class="flex-between">
+          <div class="card-title">&#x1F534; PASTO 15</div>
+          <span class="badge danger">VAZIA</span>
+        </div>
+        <div class="card-row">Bombona: <strong>0 sacos</strong> PROBEEF</div>
+        <div class="card-row text-muted fs-14">Ult. reab: 12 dias atras</div>
+        <div style="text-align: right; margin-top: 8px;">
+          <span class="btn btn-primary btn-small" style="width: auto; display: inline-flex;">ABASTECER &#x2192;</span>
+        </div>
+      </a>
+
+      <!-- Urgent - low -->
+      <a href="14-reabastecimento-3.html" class="card card-border-left danger">
+        <div class="flex-between">
+          <div class="card-title">&#x1F534; PASTO 14A</div>
+          <span class="badge danger">CRITICO</span>
+        </div>
+        <div class="card-row">Bombona: <strong>1 saco</strong> PROBEEF</div>
+        <div class="card-row text-muted fs-14">Ult. reab: 8 dias atras</div>
+        <div style="text-align: right; margin-top: 8px;">
+          <span class="btn btn-primary btn-small" style="width: auto; display: inline-flex;">ABASTECER &#x2192;</span>
+        </div>
+      </a>
+
+      <!-- Warning -->
+      <div class="card card-border-left warning">
+        <div class="flex-between">
+          <div class="card-title">&#x1F7E1; PASTO 16</div>
+          <span class="badge warning">BAIXO</span>
+        </div>
+        <div class="card-row">Bombona: <strong>3 sacos</strong> SAL MINERAL</div>
+        <div class="card-row text-muted fs-14">Ult. reab: 5 dias atras</div>
+        <div style="text-align: right; margin-top: 8px;">
+          <span class="btn btn-primary btn-small" style="width: auto; display: inline-flex;">ABASTECER &#x2192;</span>
+        </div>
+      </div>
+
+      <!-- Already done -->
+      <div class="card card-border-left" style="border-left-color: var(--success); opacity: 0.7;">
+        <div class="flex-between">
+          <div class="card-title">&#x2705; PASTO 14</div>
+          <span class="badge ok">FEITO</span>
+        </div>
+        <div class="card-row text-success">Deixou: <strong>8 sacos</strong> PROBEEF</div>
+        <div class="card-row text-muted fs-14">Bombona agora: 8 sacos</div>
+      </div>
+
+      <div class="card card-border-left" style="border-left-color: var(--success); opacity: 0.7;">
+        <div class="flex-between">
+          <div class="card-title">&#x2705; PASTO 17</div>
+          <span class="badge ok">FEITO</span>
+        </div>
+        <div class="card-row text-success">Deixou: <strong>3 sacos</strong> SAL MINERAL</div>
+        <div class="card-row text-muted fs-14">Bombona agora: 9 sacos</div>
+      </div>
+
+      <!-- OK - no need -->
+      <div class="card card-border-left ok" style="opacity: 0.5;">
+        <div class="flex-between">
+          <div class="card-title">PASTO 20</div>
+          <span class="badge ok">OK</span>
+        </div>
+        <div class="card-row">Bombona: <strong>8 sacos</strong> PROBEEF</div>
+        <div class="card-row text-muted fs-14">Ult. reab: 2 dias atras</div>
+      </div>
+
+      <!-- Progress -->
+      <div class="card mt-16" style="text-align: center;">
+        <div class="text-muted fs-14">Progresso da rota</div>
+        <div class="fw-bold" style="font-size: 20px;">2 de 7 piquetes</div>
+        <div class="progress-bar mt-8"><div class="progress-fill" style="width: 29%;"></div></div>
+      </div>
+
+      <a href="14-reabastecimento-4.html" class="btn btn-secondary mt-16" style="font-size: 18px;">
+        &#x1F3E0; ENCERRAR ROTA &#x2192;
+      </a>
+
+    </div>
+  </div>
+</body>
+</html>

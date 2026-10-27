@@ -1,0 +1,21 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css"><style>
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.field label { display:block; font-size:12px; font-weight:500; color:#363632; margin-bottom:6px; }
+.input, .select, .textarea { width: 100%; box-sizing: border-box; font: 400 14px 'Inter', sans-serif; padding: 9px 11px; border: 1px solid #d2d2cd; border-radius: 6px; background: #fff; color: #1f1f1c; }
+.input:focus, .select:focus { outline: none; border-color: #172514; box-shadow: 0 0 0 3px rgba(23,37,20,0.15); }
+.input::placeholder { color: #a8a8a2; }
+.help { font-size: 11.5px; color: #787873; margin-top: 4px; }
+.err-input { border-color: #c0392b; }
+.err-msg { font-size: 11.5px; color: #c0392b; margin-top: 4px; }
+.label { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-muted); margin-bottom: 10px; }
+</style></head>
+<body><div class="card">
+  <div class="label">Form inputs</div>
+  <div class="grid">
+    <div class="field"><label>Piquete</label><input class="input" placeholder="Selecione o piquete" value="Piquete 12 · Mavuno"><div class="help">4.000 ha total na pecuária</div></div>
+    <div class="field"><label>Data do manejo</label><input class="input" value="18/04/2026"></div>
+    <div class="field"><label>Cabeças</label><input class="input" value="1.247" style="font-variant-numeric:tabular-nums"></div>
+    <div class="field"><label>Categoria</label><select class="select"><option>Nelore · Macho</option></select></div>
+    <div class="field" style="grid-column:1/-1"><label>Observações</label><input class="input err-input" value="Falta registro de peso"><div class="err-msg">Obrigatório informar peso médio</div></div>
+  </div>
+</div></body></html>
