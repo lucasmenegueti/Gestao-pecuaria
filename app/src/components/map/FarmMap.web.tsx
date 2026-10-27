@@ -103,6 +103,114 @@ function FitToBounds({ coords }: { coords: Array<[number, number]> }) {
   return null;
 }
 
+// Nome do piquete no centro do polígono — porte do que o nativo faz em
+// map-html.ts (centroide, corda no centroide, fonte por zoom, some < 11px).
+// Mantenha as duas versões com a mesma regra.
+function polygonCentroid(coords: Array<[number, number]>): [number, number] {
+  let area = 0, cx = 0, cy = 0;
+  for (let i = 0, j = coords.length - 1; i < coords.length; j = i++) {
+    const f = coords[j][1] * coords[i][0] - coords[i][1] * coords[j][0];
+    area += f;
+    cx += (coords[j][1] + coords[i][1]) * f;
+    cy += (coords[j][0] + coords[i][0]) * f;
+  }
+  if (!area) return coords[0];
+  return [cy / (3 * area), cx / (3 * area)];
+}
+
+function chordAtCentroid(coords: Array<[number, number]>, [clat, clng]: [number, number]) {
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (let i = 0, j = coords.length - 1; i < coords.length; j = i++) {
+    const a = coords[j], b = coords[i];
+    if ((a[0] <= clat && b[0] > clat) || (b[0] <= clat && a[0] > clat)) {
+      xs.push(a[1] + ((clat - a[0]) / (b[0] - a[0])) * (b[1] - a[1]));
+    }
+    if ((a[1] <= clng && b[1] > clng) || (b[1] <= clng && a[1] > clng)) {
+      ys.push(a[0] + ((clng - a[1]) / (b[1] - a[1])) * (b[0] - a[0]));
+    }
+  }
+  xs.sort((m, n) => m - n);
+  ys.sort((m, n) => m - n);
+  const out = { lngL: null as number | null, lngR: null as number | null, latB: null as number | null, latT: null as number | null };
+  for (let k = 0; k + 1 < xs.length; k += 2) {
+    if (xs[k] <= clng && clng <= xs[k + 1]) { out.lngL = xs[k]; out.lngR = xs[k + 1]; break; }
+  }
+  for (let k = 0; k + 1 < ys.length; k += 2) {
+    if (ys[k] <= clat && clat <= ys[k + 1]) { out.latB = ys[k]; out.latT = ys[k + 1]; break; }
+  }
+  return out;
+}
+
+function escapeHtml(s: string) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+const LABEL_STYLE =
+  'transform:translate(-50%,-50%);display:inline-block;color:#fff;font-weight:700;white-space:nowrap;' +
+  "font-family:-apple-system,'Segoe UI',Roboto,sans-serif;text-align:center;" +
+  'text-shadow:0 1px 3px rgba(0,0,0,0.9),0 0 2px rgba(0,0,0,0.8)';
+
+function PaddockLabels({ polygons }: { polygons: Array<{ name: string; coords: Array<[number, number]> }> }) {
+  const map = useMap();
+  useEffect(() => {
+    const infos = polygons.map((p) => {
+      const centroid = polygonCentroid(p.coords);
+      const marker = L.marker(centroid, {
+        icon: L.divIcon({
+          className: '',
+          html: `<div style="${LABEL_STYLE}">${escapeHtml(p.name)}</div>`,
+          iconSize: null as unknown as L.PointExpression,
+        }),
+        interactive: false,
+        keyboard: false,
+      }).addTo(map);
+      const el = marker.getElement()?.firstChild as HTMLElement | null;
+      let ratio = 0.64 * p.name.length;
+      if (el) {
+        el.style.fontSize = '100px';
+        if (el.offsetWidth > 0) ratio = el.offsetWidth / 100;
+      }
+      return { marker, el, ratio, centroid, chord: chordAtCentroid(p.coords, centroid), bounds: L.latLngBounds(p.coords) };
+    });
+
+    const update = () => {
+      for (const li of infos) {
+        if (!li.el) continue;
+        const c = li.chord, ct = li.centroid;
+        let pw: number | undefined, ph: number | undefined;
+        if (c.lngL != null && c.lngR != null) {
+          pw = Math.abs(map.latLngToLayerPoint([ct[0], c.lngR]).x - map.latLngToLayerPoint([ct[0], c.lngL]).x);
+        }
+        if (c.latB != null && c.latT != null) {
+          ph = Math.abs(map.latLngToLayerPoint([c.latB, ct[1]]).y - map.latLngToLayerPoint([c.latT, ct[1]]).y);
+        }
+        if (pw == null || ph == null) {
+          const ne = map.latLngToLayerPoint(li.bounds.getNorthEast());
+          const sw = map.latLngToLayerPoint(li.bounds.getSouthWest());
+          if (pw == null) pw = Math.abs(ne.x - sw.x) * 0.6;
+          if (ph == null) ph = Math.abs(sw.y - ne.y) * 0.6;
+        }
+        const size = Math.min((pw * 0.8) / li.ratio, ph * 0.6, 18);
+        if (size < 11) {
+          li.el.style.display = 'none';
+        } else {
+          li.el.style.display = '';
+          li.el.style.fontSize = size.toFixed(1) + 'px';
+        }
+      }
+    };
+    update();
+    // resize: no web a janela muda de tamanho, e o espaço em px muda junto.
+    map.on('zoomend resize', update);
+    return () => {
+      map.off('zoomend resize', update);
+      infos.forEach((li) => map.removeLayer(li.marker));
+    };
+  }, [map, polygons]);
+  return null;
+}
+
 function DeselectOnMapClick({ onDeselect }: { onDeselect: () => void }) {
   const map = useMap();
   useEffect(() => {
@@ -242,6 +350,7 @@ export function FarmMap({ paddocks, waterTanks, selectedId, onSelect, mode = 'ga
       >
         <BundledTileLayer />
         <FitToBounds coords={allCoords} />
+        <PaddockLabels polygons={polygons} />
         <FlyToSelected target={selectedCenter} />
         <UserLocation onStatus={setGpsStatus} recenterKey={recenterKey} />
         <DeselectOnMapClick onDeselect={() => onSelect?.(null)} />

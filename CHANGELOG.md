@@ -6,6 +6,19 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.13.2 — "nome dos piquetes no mapa da web" (2026-10-27)
+
+O Lucas, no Mac, reportou que o mapa "parou de mostrar o número dos piquetes". Na web eles **nunca** apareceram: a v0.7.15 pôs os nomes só no HTML do WebView nativo (`map-html.ts`), e o mapa web (`FarmMap.web.tsx`, react-leaflet) seguia só com os contornos.
+
+- `FarmMap.web.tsx`: `PaddockLabels` porta a mesma regra do nativo — nome no centroide, fonte pela corda do polígono no centroide, recalculada no zoom (e no resize da janela), escondida abaixo de 11px, teto 18px. As duas versões precisam andar juntas.
+- Nomes `Txx - Pyy` em piquetes de ~13 ha só aparecem com bastante zoom (texto largo); é a mesma regra do celular.
+- Validado no Chrome com os 198 piquetes de produção: visão geral mostra 8 nomes (T33, P17, P21, P51, P53, P54, P55, P75 — os mesmos do emulador Android), zoom revela os demais.
+- Só web: nativo não muda, sem OTA.
+
+**Fallback:** `git checkout v0.13.1` + republicar a web.
+
+---
+
 ## v0.13.1 — "evento não sobe em dobro" (2026-10-27)
 
 Sintoma: a aba Nascimentos do dashboard avisava "3 registro(s) idênticos no mesmo dia e piquete". Eram os partos de P71 em 26/10 (20 + 9 bezerros, 18 bezerras) e a EVOLUCAO de 47 prenhas → paridas, cada um **duas vezes** em `herd_events` com UUIDs diferentes, mesmo `created_at` e push com ~40 ms de distância. O `herd` recebeu uma vez só: a transferência P71→P77 de 27/10 fecha exato (56 / 45 / 101).
