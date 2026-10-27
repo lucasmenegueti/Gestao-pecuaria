@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## O que é
 
-Dashboard web (Next.js App Router) de **gestão de pecuária da Fazenda NSA**. Consome o **mesmo Supabase do app de campo** `gestao-pecuaria` (repo irmão em `../gestao-pecuaria`) — este repo **não tem banco próprio nem migrations**. Público: dono e gestor, no navegador; o peão usa o app mobile.
+Dashboard web (Next.js App Router) de **gestão de pecuária da Fazenda NSA**. Consome o **mesmo Supabase do app de campo** `gestao-pecuaria` (o app fica em `../app`, neste mesmo repo — o dashboard foi fundido aqui em 27/10/2026, com histórico) — o dashboard **não tem banco próprio nem migrations**. Público: dono e gestor, no navegador; o peão usa o app mobile.
 
 Predominantemente **leitura**. A única escrita hoje é o preço de compra da ração (`/configuracoes` → tabela `inventory_entry_prices`).
 
@@ -23,9 +23,16 @@ Não há testes automatizados. Para exercitar a camada de dados sem login, ver "
 
 ## Deploy
 
-Produção é a branch **`main`** com auto-deploy do Netlify (site `gestao-pecuaria-nsa`, https://gestao-pecuaria-nsa.netlify.app). `git push origin main` já publica.
+Deploy **manual, pelo terminal** (auto-deploy do Netlify está desligado — `stop_builds`; push não publica nada). Site `gestao-pecuaria-nsa` (id `a8c2393a-b210-4ea4-b075-fb77a38458b2`), https://gestao-pecuaria-nsa.netlify.app. De `dashboard/`:
 
-A branch `feat/relatorio-diario-pecuaria` está à frente de main **só em `relatorio-diario/`** (script Python do PDF diário, rodado por rotina cloud que clona aquela branch). Não mergeie a branch inteira para publicar uma mudança de site — crie branch a partir de `main` com o que vai pro ar.
+```bash
+npx netlify-cli deploy --build --site a8c2393a-b210-4ea4-b075-fb77a38458b2            # rascunho: conferir a Draft URL
+npx netlify-cli deploy --build --prod --site a8c2393a-b210-4ea4-b075-fb77a38458b2     # produção
+```
+
+O build roda local com as env vars do site no Netlify (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SESSION_PASSWORD`, `TZ`). Não confundir com o outro site do repo (`nsa-gestao-pecuaria`, web do app — ver `../CLAUDE.md`).
+
+`relatorio-diario/` (Python do PDF diário → WhatsApp) é rodado por rotina cloud (`trig_01URkNDoJHXA7svYcVZbVjzK`, 21:15 BRT) que clona **este** repo e entra em `dashboard/relatorio-diario`. Mudou o script → commit + push basta; a rotina pega no próximo disparo.
 
 ## Auth e acesso ao dado — leia antes de escrever qualquer query
 
@@ -55,7 +62,7 @@ const data = await loadDashboardData(period, session.accessToken);
 - **IDs são UUID (string)**. `supabase/types.ts` declara `id: number` — legado, inofensivo para exibir, perigoso para comparar. Módulos novos declaram os próprios tipos com `string`.
 - **Sempre filtre `deleted_at=is.null`.** O sync do app grava linhas duplicadas e depois marca as antigas como deletadas; `queries.ts` não filtra e por isso infla contagens.
 - **Datas**: `created_at` é `timestamptz` — filtre no fuso BRT (`gte.2026-07-01T00:00:00-03:00`), nunca em UTC. Já `rondas.date` e `herd_events.date` são `date` puro: compare como string de dia, sem offset.
-- **O sync duplica eventos** (ver `../gestao-pecuaria/BRIEFING-duplicacao-rondas.md`): o mesmo movimento aparece 2× com UUIDs diferentes, e o estado (`herd`) às vezes recebeu 1×, às vezes 2×. Onde isso importa, deduplique por chave lógica e **avise na tela** quantos foram descartados.
+- **O sync duplica eventos** (ver `../BRIEFING-duplicacao-rondas.md`; causa corrigida no app na v0.13.1 — histórico limpo, mas mantenha a dedupe como defesa): o mesmo movimento aparece 2× com UUIDs diferentes, e o estado (`herd`) às vezes recebeu 1×, às vezes 2×. Onde isso importa, deduplique por chave lógica e **avise na tela** quantos foram descartados.
 - **`herd.head_count` é o estado de hoje**, não do período — talhões com consumo no mês podem estar zerados agora. Para janela histórica é preciso replay reverso dos `herd_events` (`consumo-calc.ts`).
 - **`supplement_evals.sacks_in_trough` = sacos COLOCADOS no cocho**, não saldo (o app pergunta "quantos sacos colocou?"). Só preenchido quando `restocked`.
 - **`herd_events` do tipo `EVOLUCAO` grava só a categoria de origem**; o destino está em `notes` como `"BEZERRO → GARROTE"`. `AJUSTE` subtrai.

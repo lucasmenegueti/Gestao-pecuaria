@@ -15,6 +15,8 @@ Usado por peões em tratores/cavalos em piquetes remotos com conectividade ruim 
 
 ## Repository Layout
 
+- `app/` — o app de campo (Expo). Web dele = site `nsa-gestao-pecuaria`.
+- `dashboard/` — dashboard de gestão (Next.js, só leitura do mesmo Supabase) + `relatorio-diario/` (PDF diário via rotina cloud). Site `gestao-pecuaria-nsa`, deploy manual pelo terminal. Regras próprias em `dashboard/CLAUDE.md` (carrega ao mexer lá). Era o repo `gestao-pecuaria-dashboard`, fundido com histórico em 27/10/2026.
 - `prototipo/` — Historical HTML/CSS prototype (deployado em `gh-pages` pra UX research; ref only)
 - `CHANGELOG.md` — **sempre atualizar** quando fizer mudança user-visible. Cada entry tem **Fallback** apontando pro tag anterior pra rollback.
 
