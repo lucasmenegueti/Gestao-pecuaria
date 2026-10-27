@@ -488,13 +488,23 @@ async function pushOne(
         // upsert. Se a resposta se perder (proxy/CGNAT) e o row continuar
         // pending_sync=1, o próximo ciclo re-envia o MESMO id → upsert colapsa no
         // mesmo row em vez de cunhar um UUID novo (era a origem das rondas/evals
-        // duplicadas). Combinado com o mutex atômico do daemon, fecha tanto o
-        // retry de resposta-perdida quanto a corrida de ciclos concorrentes.
-        let stableId = row.supabase_id as string | null;
-        if (!stableId) {
-          stableId = Crypto.randomUUID();
-          await db.runAsync(`UPDATE ${table.name} SET supabase_id = ? WHERE id = ?`, [stableId, row.id]);
-        }
+        // duplicadas).
+        //
+        // O claim é no banco, não no snapshot `row`: dois ciclos concorrentes
+        // (o watchdog do daemon libera a trava de um ciclo lento que segue vivo;
+        // web com duas abas) leem o mesmo `pending` com supabase_id NULL e cada
+        // um cunhava o seu UUID — as linhas saíam em par no servidor (P71,
+        // 26/10/2026). Com `AND supabase_id IS NULL` só o primeiro grava; o outro
+        // relê o UUID vencedor e o upsert colapsa no mesmo row.
+        await db.runAsync(
+          `UPDATE ${table.name} SET supabase_id = ? WHERE id = ? AND supabase_id IS NULL`,
+          [Crypto.randomUUID(), row.id]
+        );
+        const claimed = await db.getFirstAsync<{ supabase_id: string }>(
+          `SELECT supabase_id FROM ${table.name} WHERE id = ?`,
+          [row.id]
+        );
+        const stableId = claimed!.supabase_id;
         // Foto de morte/aborto: sobe o arquivo ANTES do row, chaveado pelo mesmo
         // UUID estável (retry re-envia pra mesma chave, upsert no Storage).
         // Falha de upload = falha do row (circuit breaker cuida do retry).

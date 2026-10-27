@@ -6,6 +6,37 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.13.1 — "evento não sobe em dobro" (2026-10-27)
+
+Sintoma: a aba Nascimentos do dashboard avisava "3 registro(s) idênticos no mesmo dia e piquete". Eram os partos de P71 em 26/10 (20 + 9 bezerros, 18 bezerras) e a EVOLUCAO de 47 prenhas → paridas, cada um **duas vezes** em `herd_events` com UUIDs diferentes, mesmo `created_at` e push com ~40 ms de distância. O `herd` recebeu uma vez só: a transferência P71→P77 de 27/10 fecha exato (56 / 45 / 101).
+
+### Causa (`sync/daemon.ts` + `sync/engine.ts`)
+- O watchdog do daemon solta a trava quando um ciclo passa de 60 s. Mas um request ruim leva até 51,5 s (25 s + 1,5 s + 25 s de retry), então ciclo lento em rede fraca dispara o watchdog **com o ciclo velho ainda vivo** — e os dois rodam o push em paralelo.
+- Cada ciclo itera o seu snapshot de `pending`; linha ainda sem `supabase_id` no snapshot ganhava um UUID novo em cada ciclo → par no servidor. Assinatura nos dados: linhas do lote chegam em par, intercaladas (A, A, B, B…), 3–200 ms entre as cópias. Visto em 24/07, 05/09, 10/09, 11/09 e 26/10 — todos depois da v0.7.14.
+- Reproduzido num modelo da lógica (não o engine em si), com SQLite real, 2 ciclos concorrentes e 200 rodadas: 4 linhas locais → até 8 no servidor antes, 4 depois. `app/scripts/test-sync-race.mjs`.
+
+### Correção
+- **Claim atômico do UUID estável** (`engine.ts`, push append-only): `UPDATE … SET supabase_id = ? WHERE id = ? AND supabase_id IS NULL` e relê o valor do banco. O ciclo que perde o claim usa o UUID do vencedor e o upsert colapsa. Vale pra qualquer fonte de concorrência — watchdog, `forceSync`, web com duas abas.
+- **Token de geração na trava** (`daemon.ts`): o `finally` de um ciclo superado não solta mais a trava do ciclo vivo (antes o poll seguinte abria um terceiro).
+- **Ajuste de estoque no web** (`estoque/ajuste.tsx`): `Alert.alert` é no-op no react-native-web, então o ajuste gravava sem confirmação e a tela não saía — o admin re-tocava Salvar e cada toque virava um evento real (20/10: +20 ×8 e −180 ×7 no central; 23/10 compensado à mão). Agora `window.alert` + volta pro estoque.
+
+### Validação (sem login, harness descartável)
+- **Android (emulador, Expo Go SDK 54):** `daemon.ts` + `engine.ts` reais, HEAD × fix lado a lado, expo-sqlite nativo, Supabase falso com o 1º upsert pendurado 100 s. O watchdog disparou nos dois (`daemon_stuck_reset` em 60 s). HEAD: 4 eventos locais → **7** linhas no servidor (1º único, 3 em par — mesma assinatura do P71). Fix: **4**.
+- **Web (Chrome):** `estoque/ajuste.tsx` real com banco/sessão/router falsos. HEAD: 3 cliques → 3 `AJUSTE_PERDA_CENTRAL`, sem aviso, tela parada. Fix: 1 clique → 1 evento, aviso "Registrado" e volta pro estoque.
+- Não validado: o app real logado contra QA e o build web de produção.
+
+### Dados (prod)
+Soft-delete das cópias de `herd_events` com mesma chave lógica **e** mesmo `created_at` (mantida a de menor `updated_at`): 18 linhas — 4 de P71 + 14 de maio–outubro. Duas EVOLUCAO repetidas com horários distintos (P77 22/07, T34 - P05 24/09) ficaram: são lançamentos separados. `inventory_events` e `supplement_evals` **não** foram tocados (ver Pendências).
+
+### Pendências
+- `inventory_events` tem 15 pares do mesmo padrão (05/09 contagens NSA2, 11/09 rotas #24/#25). **Nas bombonas não apagar**: o saldo de hoje já é 0, o excesso foi absorvido, e o soft-delete deixaria negativo. Sobra real no **central**: Probeef Confinamento Recria 666 (seria 661 sem o +5 duplicado) e Adsorb Afla 59 (seria 66 sem o −7 duplicado). Corrigir por contagem física → AJUSTE pelo app, não SQL (o trigger ignora saldo cru).
+- Probeef Reprodução Ureia ADT, central = 0 depois dos toques repetidos de 20 e 23/10 (+20 ×8, −180 ×7, +200 ×5, +60). Conferir com contagem física.
+- Primeira inserção de catálogo mutável (id gerado no servidor) continua exposta a ciclos concorrentes: `herd` tem UNIQUE + heal, `resupply_routes` não.
+
+**Fallback:** `git checkout v0.13.0`. Dados: `UPDATE herd_events SET deleted_at = NULL, updated_at = now() WHERE id IN (…)` com os 18 ids: `43774d10-aa93-406e-b329-5824cbcca039`, `950c7afd-c047-4b26-b614-9669037c084d`, `de1a4910-a56f-4e12-bba3-23fdc14f84b6`, `fbccd6f8-342b-4d42-a1bd-4c173a751997`, `e38352f2-02fc-4e12-9c03-3bbc05aac93a`, `9ab56e0f-9ac9-453e-b45a-ebad13962e49`, `f0c0cf9d-ed2c-4c0d-a511-469bc0009106`, `0eebbe13-529a-43ce-a123-682c847f3427`, `ceae27e8-fbcd-42f4-955a-e21449baf642`, `3b94a5b5-210b-4692-8a2d-500ff0b73970`, `413af565-7840-411b-9efb-da30ee2f4645`, `f6e436c5-603e-48f6-99b7-793347f50654`, `aa13544b-b5f9-4aee-aa0e-6c60503fa5cc`, `bdd8ef72-d669-42f5-b3c0-71b99683d2c7`, `bd8cfa61-0ea3-4f01-9f02-bbd0e3aa2205`, `7bd34f14-ebd0-4373-acc8-bdf156af6627`, `bd52c294-72b8-4a40-a182-2b13d588d608`, `a66b57df-2ee3-4364-b035-92f2a6abe1f4`.
+
+---
+
 ## Dados — T33 como piquete único (2026-09-29)
 
 Mudança de **dado**, não de código — sem versão, sem tag, sem build. Devices puxam no próximo sync.

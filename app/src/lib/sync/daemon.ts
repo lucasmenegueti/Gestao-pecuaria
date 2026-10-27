@@ -23,6 +23,10 @@ type DaemonState = {
   running: boolean;
   /** Timestamp de quando running=true. Watchdog reseta se passar RUN_TIMEOUT_MS. */
   runStartedAt: number;
+  /** Dono da trava. O watchdog solta a trava de um ciclo lento que continua vivo;
+   *  sem o token, o `finally` desse ciclo velho soltava também a do ciclo novo e o
+   *  poll seguinte abria um terceiro em paralelo. */
+  runGen: number;
   timer: ReturnType<typeof setInterval> | null;
   netUnsub: (() => void) | null;
   appStateSub: ReturnType<typeof AppState.addEventListener> | null;
@@ -37,6 +41,7 @@ const state: DaemonState = {
   db: null,
   running: false,
   runStartedAt: 0,
+  runGen: 0,
   timer: null,
   netUnsub: null,
   appStateSub: null,
@@ -98,15 +103,17 @@ async function tryRun(reason: string) {
   state.running = true;
   state.runStartedAt = now;
   state.lastSyncAt = now;
+  const gen = ++state.runGen;
+  const release = () => { if (state.runGen === gen) state.running = false; };
 
   // Só roda se há pendentes OU se faz tempo desde o último pull
   const status = await getSyncStatus(state.db).catch(() => null);
-  if (!status) { state.running = false; return; }
+  if (!status) { release(); return; }
   // Inclui derivados aqui — daemon sincroniza qualquer pending, não só os visíveis.
   const pendingNow = status.pending > 0 || status.pendingDerived > 0;
   const lastPull = status.last_pull_at ? new Date(status.last_pull_at).getTime() : 0;
   const staleByTime = now - lastPull > 60_000; // pull de 1 em 1 min quando conectado
-  if (!pendingNow && !staleByTime) { state.running = false; return; }
+  if (!pendingNow && !staleByTime) { release(); return; }
 
   try {
     const stats = await syncAll(state.db);
@@ -114,7 +121,7 @@ async function tryRun(reason: string) {
   } catch (err: any) {
     if (__DEV__) console.warn(`[sync daemon:${reason}] falhou:`, err?.message);
   } finally {
-    state.running = false;
+    release();
   }
 }
 
@@ -171,10 +178,11 @@ export async function forceSync(db: SQLite.SQLiteDatabase) {
   state.running = true;
   state.runStartedAt = Date.now();
   state.lastSyncAt = Date.now();
+  const gen = ++state.runGen;
   resetPushCircuitBreaker();
   try {
     return await syncAll(db);
   } finally {
-    state.running = false;
+    if (state.runGen === gen) state.running = false;
   }
 }

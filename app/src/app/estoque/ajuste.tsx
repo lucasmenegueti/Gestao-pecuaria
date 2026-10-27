@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, TextInput, TouchableOpacity, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { AlertTriangle, Plus, Minus } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -112,7 +112,15 @@ export default function AjusteEstoqueScreen() {
       const msg = mode === 'add'
         ? `+${sacos(quantity)} ${quantity === 1 ? 'adicionado' : 'adicionados'}.`
         : `${sacos(quantity)} ${quantity === 1 ? 'removido' : 'removidos'} (perda).`;
-      Alert.alert('Registrado', msg, [{ text: 'OK', onPress: () => router.replace('/(tabs)/estoque') }]);
+      // Alert.alert é no-op no react-native-web: sem este desvio o ajuste gravava
+      // em silêncio, a tela não saía e o admin re-tocava Salvar (out/2026: +20 ×8,
+      // −180 ×7 no estoque central, cada toque um evento real no ledger).
+      if (Platform.OS === 'web') {
+        window.alert(`Registrado\n\n${msg}`);
+        router.replace('/(tabs)/estoque');
+      } else {
+        Alert.alert('Registrado', msg, [{ text: 'OK', onPress: () => router.replace('/(tabs)/estoque') }]);
+      }
     } catch (err) {
       Alert.alert('Erro', 'Falha ao registrar ajuste');
     } finally {

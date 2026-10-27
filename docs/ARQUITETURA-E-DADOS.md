@@ -31,6 +31,7 @@ Doc de referência pra entender **onde o dado vive, como chega no device, e como
 
 ### Push — `pushPending`
 - `SELECT ... WHERE pending_sync=1`. `appendOnly:false` tenta `UPDATE` (se já tem `supabase_id`) senão `INSERT`. `appendOnly:true` faz `upsert(onConflict:'id')` com um **UUID estável gerado no device** (gravado em `supabase_id` *antes* do envio) — idempotente: retry de resposta-perdida ou ciclo concorrente re-envia o mesmo `id` e colapsa no mesmo row, em vez de cunhar UUID novo. **(v0.7.14; era `INSERT` puro com UUID server-side — origem das rondas/evals duplicadas.)**
+- **O UUID é reivindicado no banco, não no snapshot** (`UPDATE … WHERE supabase_id IS NULL` + releitura, v0.13.1). O mutex do daemon **não** garante ciclo único: o watchdog solta a trava de um ciclo com mais de 60 s que continua vivo (um request ruim leva até 51,5 s), e no web cada aba tem o seu daemon. Sem o claim, cada ciclo cunhava o seu UUID → evento em par no servidor. Modelo da corrida: `scripts/test-sync-race.mjs`.
 - `toRemotePayload` remove `LOCAL_ONLY_COLS` e converte tipos.
 
 ### Marcação de "sujo" (dirty) — a regra que mais quebra
