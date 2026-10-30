@@ -10,6 +10,7 @@ import {
   Switch,
   PanResponder,
   Platform,
+  useWindowDimensions,
   type NativeSyntheticEvent,
   type NativeScrollEvent,
 } from 'react-native';
@@ -26,6 +27,7 @@ import {
   Plus,
   Pencil,
   AlertTriangle,
+  GripVertical,
 } from 'lucide-react-native';
 import { useDatabase } from '@/lib/db/provider';
 import { useAuthStore } from '@/stores/authStore';
@@ -36,7 +38,10 @@ import { confirm } from '@/lib/confirm';
 // ---------------------------------------------------------------------
 // Dimensões da grade
 // ---------------------------------------------------------------------
-const LEFT_W = 150;      // coluna fixa (nome do projeto / da tarefa)
+// Coluna fixa (nome do projeto / da tarefa): largura ajustada ao nome mais
+// longo na abertura e redimensionável pela alça do canto. LEFT_MIN é o piso.
+const LEFT_MIN = 150;
+const RESIZE_W = Platform.OS === 'web' ? 12 : 24; // alça de redimensionar a coluna
 const DAY_W = 26;        // largura de cada dia
 const HEADER_H = 48;
 const PROJ_H = 34;       // altura da linha de cabeçalho do projeto
@@ -132,6 +137,8 @@ type Row =
   | { kind: 'projeto'; key: string; top: number; height: number; projeto: Projeto; span: { ini: string; fim: string } | null; feitas: number; total: number }
   | { kind: 'tarefa'; key: string; top: number; height: number; projeto: Projeto; tarefa: Tarefa };
 
+interface Hover { tarefa: Tarefa; projeto: Projeto; x: number; y: number }
+
 interface EditTarefa {
   id: number | null; project_id: number; name: string;
   start_date: string; duracao: number; inclui_sabado: boolean; inclui_domingo: boolean;
@@ -161,6 +168,8 @@ export default function CronogramaScreen() {
   // que acabou de nascer do "+": se o nome sair vazio, ela é descartada em vez
   // de virar uma linha sem nome no board.
   const [renaming, setRenaming] = useState<Renaming | null>(null);
+  // Detalhe da tarefa sob o mouse (só web — no touch o toque abre o editor).
+  const [hover, setHover] = useState<Hover | null>(null);
 
   // Início fixo da linha do tempo (segunda ~6 meses atrás), estável entre renders.
   const [rangeIni] = useState<string>(() => addDays(isoDate(mondayOf(new Date())), -182));
@@ -445,10 +454,13 @@ export default function CronogramaScreen() {
           onAddTarefa={adicionarTarefa}
           renaming={renaming} onRenameChange={(v) => setRenaming((r) => (r ? { ...r, value: v } : r))}
           onRenameStart={abrirRename} onRenameEnd={confirmarRename}
+          onHover={setHover}
         />
       ) : (
         <Lista projetos={projetosVisiveis} tarefas={tarefasVisiveis} onTarefa={abrirEdicaoTarefa} onProjeto={abrirEdicaoProjeto} />
       )}
+
+      {hover && modo === 'grade' && <TooltipCard hover={hover} />}
 
       <TarefaModal
         edit={editT} projetos={projetosVisiveis}
@@ -505,7 +517,7 @@ function Chip({ label, active, onPress }: { label: string; active: boolean; onPr
 // ---------------------------------------------------------------------
 function Grade({
   rows, totalH, rangeIni, colapsados, onToggle, onNovaTarefa, onTarefa, onCommit, onEditProjeto,
-  onAddTarefa, renaming, onRenameChange, onRenameStart, onRenameEnd,
+  onAddTarefa, renaming, onRenameChange, onRenameStart, onRenameEnd, onHover,
 }: {
   rows: Row[]; totalH: number; rangeIni: string;
   colapsados: Set<number>;
@@ -519,6 +531,7 @@ function Grade({
   onRenameChange: (v: string) => void;
   onRenameStart: (kind: 'projeto' | 'tarefa', id: number, atual: string) => void;
   onRenameEnd: () => void;
+  onHover: (h: Hover | null) => void;
 }) {
   const headerRef = useRef<ScrollView>(null);
   const bodyHRef = useRef<ScrollView>(null);
@@ -534,6 +547,36 @@ function Grade({
   // e o arraste chega inteiro no PanResponder. Solto → destrava.
   const [scrollLock, setScrollLock] = useState(false);
 
+  // Largura da coluna fixa: automática (cabe o nome mais longo, até um teto que
+  // não engole a grade) até o usuário arrastar a alça — daí vale a dele.
+  const { width: winW } = useWindowDimensions();
+  const autoW = useMemo(() => {
+    const teto = Platform.OS === 'web' ? 340 : Math.min(260, winW * 0.45);
+    let need = LEFT_MIN;
+    for (const r of rows) {
+      // Estimativa por caractere (Inter 12px; maiúsculas ~7,6px) + o que a célula
+      // gasta além do texto: recuo da tarefa, ou chevron/ponto/+/lápis do projeto.
+      need = Math.max(need, r.kind === 'projeto' ? 84 + r.projeto.name.length * 7.8 : 32 + r.tarefa.name.length * 7.6);
+    }
+    return Math.round(Math.min(need, teto));
+  }, [rows, winW]);
+  const [leftWManual, setLeftWManual] = useState<number | null>(null);
+  const leftW = leftWManual ?? autoW;
+  const leftWRef = useRef(leftW);
+  leftWRef.current = leftW;
+  const winWRef = useRef(winW);
+  winWRef.current = winW;
+  const resizeStart = useRef(0);
+  const resizePan = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderTerminationRequest: () => false,
+    onPanResponderGrant: () => { resizeStart.current = leftWRef.current; },
+    onPanResponderMove: (_e, g) => {
+      const max = Math.max(LEFT_MIN, winWRef.current * 0.7);
+      setLeftWManual(Math.round(Math.max(120, Math.min(max, resizeStart.current + g.dx))));
+    },
+  })).current;
   const iniNum = dayNum(rangeIni);
   const hojeNum = dayNum(isoDate(new Date()));
   const hojeIdx = Math.max(0, hojeNum - iniNum);
@@ -587,8 +630,17 @@ function Grade({
 
       <View style={styles.gradeRow}>
         {/* Cabeçalho fixo */}
-        <View style={styles.headerBar}>
-          <View style={[styles.corner, { width: LEFT_W, height: HEADER_H }]}><Text style={styles.cornerText}>Projeto · tarefa</Text></View>
+        {/* Sem seleção de texto: arrastar a alça da coluna passa por cima das datas. */}
+        <View style={[styles.headerBar, Platform.OS === 'web' ? ({ userSelect: 'none' } as any) : null]}>
+          <View style={[styles.corner, { width: leftW, height: HEADER_H }]}>
+            <Text style={styles.cornerText}>Projeto · tarefa</Text>
+            <View
+              {...resizePan.panHandlers}
+              style={[styles.resizeHandle, Platform.OS === 'web' ? ({ cursor: 'col-resize' } as any) : null]}
+            >
+              <GripVertical size={14} color={NSA.inkMuted} strokeWidth={1.75} />
+            </View>
+          </View>
           <ScrollView ref={headerRef} horizontal scrollEnabled={false} showsHorizontalScrollIndicator={false}>
             <View style={{ width: GRID_W, height: HEADER_H }}>
               {dias.map(({ i, iso }) => {
@@ -615,7 +667,7 @@ function Grade({
         <ScrollView style={{ flex: 1 }} nestedScrollEnabled showsVerticalScrollIndicator scrollEnabled={!scrollLock}>
           <View style={styles.bodyInner}>
             {/* coluna fixa: cabeçalho do projeto e nome das tarefas */}
-            <View style={{ width: LEFT_W }}>
+            <View style={{ width: leftW }}>
               {rows.map((r) => r.kind === 'projeto' ? (
                 <View key={r.key} style={[styles.projCell, { height: r.height }]}>
                   <TouchableOpacity onPress={() => onToggle(r.projeto.id)} hitSlop={6} style={styles.projChevron}>
@@ -698,6 +750,7 @@ function Grade({
                           tarefa={r.tarefa} left={pos.left} width={pos.width}
                           cor={r.projeto.color ?? NSA.green700} atrasada={atrasada}
                           onTap={onTarefa} onCommit={onCommit} onLock={setScrollLock} onInteract={markBarTouch}
+                          onHover={(h) => onHover(h && { ...h, projeto: r.projeto })}
                         />
                       )}
                     </LinhaArrastavel>
@@ -717,9 +770,10 @@ function Grade({
 // Barra arrastável (mover + redimensionar)
 // ---------------------------------------------------------------------
 function DraggableBar({
-  tarefa, left, width, cor, atrasada, onTap, onCommit, onLock, onInteract,
+  tarefa, left, width, cor, atrasada, onTap, onCommit, onLock, onInteract, onHover,
 }: {
   tarefa: Tarefa; left: number; width: number; cor: string; atrasada: boolean;
+  onHover: (h: { tarefa: Tarefa; x: number; y: number } | null) => void;
   onTap: (t: Tarefa) => void;
   onCommit: (taskId: number, ini: string, fim: string) => void;
   onLock: (v: boolean) => void;
@@ -733,8 +787,8 @@ function DraggableBar({
   const armed = useRef(Platform.OS === 'web');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clearTimer = () => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } };
-  const latest = useRef({ tarefa, width, onTap, onCommit, onLock, onInteract });
-  latest.current = { tarefa, width, onTap, onCommit, onLock, onInteract };
+  const latest = useRef({ tarefa, width, onTap, onCommit, onLock, onInteract, onHover });
+  latest.current = { tarefa, width, onTap, onCommit, onLock, onInteract, onHover };
 
   const pan = useRef(PanResponder.create({
     // Carimba "mexi numa barra" já no pointer-down, antes de a linha poder
@@ -753,6 +807,7 @@ function DraggableBar({
     onShouldBlockNativeResponder: () => false,
     onPanResponderGrant: (e) => {
       latest.current.onInteract();
+      latest.current.onHover(null); // detalhe não acompanha a barra sendo arrastada
       didMove.current = false;
       const x = e.nativeEvent.locationX; const w = latest.current.width;
       modeRef.current = x >= w - HANDLE ? 'resize-r' : x <= HANDLE ? 'resize-l' : 'move';
@@ -811,10 +866,15 @@ function DraggableBar({
     else { pl = left + off; pw = Math.max(DAY_W - 2, width - off); }
   }
   const cursorStyle = Platform.OS === 'web' ? { cursor: drag ? 'grabbing' : 'grab' } : null;
+  const hoverProps = Platform.OS === 'web' ? {
+    onMouseEnter: (e: any) => { if (!drag) onHover({ tarefa, x: e?.nativeEvent?.clientX ?? e?.clientX ?? 0, y: e?.nativeEvent?.clientY ?? e?.clientY ?? 0 }); },
+    onMouseLeave: () => onHover(null),
+  } : {};
 
   return (
     <View
       {...pan.panHandlers}
+      {...(hoverProps as any)}
       style={[styles.bar, cursorStyle as any, {
         left: pl, width: pw,
         backgroundColor: cor, opacity: STATUS_OPACITY[tarefa.status] ?? 1,
@@ -1125,6 +1185,45 @@ function ProjetoModal({
 }
 
 // Nome que vira campo de texto no toque — renomear projeto/tarefa sem abrir tela.
+// ---------------------------------------------------------------------
+// Detalhe da tarefa (hover, web)
+// ---------------------------------------------------------------------
+function TooltipCard({ hover }: { hover: Hover }) {
+  const { width: winW, height: winH } = useWindowDimensions();
+  const { tarefa: t, projeto: p } = hover;
+  const incluiSab = t.include_saturday === 1, incluiDom = t.include_sunday === 1;
+  const dur = countedDaysInSpan(t.start_date, t.end_date, incluiSab, incluiDom);
+  const durSufixo = incluiSab && incluiDom ? '' : !incluiSab && !incluiDom ? ' úteis' : ' contados';
+  const periodo = t.start_date === t.end_date ? fmtDia(t.start_date) : `${fmtDia(t.start_date)} – ${fmtDia(t.end_date)}`;
+  const atrasada = t.status !== 'feito' && t.status !== 'cancelado' && t.end_date < isoDate(new Date());
+
+  // Fixo na viewport (clientX/Y), sem sair pela borda direita/inferior.
+  const left = Math.min(hover.x + 14, winW - 316);
+  const top = hover.y + 14 > winH - 180 ? Math.max(8, hover.y - 180) : hover.y + 14;
+  return (
+    <View pointerEvents="none" style={[styles.tooltip, { position: 'fixed' as any, left, top }]}>
+      <View style={styles.tooltipHead}>
+        <View style={[styles.dot, { backgroundColor: p.color ?? NSA.inkMuted }]} />
+        <Text style={styles.tooltipProj} numberOfLines={1}>{p.name}</Text>
+      </View>
+      <Text style={styles.tooltipTitle}>{t.name}</Text>
+      <TtRow k="Período" v={`${periodo} (${dur} dia${dur > 1 ? 's' : ''}${durSufixo})`} />
+      <TtRow k="Status" v={`${STATUS_LABEL[t.status] ?? t.status}${atrasada ? ' · atrasada' : ''}`} />
+      {t.assignee ? <TtRow k="Responsável" v={t.assignee} /> : null}
+      {p.location ? <TtRow k="Local" v={p.location} /> : null}
+      {t.notes ? <TtRow k="Observação" v={t.notes} /> : null}
+    </View>
+  );
+}
+function TtRow({ k, v }: { k: string; v: string }) {
+  return (
+    <View style={styles.ttRow}>
+      <Text style={styles.ttKey}>{k}</Text>
+      <Text style={styles.ttVal}>{v}</Text>
+    </View>
+  );
+}
+
 function NomeEditavel({
   editando, valor, texto, estilo, placeholder, onStart, onChange, onEnd,
 }: {
@@ -1193,6 +1292,14 @@ const styles = StyleSheet.create({
   gradeRow: { flex: 1, flexDirection: 'column', borderWidth: 1, borderColor: NSA.border, borderRadius: Radius.lg, overflow: 'hidden', backgroundColor: NSA.bgElevated },
   headerBar: { flexDirection: 'row', borderBottomWidth: 1, borderColor: NSA.border },
   bodyInner: { flexDirection: 'row' },
+  resizeHandle: { position: 'absolute', right: 0, top: 0, bottom: 0, width: RESIZE_W, alignItems: 'center', justifyContent: 'center' },
+  tooltip: { maxWidth: 300, backgroundColor: NSA.inkPrimary, borderRadius: Radius.lg, paddingVertical: 8, paddingHorizontal: 10, zIndex: 100, gap: 3 },
+  tooltipHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  tooltipProj: { fontFamily: Fonts.medium, fontSize: 11, color: NSA.inkDisabled, flexShrink: 1 },
+  tooltipTitle: { fontFamily: Fonts.semibold, fontSize: 13, color: NSA.cream, marginBottom: 2 },
+  ttRow: { flexDirection: 'row', gap: 6 },
+  ttKey: { fontFamily: Fonts.medium, fontSize: 11, color: NSA.inkDisabled, width: 78 },
+  ttVal: { fontFamily: Fonts.regular, fontSize: 11, color: NSA.cream, flex: 1 },
   corner: { justifyContent: 'flex-end', paddingHorizontal: 8, paddingBottom: 6, borderRightWidth: 1, borderColor: NSA.border, backgroundColor: NSA.bgMuted },
   cornerText: { fontFamily: Fonts.semibold, fontSize: 11, color: NSA.inkMuted },
 

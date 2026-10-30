@@ -6,6 +6,19 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.13.3 — "cronograma: detalhe no hover e coluna ajustável" (2026-10-30)
+
+Pedido do Lucas olhando o cronograma do Pedro, igual ao da agricultura.
+
+- **Detalhe ao passar o mouse na barra** (só web): projeto, tarefa, período com duração, status (marca "atrasada"), responsável, local do projeto e observação. Some ao sair da barra e ao começar a arrastá-la; perto da borda de baixo abre para cima. Porte do `TooltipCard` da agricultura, com `position: fixed` em vez de absoluto.
+- **Coluna da esquerda redimensionável** pela alça no canto "Projeto · tarefa" (cursor `col-resize` no web, 24px no touch). Abre no tamanho do nome mais longo (estimativa por caractere), entre 150px e 340px no web, até 45% da tela no celular. Depois que você arrasta, vale a sua largura até sair da tela; ela não fica salva.
+- Cabeçalho de datas sem seleção de texto no web (o arraste da alça pintava as datas de azul).
+- Validado no Chrome com a tela real (banco/sessão/router falsos, dados do cronograma de produção): o hover, o alargar/estreitar e a virada perto da borda. **Não validado:** a alça no touch (Expo Go/APK) e o app logado.
+
+**Fallback:** `git checkout v0.13.2` + republicar a web.
+
+---
+
 ## v0.13.2 — "nome dos piquetes no mapa da web" (2026-10-27)
 
 O Lucas, no Mac, reportou que o mapa "parou de mostrar o número dos piquetes". Na web eles **nunca** apareceram: a v0.7.15 pôs os nomes só no HTML do WebView nativo (`map-html.ts`), e o mapa web (`FarmMap.web.tsx`, react-leaflet) seguia só com os contornos.
