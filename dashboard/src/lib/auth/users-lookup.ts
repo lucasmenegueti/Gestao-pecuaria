@@ -17,6 +17,50 @@ export interface AuthedUser {
   expiresAt: number;
 }
 
+/**
+ * Login no projeto do Curral com as mesmas credenciais (os usuários foram
+ * clonados para lá). Não decide acesso ao dashboard: falhar aqui só deixa a
+ * aba do Curral sem dado. Hoje o Curral vive no branch QA do Supabase, que
+ * tem outro segredo de JWT — o token de prod não vale lá (401).
+ */
+export async function signInCurral(
+  username: string,
+  password: string,
+): Promise<{ accessToken: string; expiresAt: number } | null> {
+  const url = process.env.CURRAL_SUPABASE_URL;
+  const key = process.env.CURRAL_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+  try {
+    const rpcRes = await fetch(`${url}/rest/v1/rpc/email_for_username`, {
+      method: 'POST',
+      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ u: username.trim().toLowerCase() }),
+      cache: 'no-store',
+    });
+    if (!rpcRes.ok) return null;
+    const email = await rpcRes.json();
+    if (!email || typeof email !== 'string') return null;
+
+    const authRes = await fetch(`${url}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: { apikey: key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+      cache: 'no-store',
+    });
+    if (!authRes.ok) {
+      console.error('[auth] login no Curral falhou:', authRes.status);
+      return null;
+    }
+    const tok = await authRes.json();
+    if (!tok?.access_token) return null;
+    const expiresIn = typeof tok.expires_in === 'number' ? tok.expires_in : 3600;
+    return { accessToken: tok.access_token, expiresAt: Date.now() + expiresIn * 1000 };
+  } catch (e) {
+    console.error('[auth] login no Curral falhou:', e);
+    return null;
+  }
+}
+
 export async function verifyCredentials(
   username: string,
   password: string,

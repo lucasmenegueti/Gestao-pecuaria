@@ -12,6 +12,8 @@ export async function getSessionOrRedirect(): Promise<{
   username: string;
   role: 'owner' | 'gestor';
   accessToken: string;
+  /** Só o Curral usa. Undefined se o login lá falhou ou o token expirou. */
+  curralAccessToken?: string;
 }> {
   const session = await getIronSession<SessionData>(await cookies(), readSessionOptions());
   if (!session.username || !session.accessToken) {
@@ -25,5 +27,9 @@ export async function getSessionOrRedirect(): Promise<{
     username: session.username,
     role: session.role ?? 'gestor',
     accessToken: session.accessToken,
+    curralAccessToken:
+      session.curralAccessToken && (session.curralExpiresAt ?? 0) > Date.now()
+        ? session.curralAccessToken
+        : undefined,
   };
 }

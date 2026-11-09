@@ -13,7 +13,14 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.warn('[supabase] SUPABASE_URL ou SUPABASE_ANON_KEY ausente. Queries vão falhar.');
 }
 
+/** Outro projeto Supabase (ex.: o do Curral). Sem isso, vale o do dashboard. */
+export interface SbConn {
+  url: string;
+  anonKey: string;
+}
+
 interface QueryParams {
+  conn?: SbConn;
   select?: string;
   order?: string;
   limit?: number;
@@ -33,7 +40,9 @@ export async function sbList<T>(
   table: string,
   params: QueryParams = {},
 ): Promise<T[]> {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return [];
+  const baseUrl = params.conn?.url ?? SUPABASE_URL;
+  const anonKey = params.conn?.anonKey ?? SUPABASE_ANON_KEY;
+  if (!baseUrl || !anonKey) return [];
 
   const search = new URLSearchParams();
   search.set('select', params.select ?? '*');
@@ -46,11 +55,11 @@ export async function sbList<T>(
     }
   }
 
-  const url = `${SUPABASE_URL}/rest/v1/${table}?${search.toString()}`;
+  const url = `${baseUrl}/rest/v1/${table}?${search.toString()}`;
   const res = await fetch(url, {
     headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: authHeader(params.accessToken),
+      apikey: anonKey,
+      Authorization: params.accessToken ? `Bearer ${params.accessToken}` : `Bearer ${anonKey}`,
       Accept: 'application/json',
     },
     // Cache zero quando o request é por user — JWT tem TTL próprio.

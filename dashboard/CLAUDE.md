@@ -30,7 +30,7 @@ npx netlify-cli deploy --build --site a8c2393a-b210-4ea4-b075-fb77a38458b2      
 npx netlify-cli deploy --build --prod --site a8c2393a-b210-4ea4-b075-fb77a38458b2     # produção
 ```
 
-O build roda local com as env vars do site no Netlify (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SESSION_PASSWORD`, `TZ`). Não confundir com o outro site do repo (`nsa-gestao-pecuaria`, web do app — ver `../CLAUDE.md`).
+O build roda local com as env vars do site no Netlify (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SESSION_PASSWORD`, `TZ`, `CURRAL_SUPABASE_URL`, `CURRAL_SUPABASE_ANON_KEY`). Não confundir com o outro site do repo (`nsa-gestao-pecuaria`, web do app — ver `../CLAUDE.md`).
 
 `relatorio-diario/` (Python do PDF diário → WhatsApp) é rodado por rotina cloud (`trig_01URkNDoJHXA7svYcVZbVjzK`, 21:15 BRT) que clona **este** repo e entra em `dashboard/relatorio-diario`. Mudou o script → commit + push basta; a rotina pega no próximo disparo.
 
@@ -45,6 +45,8 @@ export const dynamic = 'force-dynamic';       // sempre: dado é por-usuário e 
 const session = await getSessionOrRedirect();
 const data = await loadDashboardData(period, session.accessToken);
 ```
+
+**Curral (`/curral`) lê de OUTRO Supabase.** O app `curral-nsa` só existe no branch QA (`zmetxajiimsclhuhaykv`), que é a produção de fato do Curral até a virada para prod. O QA tem outro segredo de JWT — o token de prod volta 401 lá. Por isso o login faz um **segundo password grant** no projeto do Curral (`signInCurral`, mesmas credenciais, usuários clonados) e guarda `curralAccessToken` na sessão; falhar ali não barra o login, só deixa a aba avisando. Queries do Curral passam `conn` para `sbList`/`sbListAll`. Na virada do Curral para prod: apontar `CURRAL_SUPABASE_URL`/`_ANON_KEY` para prod, sem mexer em código. Sessões antes de `INICIO_OPERACAO_REAL` (23/09/2026) são base de teste e ficam ocultas; tempo e ritmo vêm dos bipes (`event_at`), não de `started_at`/`closed_at`.
 
 `SUPABASE_URL` aponta para um **Worker proxy Cloudflare**, não direto para o Supabase (contorna bloqueio de IP em redes da região). Ele repassa method/headers/body — POST e PATCH funcionam.
 

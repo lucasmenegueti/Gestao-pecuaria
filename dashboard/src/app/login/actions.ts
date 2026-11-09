@@ -4,7 +4,7 @@ import { getIronSession } from 'iron-session';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { buildSessionOptions, type SessionData } from '@/lib/auth/session';
-import { verifyCredentials } from '@/lib/auth/users-lookup';
+import { signInCurral, verifyCredentials } from '@/lib/auth/users-lookup';
 
 export interface LoginState {
   error?: string;
@@ -39,7 +39,19 @@ export async function loginAction(
   session.accessToken = user.accessToken;
   session.refreshToken = user.refreshToken;
   session.expiresAt = user.expiresAt;
-  await session.save();
+  const curral = await signInCurral(username, password);
+  session.curralAccessToken = curral?.accessToken;
+  session.curralExpiresAt = curral?.expiresAt;
+  try {
+    await session.save();
+  } catch (e) {
+    // Dois JWTs deixam o cookie perto do teto de 4 KB do iron-session.
+    // Se estourar, entra sem o Curral em vez de derrubar o login.
+    console.error('[auth] sessão com o token do Curral não coube no cookie:', e);
+    session.curralAccessToken = undefined;
+    session.curralExpiresAt = undefined;
+    await session.save();
+  }
 
   const target = sanitizeFrom(from) ?? '/visao-geral';
   redirect(target);

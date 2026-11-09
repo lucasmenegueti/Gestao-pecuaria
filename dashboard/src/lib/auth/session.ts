@@ -14,6 +14,10 @@ export interface SessionData {
   refreshToken?: string;
   /** Unix timestamp (ms) em que o accessToken expira. */
   expiresAt?: number;
+  /** JWT do projeto do Curral (outro Supabase, outro segredo de JWT).
+   *  Ausente quando o login lá falhou — a aba do Curral avisa. */
+  curralAccessToken?: string;
+  curralExpiresAt?: number;
 }
 
 const DAY = 60 * 60 * 24;
