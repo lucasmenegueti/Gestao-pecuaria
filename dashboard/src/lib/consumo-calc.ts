@@ -43,6 +43,23 @@ export function diffDays(a: string, b: string): number {
  */
 export const CATEGORIAS_MAMANDO: ReadonlySet<string> = new Set(['BEZERRO MAMANDO', 'BEZERRA MAMANDO']);
 
+/**
+ * Consumo diário previsto de um talhão em kg — porte de `dailyConsumptionKg` do app.
+ *
+ * O alvo da fórmula (`target_g_per_kg_body_day`) é gramas por CABEÇA/dia: o nome
+ * da coluna mente. Multiplicar pelo peso vivo superestima ~400× (bug do app na
+ * v0.11.0). Alvo abaixo de 1 é resquício da unidade antiga e não serve de régua:
+ * devolve 0, que os chamadores tratam como "sem previsão".
+ */
+export function consumoDiarioKg(
+  lotes: Array<{ category: string; head_count: number }>,
+  alvoGPorCabDia: number,
+): number {
+  if (alvoGPorCabDia < 1) return 0;
+  const cabecas = lotes.reduce((s, l) => (CATEGORIAS_MAMANDO.has(l.category) ? s : s + l.head_count), 0);
+  return (cabecas * alvoGPorCabDia) / 1000;
+}
+
 export function loteKey(paddockId: string, category: string): string {
   return `${paddockId}|${category}`;
 }

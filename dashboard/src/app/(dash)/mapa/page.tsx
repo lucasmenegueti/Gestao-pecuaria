@@ -2,6 +2,7 @@ import { DashHeader } from '@/components/dash-header';
 import { FarmMapWithDetail, type PaddockMapDetail } from '@/components/farm-map-with-detail';
 import type { MapPaddock, Status } from '@/components/farm-map';
 import { Card, EmptyState } from '@/components/ui-primitives';
+import { consumoDiarioKg } from '@/lib/consumo-calc';
 import { loadDashboardData } from '@/lib/queries';
 import { parsePeriodFromSearchParams } from '@/lib/period';
 import { getSessionOrRedirect } from '@/lib/auth/session-server';
@@ -13,12 +14,6 @@ interface PageProps {
 }
 
 export const dynamic = 'force-dynamic';
-
-const DEFAULT_WEIGHT: Record<string, number> = {
-  'BEZERRO MAMANDO': 100, 'BEZERRA MAMANDO': 95, 'BEZERRO': 180, 'BEZERRA': 170,
-  'GARROTE': 330, 'NOVILHA': 290, 'NOVILHA PRENHA': 310, 'BOI': 550,
-  'VACA PARIDA': 450, 'VACA PRENHA': 470, 'VACA SOLTEIRA': 440,
-};
 
 /** Status do mapa, espelhando a lógica do app (types.ts/stylePaddock mode='ronda'):
  *   sem gado            → empty   (cinza)
@@ -81,8 +76,7 @@ export default async function MapaPage({ searchParams }: PageProps) {
   for (const b of data.inventoryBombonas) {
     if (!b.paddock_id || !b.formula) continue;
     const lots = data.herd.filter((h) => h.paddock_id === b.paddock_id);
-    const bodyKg = lots.reduce((s, l) => s + l.head_count * (l.avg_weight_kg && l.avg_weight_kg > 0 ? l.avg_weight_kg : DEFAULT_WEIGHT[l.category] ?? 400), 0);
-    const dailyKg = bodyKg > 0 ? (bodyKg * b.formula.target_g_per_kg_body_day) / 1000 : 0;
+    const dailyKg = consumoDiarioKg(lots, b.formula.target_g_per_kg_body_day);
     let daysLeft: number | null = null;
     let severity: 'danger' | 'warning' | null = null;
     if (dailyKg > 0) {

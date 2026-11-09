@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { sbList } from './supabase/client';
+import { consumoDiarioKg } from './consumo-calc';
 import type {
   BiologicalWaterEval,
   BombonaEval,
@@ -291,9 +292,8 @@ function deriveAlerts(args: {
   for (const b of args.inventoryBombonas) {
     if (!b.paddock) continue;
     const lots = args.herd.filter(h => h.paddock_id === b.paddock_id);
-    const bodyKg = lots.reduce((s, l) => s + l.head_count * effectiveWeightKg(l.category, l.avg_weight_kg), 0);
-    if (bodyKg <= 0 || !b.formula) continue;
-    const dailyKg = (bodyKg * b.formula.target_g_per_kg_body_day) / 1000;
+    if (!b.formula) continue;
+    const dailyKg = consumoDiarioKg(lots, b.formula.target_g_per_kg_body_day);
     if (dailyKg <= 0) continue;
     const remainingKg = b.quantity_sacks * b.formula.kg_per_sack;
     const daysLeft = Math.floor(remainingKg / dailyKg);
@@ -427,16 +427,6 @@ function deriveAlerts(args: {
 
   // Tentar amarrar paddockName via lookup nos paddocks (se tiver paddockId nos outros)
   return out;
-}
-
-const DEFAULT_WEIGHT: Record<string, number> = {
-  'BEZERRO MAMANDO': 100, 'BEZERRA MAMANDO': 95, 'BEZERRO': 180, 'BEZERRA': 170,
-  'GARROTE': 330, 'NOVILHA': 290, 'NOVILHA PRENHA': 310, 'BOI': 550,
-  'VACA PARIDA': 450, 'VACA PRENHA': 470, 'VACA SOLTEIRA': 440,
-};
-function effectiveWeightKg(category: string, avg: number | null): number {
-  if (avg && avg > 0) return avg;
-  return DEFAULT_WEIGHT[category] ?? 400;
 }
 
 function relTime(iso: string): string {

@@ -1,5 +1,6 @@
 import { DashHeader } from '@/components/dash-header';
 import { Card, EmptyState, KPICard, StatusPill } from '@/components/ui-primitives';
+import { consumoDiarioKg } from '@/lib/consumo-calc';
 import { loadDashboardData } from '@/lib/queries';
 import { parsePeriodFromSearchParams } from '@/lib/period';
 import { getSessionOrRedirect } from '@/lib/auth/session-server';
@@ -11,12 +12,6 @@ interface PageProps {
 
 export const dynamic = 'force-dynamic';
 
-const DEFAULT_WEIGHT: Record<string, number> = {
-  'BEZERRO MAMANDO': 100, 'BEZERRA MAMANDO': 95, 'BEZERRO': 180, 'BEZERRA': 170,
-  'GARROTE': 330, 'NOVILHA': 290, 'NOVILHA PRENHA': 310, 'BOI': 550,
-  'VACA PARIDA': 450, 'VACA PRENHA': 470, 'VACA SOLTEIRA': 440,
-};
-
 export default async function EstoquePage({ searchParams }: PageProps) {
   const params = await searchParams;
   const period = parsePeriodFromSearchParams(params);
@@ -27,9 +22,7 @@ export default async function EstoquePage({ searchParams }: PageProps) {
   const bombonas = data.inventoryBombonas.map((b) => {
     if (!b.formula || !b.paddock) return { ...b, daysLeft: null as number | null, severity: null as 'warning' | 'danger' | null };
     const lots = data.herd.filter((h) => h.paddock_id === b.paddock_id);
-    const bodyKg = lots.reduce((s, l) => s + l.head_count * (l.avg_weight_kg && l.avg_weight_kg > 0 ? l.avg_weight_kg : DEFAULT_WEIGHT[l.category] ?? 400), 0);
-    if (bodyKg <= 0) return { ...b, daysLeft: null, severity: null };
-    const dailyKg = (bodyKg * b.formula.target_g_per_kg_body_day) / 1000;
+    const dailyKg = consumoDiarioKg(lots, b.formula.target_g_per_kg_body_day);
     if (dailyKg <= 0) return { ...b, daysLeft: null, severity: null };
     const remainingKg = b.quantity_sacks * b.formula.kg_per_sack;
     const daysLeft = Math.floor(remainingKg / dailyKg);

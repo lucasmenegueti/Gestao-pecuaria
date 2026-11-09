@@ -67,6 +67,7 @@ const data = await loadDashboardData(period, session.accessToken);
 - **O sync duplica eventos** (ver `../BRIEFING-duplicacao-rondas.md`; causa corrigida no app na v0.13.1 — histórico limpo, mas mantenha a dedupe como defesa): o mesmo movimento aparece 2× com UUIDs diferentes, e o estado (`herd`) às vezes recebeu 1×, às vezes 2×. Onde isso importa, deduplique por chave lógica e **avise na tela** quantos foram descartados.
 - **`herd.head_count` é o estado de hoje**, não do período — talhões com consumo no mês podem estar zerados agora. Para janela histórica é preciso replay reverso dos `herd_events` (`consumo-calc.ts`).
 - **`supplement_evals.sacks_in_trough` = sacos COLOCADOS no cocho**, não saldo (o app pergunta "quantos sacos colocou?"). Só preenchido quando `restocked`.
+- **`formulas.target_g_per_kg_body_day` é g por CABEÇA/dia**, apesar do nome. Projeção de consumo passa por `consumoDiarioKg` (`consumo-calc.ts`, porte do app): cabeças × alvo, nunca peso vivo × alvo (dava ~400× e zerava toda bombona). **Bezerro/bezerra mamando fica fora de toda conta de consumo e custo** (`CATEGORIAS_MAMANDO`) — mama na vaca e é contabilizado por ela.
 - **`herd_events` do tipo `EVOLUCAO` grava só a categoria de origem**; o destino está em `notes` como `"BEZERRO → GARROTE"`. `AJUSTE` subtrai.
 - **`inventory.quantity_sacks`** é mantido por trigger como soma crua do ledger e **bate com ele** — dá para usar como asserção. O ledger fica negativo em trechos antigos; não trave saldo em zero ao fazer replay.
 
