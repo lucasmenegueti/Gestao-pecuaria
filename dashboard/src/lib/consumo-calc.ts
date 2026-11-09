@@ -36,6 +36,13 @@ export function diffDays(a: string, b: string): number {
   return Math.round((Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / 86400000);
 }
 
+/**
+ * Bezerro mamando não come do cocho: mama na vaca, e o consumo dele é contado
+ * pela mãe. Fica fora de cabeças, rateio e custo — senão um lote de pares
+ * divide o suplemento pelo dobro de bocas.
+ */
+export const CATEGORIAS_MAMANDO: ReadonlySet<string> = new Set(['BEZERRO MAMANDO', 'BEZERRA MAMANDO']);
+
 export function loteKey(paddockId: string, category: string): string {
   return `${paddockId}|${category}`;
 }

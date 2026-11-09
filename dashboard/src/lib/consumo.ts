@@ -2,6 +2,7 @@ import 'server-only';
 
 import { sbList, sbListAll } from './supabase/client';
 import {
+  CATEGORIAS_MAMANDO,
   addDaysIso,
   calcularCabecasDia,
   diffDays,
@@ -142,6 +143,8 @@ export interface ConsumoData {
     custoPorCabDia: number | null;
     cabecasDia: number;
     cabecasMedias: number;
+    /** Bezerros mamando presentes em média — fora de todas as contas acima. */
+    mamandoMedios: number;
     gPorCabDia: number | null;
     arrobas: number | null;
     custoPorArroba: number | null;
@@ -229,8 +232,16 @@ export async function loadConsumoData(period: Period, accessToken?: string): Pro
   const paddockDaRonda = new Map(rondas.map((r) => [r.id, r.paddock_id]));
 
   // ---------- Cabeças-dia por (talhão, categoria) ----------
-  const { cabecasDia, evolucoesSemDestino, eventosDuplicados } =
+  const { cabecasDia: cabecasDiaTodas, evolucoesSemDestino, eventosDuplicados } =
     calcularCabecasDia(herd, herdEvents, inicio, fim, hoje);
+  // O replay roda com o rebanho inteiro (a EVOLUCAO de mamando para bezerro
+  // precisa do estado completo); só depois o mamando sai das contas de consumo.
+  const cabecasDia = new Map<string, number>();
+  let mamandoCabDia = 0;
+  for (const [key, v] of cabecasDiaTodas) {
+    if (CATEGORIAS_MAMANDO.has(key.slice(key.indexOf('|') + 1))) mamandoCabDia += v;
+    else cabecasDia.set(key, v);
+  }
   if (evolucoesSemDestino > 0) {
     avisos.push(
       `${evolucoesSemDestino} evento(s) de evolução sem categoria de destino legível — ` +
@@ -490,6 +501,7 @@ export async function loadConsumoData(period: Period, accessToken?: string): Pro
       custoPorCabDia: custoTotal != null && cabecasDiaComConsumo > 0 ? custoTotal / cabecasDiaComConsumo : null,
       cabecasDia: cabecasDiaTotal,
       cabecasMedias: cabecasDiaTotal / dias,
+      mamandoMedios: mamandoCabDia / dias,
       gPorCabDia: cabecasDiaComConsumo > 0 ? (kgTotal * 1000) / cabecasDiaComConsumo : null,
       arrobas: arrobasTotal,
       custoPorArroba:

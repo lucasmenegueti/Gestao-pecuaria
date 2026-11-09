@@ -50,7 +50,15 @@ export default async function ConsumoPage({ searchParams }: PageProps) {
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <KPICard label="Sacos no cocho" value={num(kpis.sacos)} hint={`${num(kpis.kg)} kg`} />
-        <KPICard label="Cabeças médias" value={num(kpis.cabecasMedias)} hint={`${num(kpis.cabecasDia)} cabeças·dia`} />
+        <KPICard
+          label="Cabeças médias"
+          value={num(kpis.cabecasMedias)}
+          hint={
+            kpis.mamandoMedios > 0
+              ? `${num(kpis.cabecasDia)} cabeças·dia · fora ${num(kpis.mamandoMedios)} bezerros mamando`
+              : `${num(kpis.cabecasDia)} cabeças·dia`
+          }
+        />
         <KPICard
           label="Consumo por cabeça"
           value={opt(kpis.gPorCabDia)}
@@ -258,8 +266,12 @@ export default async function ConsumoPage({ searchParams }: PageProps) {
             denominador de tudo — talhão que ficou só metade do período com gado não é penalizado.
           </li>
           <li>
+            <strong>Bezerro e bezerra mamando não entram</strong> em cabeças, consumo por cabeça, rateio nem custo:
+            mamam na vaca e são contabilizados por ela. Por isso também não geram arroba nesta página.
+          </li>
+          <li>
             <strong>Rateio por lote</strong> é estimado: o cocho é do talhão, não do lote. A divisão é proporcional ao
-            peso vivo acumulado de cada lote (cabeças·dia × peso médio), então bezerro mamando puxa menos que vaca.
+            peso vivo acumulado de cada lote (cabeças·dia × peso médio), então bezerro desmamado puxa menos que vaca.
           </li>
           <li>
             <strong>GMD</strong> vem da avaliação de peso visual da ronda, usando o intervalo real entre a pesagem
