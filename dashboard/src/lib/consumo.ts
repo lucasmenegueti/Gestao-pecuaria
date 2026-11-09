@@ -98,6 +98,8 @@ export interface LoteConsumo {
   sacos: number;
   kg: number;
   custo: number | null;
+  /** Custo ÷ cabeças·dia do lote — R$ por cabeça por dia. */
+  custoPorCabDia: number | null;
   gPorCabDia: number | null;
   gmd: number | null;
   arrobas: number | null;
@@ -114,6 +116,7 @@ export interface PiqueteConsumo {
   sacos: number;
   kg: number;
   custo: number | null;
+  custoPorCabDia: number | null;
   gPorCabDia: number | null;
   /** Consumo como % do peso vivo do talhão — g de ração por kg de PV por dia. */
   gPorKgPvDia: number | null;
@@ -133,6 +136,10 @@ export interface ConsumoData {
     sacos: number;
     kg: number;
     custo: number | null;
+    /** Custo total ÷ dias do período. */
+    custoPorDia: number | null;
+    /** Custo total ÷ cabeças·dia dos talhões que receberam ração. */
+    custoPorCabDia: number | null;
     cabecasDia: number;
     cabecasMedias: number;
     gPorCabDia: number | null;
@@ -143,6 +150,11 @@ export interface ConsumoData {
     /** Talhões que têm ração E peso visual — os únicos que entram no R$/@. */
     piquetesComCustoPorArroba: number;
   };
+  /**
+   * Custo das reposições de cada dia do período (pela data da reposição).
+   * null = houve reposição de ração sem custo apurado naquele dia.
+   */
+  custoDiario: Array<{ dia: string; custo: number | null; sacos: number }>;
   /** Fórmulas consumidas no período que estão sem preço cadastrado. */
   formulasSemPreco: string[];
   /** Saída de estoque × registro de cocho, por fórmula que teve um ou outro. */
@@ -272,6 +284,8 @@ export async function loadConsumoData(period: Period, accessToken?: string): Pro
   // uma compra de hoje não pode reprecificar o que foi consumido semana passada.
   const serieCusto = await serieCustoPromise;
   const consumoPorPiquete = new Map<string, Map<string, { sacos: number; kg: number; custo: number | null }>>();
+  const porDia = new Map<string, { custo: number | null; sacos: number }>();
+  for (let d = inicio; d <= fim; d = addDaysIso(d, 1)) porDia.set(d, { custo: 0, sacos: 0 });
   let evalsSemVinculo = 0;
   for (const s of supplements) {
     const pid = paddockDaRonda.get(s.ronda_id);
@@ -286,9 +300,15 @@ export async function loadConsumoData(period: Period, accessToken?: string): Pro
     const cur = porFormula.get(s.formula_id) ?? { sacos: 0, kg: 0, custo: 0 as number | null };
     cur.sacos += sacos;
     cur.kg += sacos * formula.kg_per_sack;
-    const custoMedio = custoMedioNaData(serieCusto, s.formula_id, diaBRT(s.created_at));
+    const diaReposicao = diaBRT(s.created_at);
+    const custoMedio = custoMedioNaData(serieCusto, s.formula_id, diaReposicao);
     if (custoMedio == null) cur.custo = null;
     else if (cur.custo != null) cur.custo += sacos * custoMedio;
+    const doDia = porDia.get(diaReposicao);
+    if (doDia) {
+      doDia.sacos += sacos;
+      doDia.custo = custoMedio == null || doDia.custo == null ? null : doDia.custo + sacos * custoMedio;
+    }
     porFormula.set(s.formula_id, cur);
     consumoPorPiquete.set(pid, porFormula);
   }
@@ -354,6 +374,7 @@ export async function loadConsumoData(period: Period, accessToken?: string): Pro
         sacos: loteSacos,
         kg: loteKg,
         custo: loteCusto,
+        custoPorCabDia: loteCusto != null && l.cabDia > 0 ? loteCusto / l.cabDia : null,
         gPorCabDia: l.cabDia > 0 ? (loteKg * 1000) / l.cabDia : null,
         gmd,
         arrobas,
@@ -383,6 +404,7 @@ export async function loadConsumoData(period: Period, accessToken?: string): Pro
       sacos,
       kg,
       custo,
+      custoPorCabDia: custo != null && cabecasDiaPiquete > 0 ? custo / cabecasDiaPiquete : null,
       gPorCabDia: cabecasDiaPiquete > 0 && kg > 0 ? (kg * 1000) / cabecasDiaPiquete : null,
       gPorKgPvDia: pvTotal > 0 && kg > 0 ? (kg * 1000) / pvTotal : null,
       gmd: gmdPiquete,
@@ -464,6 +486,8 @@ export async function loadConsumoData(period: Period, accessToken?: string): Pro
       sacos: sacosTotal,
       kg: kgTotal,
       custo: custoTotal,
+      custoPorDia: custoTotal == null ? null : custoTotal / dias,
+      custoPorCabDia: custoTotal != null && cabecasDiaComConsumo > 0 ? custoTotal / cabecasDiaComConsumo : null,
       cabecasDia: cabecasDiaTotal,
       cabecasMedias: cabecasDiaTotal / dias,
       gPorCabDia: cabecasDiaComConsumo > 0 ? (kgTotal * 1000) / cabecasDiaComConsumo : null,
@@ -474,6 +498,7 @@ export async function loadConsumoData(period: Period, accessToken?: string): Pro
       piquetesComConsumo: comConsumo.length,
       piquetesComGmd: comGmd.length,
     },
+    custoDiario: Array.from(porDia.entries()).map(([dia, v]) => ({ dia, ...v })),
     formulasSemPreco,
     cobertura,
     avisos,

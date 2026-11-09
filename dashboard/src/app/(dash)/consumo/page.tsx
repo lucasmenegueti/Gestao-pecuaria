@@ -22,6 +22,12 @@ const opt = (v: number | null, casas = 0, sufixo = '') =>
 const reais = (v: number | null) =>
   v == null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 
+/** Com centavos — R$/cab/dia fica na casa de R$ 0,50. */
+const centavos = (v: number | null) =>
+  v == null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const fmtDia = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+
 export default async function ConsumoPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const period = parsePeriodFromSearchParams(params, '30d');
@@ -42,7 +48,7 @@ export default async function ConsumoPage({ searchParams }: PageProps) {
         period={period}
       />
 
-      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <KPICard label="Sacos no cocho" value={num(kpis.sacos)} hint={`${num(kpis.kg)} kg`} />
         <KPICard label="Cabeças médias" value={num(kpis.cabecasMedias)} hint={`${num(kpis.cabecasDia)} cabeças·dia`} />
         <KPICard
@@ -51,7 +57,14 @@ export default async function ConsumoPage({ searchParams }: PageProps) {
           unit="g/dia"
           hint="média dos talhões que receberam ração"
         />
-        <KPICard label="Custo da ração" value={reais(kpis.custo)} hint={kpis.custo == null ? 'preço não cadastrado' : `${data.dias} dias`} />
+        <KPICard label="Custo da ração" value={reais(kpis.custo)} hint={kpis.custo == null ? 'preço não cadastrado' : `total em ${data.dias} dias`} />
+        <KPICard label="Custo por dia" value={reais(kpis.custoPorDia)} hint="média do período" />
+        <KPICard
+          label="Custo por cabeça"
+          value={centavos(kpis.custoPorCabDia)}
+          unit="/dia"
+          hint="só gado dos talhões que receberam ração"
+        />
         <KPICard
           label="Arrobas ganhas"
           value={opt(kpis.arrobas, 1)}
@@ -90,6 +103,15 @@ export default async function ConsumoPage({ searchParams }: PageProps) {
           ))}
         </div>
       ) : null}
+
+      <div className="mb-6">
+        <Card
+          title="Custo por dia"
+          subtitle="Ração posta no cocho em cada dia, pelo custo médio da data · a reposição de um dia costuma durar vários"
+        >
+          <BarrasCustoDiario dias={data.custoDiario} media={kpis.custoPorDia} />
+        </Card>
+      </div>
 
       <div className="mb-6">
         <Card title="Consumo por ração" subtitle="Sacos colocados no cocho no período" padding="">
@@ -186,7 +208,7 @@ export default async function ConsumoPage({ searchParams }: PageProps) {
           <EmptyState icon={Wheat} title="Nenhum talhão recebeu ração no período" />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-[13px]">
+            <table className="w-full min-w-[980px] text-[13px]">
               <thead>
                 <tr className="border-b border-border bg-grey-25 text-[11px] uppercase tracking-wider text-fg-muted">
                   <th className="px-4 py-2 text-left font-medium">Talhão / lote</th>
@@ -199,6 +221,7 @@ export default async function ConsumoPage({ searchParams }: PageProps) {
                   <th className="px-3 py-2 text-right font-medium">GMD</th>
                   <th className="px-3 py-2 text-right font-medium">@ ganhas</th>
                   <th className="px-3 py-2 text-right font-medium">Custo</th>
+                  <th className="px-3 py-2 text-right font-medium">R$/cab/dia</th>
                   <th className="px-4 py-2 text-right font-medium">R$/@</th>
                 </tr>
               </thead>
@@ -283,6 +306,7 @@ function LinhasDoTalhao({ piquete: p }: { piquete: PiqueteConsumo }) {
         <td className="tabular px-3 py-2.5 text-right">{opt(p.gmd, 2)}</td>
         <td className="tabular px-3 py-2.5 text-right">{opt(p.arrobas, 1)}</td>
         <td className="tabular px-3 py-2.5 text-right">{reais(p.custo)}</td>
+        <td className="tabular px-3 py-2.5 text-right font-medium">{centavos(p.custoPorCabDia)}</td>
         <td className="tabular px-4 py-2.5 text-right font-semibold">{reais(p.custoPorArroba)}</td>
       </tr>
       {lotes.map((l) => (
@@ -309,7 +333,67 @@ function LinhaDoLote({ lote: l }: { lote: LoteConsumo }) {
       <td className="tabular px-3 py-2 text-right">{opt(l.gmd, 2)}</td>
       <td className="tabular px-3 py-2 text-right">{opt(l.arrobas, 1)}</td>
       <td className="tabular px-3 py-2 text-right">{reais(l.custo)}</td>
+      <td className="tabular px-3 py-2 text-right">{centavos(l.custoPorCabDia)}</td>
       <td className="tabular px-4 py-2 text-right">{reais(l.custoPorArroba)}</td>
     </tr>
+  );
+}
+
+function BarrasCustoDiario({
+  dias,
+  media,
+}: {
+  dias: Array<{ dia: string; custo: number | null; sacos: number }>;
+  media: number | null;
+}) {
+  if (dias.every((d) => d.sacos === 0)) {
+    return <EmptyState icon={Wheat} title="Nenhuma reposição no período" />;
+  }
+  const ALTURA_PLOT = 140;
+  const max = Math.max(1, ...dias.map((d) => d.custo ?? 0));
+  const altura = (v: number) => (v > 0 ? Math.max(3, Math.round((v / max) * ALTURA_PLOT)) : 0);
+  // Rótulo do eixo a cada N dias, para não amontoar em períodos longos.
+  const passo = Math.max(1, Math.ceil(dias.length / 15));
+  const semCusto = dias.filter((d) => d.custo == null).length;
+
+  return (
+    <div>
+      <div className="relative">
+        {media != null && media > 0 ? (
+          <div
+            className="pointer-events-none absolute inset-x-0 border-t border-dashed border-grey-400"
+            style={{ bottom: altura(media) + 18 }}
+          >
+            <span className="tabular absolute -top-[18px] right-0 bg-bg-elevated px-1 text-[10px] text-fg-muted">
+              média {reais(media)}/dia
+            </span>
+          </div>
+        ) : null}
+        <div className="flex items-end gap-[2px]">
+          {dias.map((d, i) => (
+            <div
+              key={d.dia}
+              className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1"
+              title={`${fmtDia(d.dia)}: ${d.sacos > 0 ? `${num(d.sacos)} sacos · ${reais(d.custo)}` : 'sem reposição'}`}
+            >
+              <div className="flex w-full max-w-[22px] flex-col justify-end" style={{ height: ALTURA_PLOT }}>
+                {d.custo == null ? (
+                  // Reposição sem custo apurado: marca o dia sem inventar altura.
+                  <div className="h-[3px] w-full rounded-t-[4px] bg-warning" />
+                ) : d.custo > 0 ? (
+                  <div className="w-full rounded-t-[4px] bg-nsa-green-500" style={{ height: altura(d.custo) }} />
+                ) : null}
+              </div>
+              <span className="h-[14px] text-[9px] text-fg-subtle">{i % passo === 0 ? fmtDia(d.dia) : ''}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      {semCusto > 0 ? (
+        <p className="mt-2 text-[11px] text-fg-muted">
+          {semCusto} dia(s) com reposição sem custo apurado (marca amarela na base) — falta preço da ração.
+        </p>
+      ) : null}
+    </div>
   );
 }
