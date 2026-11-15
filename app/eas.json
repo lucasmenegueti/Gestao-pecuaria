@@ -43,8 +43,7 @@
     "production": {
       "android": {
         "serviceAccountKeyPath": "../../gestao-agricultura/googlekey/play-service-account.json",
-        "track": "production",
-        "releaseStatus": "draft"
+        "track": "internal"
       },
       "ios": {
         "ascAppId": "6764445135",
