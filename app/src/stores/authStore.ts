@@ -107,6 +107,23 @@ async function fetchProfile(userId: string): Promise<{ username: string; name: s
   return data;
 }
 
+/** Encerra no servidor UMA sessão que nunca chegou a ser instalada no supabase-js (best-effort). */
+async function descartarSessao(accessToken: string): Promise<void> {
+  try {
+    await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/auth/v1/logout?scope=local`, {
+      method: 'POST',
+      headers: { apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '', Authorization: `Bearer ${accessToken}` },
+    });
+  } catch {
+    // sem rede: a sessão órfã expira sozinha; ninguém neste aparelho a tem
+  }
+}
+
+/** Época da sessão local: sobe a cada logout. Um login em voo (o re-login silencioso do daemon,
+ *  ou um toque em Entrar) que termina DEPOIS de um "Sair" não pode gravar o usuário de volta —
+ *  num aparelho compartilhado ele recolocaria quem saiu por cima de quem acabou de entrar. */
+let epoca = 0;
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
@@ -119,6 +136,7 @@ export const useAuthStore = create<AuthState>()(
       login: async (username, password, remember) => {
         const usernameClean = username.trim().toLowerCase();
         logInfo('auth', 'login_attempt', { username: usernameClean });
+        const minhaEpoca = epoca;
 
         // Detecta offline antes de qualquer call de rede
         const net = await NetInfo.fetch().catch(() => ({ isConnected: true, isInternetReachable: null } as any));
@@ -164,6 +182,14 @@ export const useAuthStore = create<AuthState>()(
           const hub = modo === 'hub' ? await loginPeloHub(usernameClean, password) : null;
           if (hub?.tipo === 'recusa') throw new LoginError(hub.mensagem, hub.codigo);
           if (hub?.tipo === 'ok') {
+            if (epoca !== minhaEpoca) {
+              // Saíram (e talvez outro já entrou) enquanto o hub respondia. A sessão recebida
+              // ainda NÃO foi instalada no supabase-js: encerra só ela no servidor e não toca
+              // na sessão nem no estado de quem está logado agora.
+              logWarn('auth', 'login_descartado_apos_logout', { username: usernameClean, via: 'hub' });
+              await descartarSessao(hub.access_token);
+              throw new LoginError('Login cancelado: a sessão foi encerrada neste aparelho.', 'cancelado');
+            }
             const r = await supabase.auth.setSession({ access_token: hub.access_token, refresh_token: hub.refresh_token });
             if (r.error) throw r.error;
             data = { user: r.data.user };
@@ -197,6 +223,17 @@ export const useAuthStore = create<AuthState>()(
             role: profile?.role ?? (cachedMatches ? cachedUser.role : 'peao'),
           };
           const hash = await credentialHash(usernameClean, password);
+          if (epoca !== minhaEpoca) {
+            // Mesma guarda, pro caminho direto (o signInWithPassword instala a sessão sozinho) e
+            // pra um "Sair" que caia entre o setSession e este ponto.
+            logWarn('auth', 'login_descartado_apos_logout', { username: usernameClean, via: 'tarde' });
+            // O supabase-js guarda UMA sessão: a que chegou agora substituiu a de quem estivesse
+            // logado. Ninguém pode ficar com tela de um usuário e JWT de outro — encerra tudo
+            // local; quem chamou leva pra tela de login.
+            await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+            if (get().user) set({ user: null, isAuthenticated: false, offlineMode: false });
+            throw new LoginError('Login cancelado: a sessão foi encerrada neste aparelho.', 'cancelado');
+          }
           set({
             user,
             isAuthenticated: true,
@@ -276,6 +313,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: async () => {
+        epoca++;
         logInfo('auth', 'logout');
         // Offline: o custom fetch em supabase/client.ts devolve 204 pro /logout
         // pra que o auth-js execute o cleanup local do AsyncStorage sem disparar

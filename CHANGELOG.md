@@ -6,6 +6,13 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.14.1 — "sair no meio de um login não devolve o usuário anterior" (2026-11-15)
+
+- **Corrigido**: um login que terminava depois de um "Sair" (o re-login automático em andamento, ou um toque em Entrar) gravava aquele usuário de volta. Num aparelho compartilhado, quem acabou de entrar podia ser trocado por quem tinha saído. Agora a sessão que chega atrasada é descartada (encerrada no servidor) e quem está logado não é tocado. Reproduzido e coberto em `teste-local/web-login.mjs` (caso W8). Apareceu na primeira virada de conta para o hub (três logins em 8 s no mesmo aparelho).
+- **Web**: `/api/nsa-access/manifest` (estático) descreve os perfis `admin` e `peao` para o console do hub gestao-acessos.
+
+**Fallback:** `v0.14.0`.
+
 ## v0.14.0 — "login pronto para o hub de acessos" (2026-11-15)
 
 Prepara a migração do login para o hub gestao-acessos (desenho em `BRIEFING-INTEGRACAO-ACESSOS.md`). **Para quem usa o app nada muda nesta versão**: todas as contas continuam no login de sempre ("legado") até serem viradas uma a uma.

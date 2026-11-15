@@ -11,12 +11,12 @@ const USERS = {
   rec94m3AUEnAwJTQt: { username: 'bruno',        pw: 'hub-bruno', levels: ['full'],  is_global_admin: false }, // level legado → no_role na função
   recjUXvvxwQTwHK9t: { username: 'rafael',       pw: 'hub-rafael', levels: ['peao'], is_global_admin: false },
 };
-let ctl = { authForce: null, lookupSeq: [], chamadas: [], corpos: [] };
+let ctl = { authForce: null, authDelayMs: 0, lookupSeq: [], chamadas: [], corpos: [] };
 const ident = (id, u) => ({ user_id: id, username: u.username, name: u.username, session_version: 3, app_slug: APP, is_global_admin: u.is_global_admin, levels: u.levels, roles: [] });
 http.createServer((req, res) => {
   let b = ''; req.on('data', c => b += c); req.on('end', () => {
     const j = b ? JSON.parse(b) : {}; const send = (st, o) => { res.writeHead(st, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); };
-    if (req.url === '/__ctl') { if (j.reset) ctl = { authForce: null, lookupSeq: [], chamadas: [], corpos: [] }; Object.assign(ctl, j.set || {}); return send(200, { chamadas: ctl.chamadas, corpos: ctl.corpos }); }
+    if (req.url === '/__ctl') { if (j.reset) ctl = { authForce: null, authDelayMs: 0, lookupSeq: [], chamadas: [], corpos: [] }; Object.assign(ctl, j.set || {}); return send(200, { chamadas: ctl.chamadas, corpos: ctl.corpos }); }
     ctl.chamadas.push(req.url);
     // guarda as CHAVES do corpo (nunca a senha) pra bateria provar que vai user_id e não login
     ctl.corpos.push({ url: req.url, chaves: Object.keys(j).sort(), user_id: j.user_id ?? null, login: j.login ?? null });
@@ -24,7 +24,8 @@ http.createServer((req, res) => {
     if (req.url === '/api/nsa-access/authenticate') {
       if (ctl.authForce) return send(ctl.authForce.status, ctl.authForce.body);
       const u = USERS[j.user_id]; if (!u || u.pw !== j.password) return send(401, { ok: false, error: 'invalid_credentials' });
-      return send(200, { ok: true, user: ident(j.user_id, u) });
+      // authDelayMs: segura a resposta, pra bateria web provocar "Sair" com o login em voo
+      return setTimeout(() => send(200, { ok: true, user: ident(j.user_id, u) }), ctl.authDelayMs || 0);
     }
     if (req.url === '/api/nsa-access/lookup') {
       const nxt = ctl.lookupSeq.shift(); if (nxt) return send(nxt.status, nxt.body);

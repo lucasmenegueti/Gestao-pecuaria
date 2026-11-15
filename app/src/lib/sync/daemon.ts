@@ -122,6 +122,14 @@ async function sessaoEncerradaPeloHub(): Promise<boolean> {
       // Sem veredito do hub (rede, 503, função fora, muitas tentativas): não mexe em nada;
       // o próximo /check (≥ 1 min) tenta de novo e o sync segue com a sessão que existe.
       if (!codigo || codigo === 'indisponivel' || codigo === 'muitas_tentativas') return false;
+      // Saíram enquanto o re-login estava em voo e o login descartou a sessão recebida. Se já
+      // há outro usuário logado, a sessão dele está intacta: segue o ciclo. Se não há ninguém,
+      // garante a tela de login, sem aviso.
+      if (codigo === 'cancelado') {
+        if (useAuthStore.getState().user) return false;
+        try { router.replace('/(auth)/login'); } catch { /* navegação ainda não montada */ }
+        return true;
+      }
       // Senha guardada não vale no hub: sai dela pra não repetir a cada ciclo.
       if (codigo === 'invalid_credentials') useAuthStore.getState().esquecerOffline('senha');
     }

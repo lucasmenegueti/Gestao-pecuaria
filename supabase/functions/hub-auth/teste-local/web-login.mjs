@@ -59,8 +59,10 @@ try {
   sql(`update auth.users set encrypted_password = extensions.crypt('hub-pedro', extensions.gen_salt('bf', 6)) where id='${U.pedrochaves}'`);
   await ctl({ reset: true });
 
+  let s, se, antes, depois;
+  if (!process.env.SO_W8) {
   // W1 — legado
-  await abrir(); let s = await entrar('gabriel', 'Supa-Gabriel-8'); let se = await sessao();
+  await abrir(); s = await entrar('gabriel', 'Supa-Gabriel-8'); se = await sessao();
   ok('W1 legado: entra pelo caminho direto, sem passar pela função nem pelo hub', s?.user?.username === 'gabriel' && s.user.role === 'admin' && reqs.includes('rpc/auth_mode') && reqs.includes('token?password') && !reqs.some((r) => r.startsWith('hub-auth/login')) && (await ctl({})).chamadas.length === 0 && !emitidaPeloHub(se?.sid), reqs.join(' '));
 
   // W2 — hub, senha certa
@@ -83,10 +85,10 @@ try {
   await ctl({ set: { authForce: null } });
 
   // W5 — virada legado→hub com a MESMA senha guardada: re-login silencioso
-  await abrir(); s = await entrar('pedro.chaves', 'hub-pedro'); let antes = await sessao();
+  await abrir(); s = await entrar('pedro.chaves', 'hub-pedro'); antes = await sessao();
   ok('W5 pré: pedro.chaves entra em legado (sessão fora de hub_sessoes)', s?.user?.id === U.pedrochaves && !emitidaPeloHub(antes?.sid));
   modo('pedro.chaves', 'hub'); dialogs = []; reqs = [];
-  let depois = null; for (let i = 0; i < 70; i++) { await sleep(1000); depois = await sessao(); if (depois?.sid && depois.sid !== antes.sid) break; }
+  depois = null; for (let i = 0; i < 70; i++) { await sleep(1000); depois = await sessao(); if (depois?.sid && depois.sid !== antes.sid) break; }
   s = await store();
   ok('W5 virada com a mesma senha: o app refaz o login sozinho pelo hub, sem tela e sem aviso', s?.user?.id === U.pedrochaves && depois?.sub === U.pedrochaves && emitidaPeloHub(depois?.sid) && dialogs.length === 0 && reqs.includes('hub-auth/check') && reqs.includes('hub-auth/login'), `${reqs.join(' ')} | avisos: ${dialogs.join(' / ') || 'nenhum'}`);
 
@@ -112,6 +114,29 @@ try {
   for (let i = 0; i < 40 && !(await ev(`!!document.querySelector('input[placeholder="seu.nome"]')`)); i++) await sleep(300);
   dialogs = []; reqs = []; s = await entrar('lucas', 'hub-lucas'); se = await sessao();
   ok('W7b digitando a senha do hub ele entra, no mesmo uuid', s?.user?.id === U.lucas && emitidaPeloHub(se?.sid), `${reqs.join(' ')} | tela: ${(await ev('document.body.innerText')).replace(/\s+/g, ' ').slice(0, 160)} | avisos: ${dialogs.join(' / ')}`);
+  }
+  // W8 — aparelho compartilhado: A (pedro.chaves) é virado pra hub; o re-login silencioso dele
+  // fica em voo (hub lento); A toca Sair e B (gabriel) entra; o silencioso de A termina DEPOIS.
+  await ctl({ reset: true });
+  sql(`delete from public.auth_tentativas; delete from public.hub_sessoes; delete from public.auth_config where chave <> '*'`);
+  await abrir(); s = await entrar('pedro.chaves', 'hub-pedro');
+  ok('W8 pré: A entra em legado', s?.user?.id === U.pedrochaves);
+  await ctl({ set: { authDelayMs: 9000 } });
+  modo('pedro.chaves', 'hub'); reqs = []; dialogs = [];
+  for (let i = 0; i < 100 && !reqs.includes('hub-auth/login'); i++) await sleep(700);
+  ok('W8 o re-login silencioso de A saiu e está em voo', reqs.includes('hub-auth/login'));
+  // Sair: o botão mais à direita do cabeçalho do Painel
+  const alvo = await ev(`(() => { const vs = [...document.querySelectorAll('svg')].map(e => e.getBoundingClientRect()).filter(r => r.top < 130 && r.width > 0).sort((a, b) => b.right - a.right); return vs[0] ? { x: vs[0].x + vs[0].width / 2, y: vs[0].y + vs[0].height / 2 } : null; })()`);
+  for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) await send('Input.dispatchMouseEvent', { type, x: alvo.x, y: alvo.y, button: 'left', clickCount: 1 });
+  for (let i = 0; i < 40 && !(await ev(`!!document.querySelector('input[placeholder="seu.nome"]')`)); i++) await sleep(300);
+  s = await entrar('gabriel', 'Supa-Gabriel-8'); const sesB = await sessao();
+  ok('W8 B entra enquanto o login de A ainda está em voo', s?.user?.username === 'gabriel' && reqs.filter((r) => r === 'hub-auth/login').length === 1);
+  await sleep(12000);
+  s = await store(); const fim = await sessao();
+  ok('W8 o login de A termina depois e é DESCARTADO: a tela e a sessão continuam sendo de B', s?.user?.username === 'gabriel' && fim?.sub && fim.sub === sesB?.sub && fim.sub !== U.pedrochaves, `tela=${s?.user?.username} sessão=${fim?.sub?.slice(0, 8)} avisos=${dialogs.join(' / ') || 'nenhum'}`);
+  ok('W8 a sessão órfã de A foi encerrada no servidor', sql(`select count(*) from auth.sessions s join public.hub_sessoes h on h.session_id = s.id where h.auth_user_id='${U.pedrochaves}'`) === '0', sql(`select count(*) from auth.sessions s join public.hub_sessoes h on h.session_id = s.id where h.auth_user_id='${U.pedrochaves}'`));
+  ok('W8 sem aviso nem ida pra tela de login pro B', dialogs.length === 0 && !(await ev(`!!document.querySelector('input[placeholder="seu.nome"]')`)));
+  await ctl({ reset: true });
   console.log(`\nRESUMO web: ${pass} passaram, ${fail} falharam`);
 } catch (e) { console.error('ERRO FATAL', e); fail++; }
-finally { try { ws?.close(); } catch {} chrome.kill(); server.kill(); rmSync(prof, { recursive: true, force: true }); process.exit(fail ? 1 : 0); }
+finally { try { ws?.close(); } catch {} chrome.kill(); server.kill(); try { rmSync(prof, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 }); } catch {} process.exit(fail ? 1 : 0); }
