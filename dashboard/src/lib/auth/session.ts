@@ -18,6 +18,10 @@ export interface SessionData {
    *  Ausente quando o login lá falhou — a aba do Curral avisa. */
   curralAccessToken?: string;
   curralExpiresAt?: number;
+  /** "Lembrar-me" do login: o middleware regrava o cookie com o mesmo prazo ao renovar. */
+  lembrar?: boolean;
+  /** Última revalidação no hub (ms). O middleware pergunta de novo depois de 60 s. */
+  checkAt?: number;
 }
 
 const DAY = 60 * 60 * 24;

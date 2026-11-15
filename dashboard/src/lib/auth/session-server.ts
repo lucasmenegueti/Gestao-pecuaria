@@ -6,8 +6,9 @@ import { redirect } from 'next/navigation';
 import { readSessionOptions, type SessionData } from './session';
 
 /** Lê a session iron + access_token do user. Redireciona pra /login se faltar
- *  username (middleware já protege, isso é segurança extra). Se o JWT expirou,
- *  redireciona pra /login pra o user re-autenticar. */
+ *  username (middleware já protege, isso é segurança extra). O middleware renova o JWT
+ *  com o refresh token antes de chegar aqui; se mesmo assim estiver vencido (refresh
+ *  recusado), redireciona pra /login. */
 export async function getSessionOrRedirect(): Promise<{
   username: string;
   role: 'owner' | 'gestor';
@@ -20,7 +21,7 @@ export async function getSessionOrRedirect(): Promise<{
     redirect('/login');
   }
   if (session.expiresAt && session.expiresAt < Date.now()) {
-    // JWT expirou — força re-login. (refresh-token flow é uma melhoria futura.)
+    // JWT vencido e o middleware não conseguiu renovar — força re-login.
     redirect('/login');
   }
   return {

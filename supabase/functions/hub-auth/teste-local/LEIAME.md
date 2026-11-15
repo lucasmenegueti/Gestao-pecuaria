@@ -31,6 +31,22 @@ falso. Nada aqui toca produção nem o QA (o QA é a produção do Curral).
    `EXPO_NO_DOTENV=1 EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:56321 EXPO_PUBLIC_SUPABASE_ANON_KEY=<publishable local> npx expo export --platform web --output-dir <pasta> --clear`
    e conferir que o bundle cita `127.0.0.1:56321` e não cita QA nem prod.
 
+## Dashboard
+
+`node dashboard-login.mjs` (16): login nos dois modos, peão barrado, hub fora, renovação do
+token (perto de vencer, vencido, refresh recusado) e revalidação no hub pelo middleware.
+Precisa da stack, da função e do `fakehub` de pé, mais o dashboard apontando pra ela, de `dashboard/`:
+
+```
+SUPABASE_URL=http://127.0.0.1:56321 SUPABASE_ANON_KEY=<publishable local> \
+SESSION_PASSWORD=senha-de-sessao-de-teste-local-0123456789-abcdefghij \
+CURRAL_SUPABASE_URL= CURRAL_SUPABASE_ANON_KEY= npx next dev -p 3111
+```
+
+`CURRAL_SUPABASE_URL=` vazio é obrigatório: o `.env.local` aponta o Curral pro QA, e sem isso
+cada login de teste bateria lá. As páginas dão 500 (a stack não tem as tabelas da pecuária);
+o teste olha o cookie e o que o middleware respondeu.
+
 ## O que estas baterias NÃO cobrem
 
 - A Worker da Cloudflare no caminho (IP visto pela função, CORS pela Worker).

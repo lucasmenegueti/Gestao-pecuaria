@@ -36,7 +36,19 @@ O build roda local com as env vars do site no Netlify (`SUPABASE_URL`, `SUPABASE
 
 ## Auth e acesso ao dado — leia antes de escrever qualquer query
 
-Fluxo (`src/lib/auth/`): username → email via RPC `email_for_username` → Supabase Auth (password grant) → checa `profiles.role = 'admin'` → guarda **JWT em cookie iron-session**. Quem não é admin não entra.
+Fluxo (`src/lib/auth/`), em dois modos por conta — o mesmo desenho do app (`../CLAUDE.md` › Auth, `../BRIEFING-INTEGRACAO-ACESSOS.md`):
+
+- A RPC `auth_mode(username)` diz `hub` ou `legado` (qualquer falha = `legado`).
+- **`hub`**: a server action chama a Edge Function `hub-auth/login` (`lib/auth/hub.ts`), que confere a senha no hub gestao-acessos e devolve uma sessão do MESMO usuário no Supabase. Recusa do hub (senha errada, acesso desativado…) **não** cai no caminho direto; função fora do ar cai, e aí "senha errada" vira "Servidor de login indisponível".
+- **`legado`**: username → email via RPC `email_for_username` → Supabase Auth (password grant).
+- Nos dois: checa `profiles.role = 'admin'` com o JWT do usuário e guarda access + refresh token em **cookie iron-session**. Quem não é admin não entra.
+
+**Renovação e revalidação moram no `src/middleware.ts`** (Server Component não pode gravar cookie):
+- JWT a menos de 5 min de vencer → renova com o refresh token. Já vencido → renova e redireciona pra mesma URL com o cookie novo. Refresh recusado → a página manda pro login.
+- A cada 60 s, no máximo, pergunta à `hub-auth/check` se a sessão ainda vale. Só `valid:false` com motivo conhecido encerra (cookie destruído, redirect pro login): acesso tirado no hub, ou sessão que não foi emitida pelo hub com a conta em `hub`. Rede, 503 e conta em `legado` nunca derrubam.
+- O segundo login no Curral (abaixo) continua com a senha digitada e **não** é renovado: a aba Curral vale ~1 h por login.
+
+Teste (stack local, sem tocar prod/QA): `../supabase/functions/hub-auth/teste-local/dashboard-login.mjs` (ver o `LEIAME.md` da pasta).
 
 **Toda query precisa do `accessToken` do usuário.** RLS bloqueia leitura anônima e, pior, retorna **`200 []` silencioso** em vez de erro — uma query sem token parece "sem dados". Padrão de página:
 

@@ -24,10 +24,11 @@ export async function loginAction(
     return { error: 'Preencha usuário e senha.', username };
   }
 
-  const user = await verifyCredentials(username, password);
-  if (!user) {
-    return { error: 'Usuário ou senha inválidos.', username };
+  const r = await verifyCredentials(username, password);
+  if (!r.ok) {
+    return { error: r.mensagem, username };
   }
+  const user = r.user;
 
   const session = await getIronSession<SessionData>(
     await cookies(),
@@ -39,6 +40,8 @@ export async function loginAction(
   session.accessToken = user.accessToken;
   session.refreshToken = user.refreshToken;
   session.expiresAt = user.expiresAt;
+  session.lembrar = remember;
+  session.checkAt = Date.now();
   const curral = await signInCurral(username, password);
   session.curralAccessToken = curral?.accessToken;
   session.curralExpiresAt = curral?.expiresAt;
