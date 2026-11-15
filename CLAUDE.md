@@ -36,7 +36,7 @@ Toda alteração passa por 3 estágios, **nessa ordem**. Não pular — cada um 
 
 1. **Local (Expo Go no Tab A9)** — `npx expo start --tunnel`, Tab A9 escaneia QR. **Pega:** JS/TSX, layout, lógica, rotas, sync, DB. **Não pega:** tiles empacotados, native modules novos, permissões nativas.
 2. **APK preview (EAS Build)** — `eas build --profile preview --platform android --non-interactive --no-wait`. **Pega:** tiles, native modules, edge-to-edge, permissões. Ambiente igual ao de produção sem passar pelas lojas.
-3. **Produção (Google Play + App Store)** — `eas build --profile production --platform all` + `eas submit`. Review Apple ~24h na primeira build.
+3. **Produção (Google Play + App Store)** — `eas build --profile production --platform all` + `eas submit`. Review Apple ~24h na primeira build. Na Play o app só existe em **teste interno**: o `submit` Android vai pra trilha `internal` (a `production` devolve "Precondition check failed") e usa a conta de serviço do Play da agricultura (`../../gestao-agricultura/googlekey/`, fora do git), porque o `--auto-submit` não cria credencial em modo não-interativo. iOS sai pelo TestFlight.
 
 **Regra de ouro:** não sobe pro estágio N+1 sem validação OK no N. Quebra no APK mas não no Expo Go → investigar antes de empurrar (comum ser diferença de runtime nativo).
 
