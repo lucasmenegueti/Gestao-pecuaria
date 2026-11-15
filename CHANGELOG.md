@@ -6,6 +6,17 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.14.2 — "chave nova do Supabase" (2026-11-15)
+
+Sem mudança de código nem de tela. Todos os clientes passam da chave anon antiga (JWT `eyJ…`, que o Supabase desliga em 31/12/2026) para a chave `sb_publishable_…` do mesmo projeto. Quem está logado continua logado.
+
+- **App**: variável `EXPO_PUBLIC_SUPABASE_ANON_KEY` trocada nos ambientes `production` (prod), `preview` e `development` (QA) do EAS; OTA `production` e web republicados (bundle conferido: chave nova presente, antiga ausente).
+- **Dashboard**: `SUPABASE_ANON_KEY` e `CURRAL_SUPABASE_ANON_KEY` trocadas no Netlify e site republicado.
+- **Relatório diário**: chave trocada no texto da rotina cloud.
+- **A chave antiga NÃO foi desligada**: aparelho que ainda não pegou o OTA (e o binário das lojas, que a embute) segue usando a antiga. Só desligar depois de os logs do Supabase mostrarem uso zero dela.
+
+**Fallback:** `v0.14.1` (funciona enquanto a chave antiga existir).
+
 ## Dashboard — login pelo hub de acessos (2026-11-15)
 
 - O dashboard passa a entrar pelo hub gestao-acessos para as contas em `hub` (mesma função `hub-auth` do app), exigindo admin como antes. Mesma tela, mesma senha.
