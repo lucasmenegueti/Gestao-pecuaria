@@ -6,6 +6,20 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.14.0 — "login pronto para o hub de acessos" (2026-11-15)
+
+Prepara a migração do login para o hub gestao-acessos (desenho em `BRIEFING-INTEGRACAO-ACESSOS.md`). **Para quem usa o app nada muda nesta versão**: todas as contas continuam no login de sempre ("legado") até serem viradas uma a uma.
+
+- **Login em dois modos, por conta** (`auth_config` no banco): `legado` = o caminho de hoje (`email_for_username` + senha no Supabase); `hub` = a senha é conferida no hub pela Edge Function `hub-auth`, que devolve uma sessão do MESMO usuário (uuid), então dados, RLS, sync e SQLite não mudam. Quem decide o modo é a RPC `auth_mode`; qualquer falha nela cai em `legado`.
+- **Offline igual a antes**: o login offline e o "Lembrar-me" funcionam nos dois modos. Ao voltar a rede o app refaz o login sozinho, pelo modo da conta.
+- **Conta virada para o hub com o app aberto**: o app refaz o login sozinho com a senha guardada. Se a senha guardada não for a do hub, ele pede usuário e senha uma vez (e não fica tentando). Registros pendentes nunca são apagados.
+- **Acesso tirado no hub**: a sessão do aparelho é encerrada em cerca de um minuto online, com aviso, e o login offline daquele aparelho é apagado.
+- **Correção**: quando a sessão era encerrada pelo próprio app, a tela continuava no Painel sem usuário; agora vai para o login.
+- **Banco (prod, 15/11)**: `2026-11-15_fase0_seguranca_auth.sql` (conta nova nasce sempre `peao`; `profiles` somente leitura para os clientes) e `2026-11-15_hub_auth_fase2.sql` (tabelas privadas `hub_vinculos`, `auth_config`, `hub_sessoes`, `auth_tentativas` + RPC `auth_mode`). O QA não recebeu nenhuma das duas.
+- **Testes**: `supabase/functions/hub-auth/teste-local/LEIAME.md` (regras 17, função 58, login web 14) + roteiro manual no emulador Android. iOS não foi executado.
+
+**Fallback:** `v0.13.3`. Voltar o OTA/web para ela é seguro com todas as contas em `legado`; com alguém em `hub`, primeiro `update auth_config set modo='legado'`.
+
 ## v0.13.3 — "cronograma: detalhe no hover e coluna ajustável" (2026-10-30)
 
 Pedido do Lucas olhando o cronograma do Pedro, igual ao da agricultura.

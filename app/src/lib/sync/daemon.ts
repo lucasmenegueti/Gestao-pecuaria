@@ -1,10 +1,13 @@
 import { AppState, AppStateStatus } from 'react-native';
+import { router } from 'expo-router';
 import type * as SQLite from 'expo-sqlite';
 import { syncAll, getSyncStatus, resetPushCircuitBreaker } from './engine';
 import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 import { isOnline as netIsOnline, onNetChange } from '@/lib/netStatus';
 import { logInfo, logWarn } from '@/lib/log';
+import { revalidarNoHub } from '@/lib/hubAuth';
+import { notify } from '@/lib/confirm';
 
 // Daemon de sincronização em background.
 // Gatilhos que disparam syncAll():
@@ -66,8 +69,66 @@ async function tryReAuthOffline() {
     await auth.login(cache.username, cache.password, true);
     logInfo('auth', 'reauth_online_ok', { username: cache.username });
   } catch (err: any) {
-    logWarn('auth', 'reauth_online_failed', { username: cache.username, error: err?.message });
+    logWarn('auth', 'reauth_online_failed', { username: cache.username, error: err?.message, codigo: err?.codigo });
+    // O hub recusou a senha guardada (ela mudou, ou a conta passou a usar a senha do hub).
+    // Repetir a cada reconexão só gastaria tentativas e atrasaria o login de verdade: a senha
+    // guardada sai deste aparelho e o usuário digita a nova na próxima vez que entrar.
+    // 429, 503 e rede não apagam nada.
+    if (err?.codigo === 'invalid_credentials') useAuthStore.getState().esquecerOffline('senha');
   }
+}
+
+/** Sai da sessão local e leva pra tela de login. O app não tem guarda de rota: sem o
+ *  replace, quem foi deslogado pelo daemon continuaria vendo o Painel, sem usuário. */
+async function sairParaLogin() {
+  await useAuthStore.getState().logout();
+  try { router.replace('/(auth)/login'); } catch { /* navegação ainda não montada */ }
+}
+
+const AVISO_PENDENTES = 'Seus registros pendentes continuam guardados neste aparelho.';
+
+/**
+ * Pergunta ao hub (via /check, no máx. 1×/min) se a sessão deste aparelho ainda vale.
+ * Devolve true quando a sessão local foi encerrada (o ciclo de sync para ali).
+ * Nunca apaga SQLite nem linha com pending_sync=1; hub fora ou instável não muda nada.
+ */
+async function sessaoEncerradaPeloHub(): Promise<boolean> {
+  const r = await revalidarNoHub();
+  if (r.tipo === 'ok' || r.tipo === 'ignorar') return false;
+  const auth = useAuthStore.getState();
+
+  if (r.tipo === 'revogado') {
+    // O administrador tirou o acesso: sai e perde também o login offline deste aparelho.
+    logWarn('auth', 'sessao_encerrada_pelo_hub', { reason: r.reason });
+    await sairParaLogin();
+    useAuthStore.getState().esquecerOffline('tudo');
+    notify('Sessão encerrada', `Seu acesso foi encerrado pelo administrador. ${AVISO_PENDENTES}`);
+    return true;
+  }
+
+  // 'relogin': ninguém foi revogado — esta sessão só não foi emitida pelo hub (a conta acabou
+  // de passar pro hub, ou o login caiu no caminho direto com a função fora). Com a senha
+  // guardada o aparelho entra de novo sozinho e o usuário não vê nada.
+  const cache = auth.offlineCache;
+  const usuario = auth.user?.username;
+  if (cache?.password && usuario && cache.username === usuario) {
+    try {
+      await auth.login(cache.username, cache.password, true);
+      logInfo('auth', 'relogin_silencioso_ok', { username: cache.username });
+      return false;
+    } catch (err: any) {
+      const codigo: string | undefined = err?.codigo;
+      logWarn('auth', 'relogin_silencioso_falhou', { username: cache.username, codigo, error: err?.message });
+      // Sem veredito do hub (rede, 503, função fora, muitas tentativas): não mexe em nada;
+      // o próximo /check (≥ 1 min) tenta de novo e o sync segue com a sessão que existe.
+      if (!codigo || codigo === 'indisponivel' || codigo === 'muitas_tentativas') return false;
+      // Senha guardada não vale no hub: sai dela pra não repetir a cada ciclo.
+      if (codigo === 'invalid_credentials') useAuthStore.getState().esquecerOffline('senha');
+    }
+  }
+  await sairParaLogin();
+  notify('Entre de novo', `Sua sessão neste aparelho precisa ser renovada: digite usuário e senha. ${AVISO_PENDENTES}`);
+  return true;
 }
 
 async function tryRun(reason: string) {
@@ -105,6 +166,9 @@ async function tryRun(reason: string) {
   state.lastSyncAt = now;
   const gen = ++state.runGen;
   const release = () => { if (state.runGen === gen) state.running = false; };
+
+  // Revalidação no hub: best-effort, com throttle próprio. Erro aqui nunca segura push nem pull.
+  if (await sessaoEncerradaPeloHub().catch(() => false)) { release(); return; }
 
   // Só roda se há pendentes OU se faz tempo desde o último pull
   const status = await getSyncStatus(state.db).catch(() => null);

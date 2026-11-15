@@ -27,6 +27,9 @@ export default function LoginScreen() {
       setUsername(offlineCache.username ?? '');
       setPassword(offlineCache.password ?? '');
       setRemember(true);
+    } else {
+      // Cache apagado com a tela montada (acesso revogado no hub): a senha não fica no campo.
+      setPassword('');
     }
   }, [offlineCache]);
 

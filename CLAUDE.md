@@ -124,4 +124,16 @@ Board de **tarefas × dias**, portado do `gestao-agricultura` com o eixo trocado
 
 ## Auth
 
+**Login em dois modos por conta** (desde v0.14.0; desenho e decisões em `BRIEFING-INTEGRACAO-ACESSOS.md`). A RPC `auth_mode(username)` diz `legado` ou `hub` (tabela privada `auth_config`; `'*'` = padrão). `legado` = `email_for_username` + `signInWithPassword`. `hub` = Edge Function `supabase/functions/hub-auth` (`/login` confere a senha no hub gestao-acessos e emite sessão GoTrue pro MESMO uuid; `/check` revalida, chamado pelo daemon no máx. 1×/min). Regras que não podem quebrar:
+
+- **Nunca fazer o login depender só da função**: falha no `auth_mode` ou função fora = caminho direto. Voltar alguém pra `legado` (`update auth_config set modo='legado' where chave='<username>'`) é a reversão e tem de funcionar com tudo o mais quebrado.
+- **A função manda `user_id` pro hub, nunca username** — o `pedro` do hub é outra pessoa. `pedro` e `pedro.chaves` daqui são a mesma pessoa e apontam pro mesmo usuário do hub (`hub_vinculos` N:1).
+- **Erro de hub/infra = 503 "tente de novo"**, nunca "senha errada" nem derrubada. Só `/check` com motivo de revogação encerra sessão; pendentes e SQLite nunca são apagados.
+- **Sem bloqueio por IP**: o Supabase enxerga a Worker (um IP pra todos). Só atraso progressivo por usuário (`regras.ts`).
+- **`/login` do cliente usa fetch próprio, uma chamada, 70 s** (`lib/hubAuth.ts`): o fetch padrão repete em 25 s e viraria segunda tentativa de senha.
+- **O app não tem guarda de rota**: logout feito fora da tela (daemon) precisa do `router.replace('/(auth)/login')` — ver `sairParaLogin` em `sync/daemon.ts`.
+- **`profiles` é somente leitura pros clientes** (fase 0): promover a admin é UPDATE por SQL; `handle_new_user` grava sempre `peao`.
+- Deploy da função: `supabase functions deploy hub-auth --project-ref fxtescythawmbwkthbyb --no-verify-jwt --use-api` (de raiz do repo; **sem** `supabase link`, `db push` nem `config push`). Testes antes de qualquer mudança nela: `supabase/functions/hub-auth/teste-local/LEIAME.md`.
+- Contas fora do hub (ficam em `legado`): `relatorio` (robô do relatório diário) e `gabriel`.
+
 Admin cria contas (sem self-registration). Primeiro login requer internet; credenciais cacheadas em SQLite. Seeded users locais (só SQLite, **não** existem no Supabase) pra dev. Admin de produção (Supabase Auth): username `lucas` — senha não commitada; pedir ao Lucas quando necessário.

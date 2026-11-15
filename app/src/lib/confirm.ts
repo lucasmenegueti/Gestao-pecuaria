@@ -18,6 +18,15 @@ interface ConfirmOptions {
  *
  * Retorna `true` se o user confirmou, `false` se cancelou.
  */
+/** Aviso simples, sem decisão. No web o `Alert.alert` é no-op, então vai de `window.alert`. */
+export function notify(title: string, message?: string): void {
+  if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined') window.alert(message ? `${title}\n\n${message}` : title);
+    return;
+  }
+  Alert.alert(title, message);
+}
+
 export function confirm(opts: ConfirmOptions): Promise<boolean> {
   const {
     title,

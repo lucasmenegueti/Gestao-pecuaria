@@ -4,7 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
 import NetInfo from '@react-native-community/netinfo';
 import { supabase } from '@/lib/supabase/client';
-import { logInfo, logError } from '@/lib/log';
+import { logInfo, logError, logWarn } from '@/lib/log';
+import { loginPeloHub, modoDeLogin } from '@/lib/hubAuth';
 
 // Hash determinístico pra login offline. Não substitui criptografia séria;
 // só serve pra validar que o peão no campo digitou a senha correta quando
@@ -39,6 +40,17 @@ function isTimeoutError(err: unknown): boolean {
   const msg = String((err as { message?: unknown })?.message ?? err ?? '');
   const name = String((err as { name?: unknown })?.name ?? '');
   return /abort|timeout|signal|retryable/i.test(msg) || /Retryable|Abort/i.test(name);
+}
+
+/** Erro de login com o código do contrato do hub (`invalid_credentials`, `user_disabled`…).
+ *  Quem decide o que fazer (o re-login silencioso do daemon) olha o código, nunca o texto. */
+export class LoginError extends Error {
+  codigo: string;
+  constructor(mensagem: string, codigo: string) {
+    super(mensagem);
+    this.name = 'LoginError';
+    this.codigo = codigo;
+  }
 }
 
 export interface User {
@@ -76,6 +88,10 @@ interface AuthState {
   /** Restaura sessão persistida por supabase-js (AsyncStorage). Chamar no boot. */
   restore: () => Promise<void>;
   logout: () => Promise<void>;
+  /** Apaga o que este aparelho guarda pra entrar sem o servidor: só a senha em claro
+   *  ('senha': o re-login silencioso para; o login offline continua) ou tudo ('tudo': acesso
+   *  revogado no hub — sem isso o revogado reentraria offline). Nunca toca no SQLite. */
+  esquecerOffline: (oque: 'senha' | 'tudo') => void;
 }
 
 async function fetchProfile(userId: string): Promise<{ username: string; name: string; role: 'admin' | 'peao' } | null> {
@@ -138,12 +154,34 @@ export const useAuthStore = create<AuthState>()(
           throw new Error('Sem conexão. Credenciais não conferem com o último acesso online neste aparelho.');
         }
 
-        // Tem rede: tenta Supabase
+        // Tem rede: modo 'hub' confere a senha no hub gestao-acessos (Edge Function hub-auth);
+        // 'legado' (ou qualquer falha na consulta do modo) = login direto no Supabase, como sempre.
         const startedAt = Date.now();
         try {
-          const email = await emailForUsername(usernameClean);
-          const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-          if (error) throw error;
+          let email: string;
+          let data: { user: import('@supabase/supabase-js').User | null };
+          const modo = await modoDeLogin(usernameClean);
+          const hub = modo === 'hub' ? await loginPeloHub(usernameClean, password) : null;
+          if (hub?.tipo === 'recusa') throw new LoginError(hub.mensagem, hub.codigo);
+          if (hub?.tipo === 'ok') {
+            const r = await supabase.auth.setSession({ access_token: hub.access_token, refresh_token: hub.refresh_token });
+            if (r.error) throw r.error;
+            data = { user: r.data.user };
+            email = r.data.user?.email ?? '';
+            logInfo('auth', 'login_hub_ok', { username: usernameClean });
+          } else {
+            if (hub?.tipo === 'indisponivel') logWarn('auth', 'login_hub_indisponivel', { username: usernameClean, detalhe: hub.detalhe });
+            email = await emailForUsername(usernameClean);
+            const r = await supabase.auth.signInWithPassword({ email, password });
+            if (r.error) {
+              // Hub fora + senha do hub ≠ senha antiga do Supabase: não dizer "senha errada".
+              if (hub?.tipo === 'indisponivel' && /invalid login/i.test(r.error.message)) {
+                throw new LoginError('Servidor de login indisponível. Tente de novo em instantes.', 'indisponivel');
+              }
+              throw r.error;
+            }
+            data = r.data;
+          }
           if (!data.user) throw new Error('Sem usuário na resposta.');
           logInfo('auth', 'login_ok', { username: usernameClean, userId: data.user.id });
           const profile = await fetchProfile(data.user.id);
@@ -180,6 +218,12 @@ export const useAuthStore = create<AuthState>()(
             status: err?.status ?? err?.cause?.status,
             duration_ms: durationMs,
           };
+          // Veredito do hub (senha errada, acesso desativado…): não é rede. Não cai no login
+          // offline nem mexe em sessão/pendentes — só devolve o erro com o código.
+          if (err instanceof LoginError) {
+            logError('auth', 'login_failed', { ...detail, codigo: err.codigo });
+            throw err;
+          }
           // Timeout/abort: rede existe (NetInfo ok) mas chamada travou. NÃO cai
           // em offlineMode silencioso — user precisa saber que foi instabilidade
           // e não credencial errada. Mostra erro claro pra tentar de novo.
@@ -245,6 +289,12 @@ export const useAuthStore = create<AuthState>()(
         // sem internet, ainda conseguimos validar contra o último hash.
         // Dados locais (SQLite) também ficam — pending_sync rows sobem no próximo login.
         set({ user: null, isAuthenticated: false, offlineMode: false });
+      },
+
+      esquecerOffline: (oque) => {
+        const cache = get().offlineCache;
+        if (!cache) return;
+        set({ offlineCache: oque === 'tudo' ? null : { ...cache, password: undefined } });
       },
     }),
     {

@@ -69,3 +69,6 @@ app/audit-herd-*.xlsx
 
 # Local Netlify folder
 .netlify
+
+# Supabase CLI (estado local do deploy)
+supabase/.temp/
