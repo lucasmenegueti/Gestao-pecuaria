@@ -42,6 +42,7 @@
   "submit": {
     "production": {
       "android": {
+        "serviceAccountKeyPath": "../../gestao-agricultura/googlekey/play-service-account.json",
         "track": "production",
         "releaseStatus": "draft"
       },
