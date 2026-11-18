@@ -5,6 +5,8 @@ import {
   INICIO_OPERACAO_REAL,
   calcularCenarioCurral,
   detalharSessao,
+  montarExportacao,
+  type AbaExport,
   type AnimalRow,
   type CurralCenario,
   type PassagemDetalhe,
@@ -37,16 +39,12 @@ export interface CurralData {
   detalhe: PassagemDetalhe[] | null;
 }
 
-export async function loadCurralData(
-  accessToken: string,
-  janela?: { start: string; end: string },
-  sessaoId?: string,
-): Promise<CurralData | null> {
+async function carregar(accessToken: string) {
   const c = conn();
   if (!c) return null;
   const q = { conn: c, accessToken };
 
-  const [sessoes, passagens, animais, lotes, piquetes, perfis] = await Promise.all([
+  const [sessoes, passagens, animais, lotes, piquetes, perfis, touros] = await Promise.all([
     sbListAll<SessaoRow>('curral_sessions', {
       ...q,
       select:
@@ -57,7 +55,7 @@ export async function loadCurralData(
     sbListAll<PassagemRow>('animal_events', {
       ...q,
       select:
-        'id,session_id,animal_id,event_at,eid,weight_kg,from_lot_id,to_lot_id,iatf_result,ovary_status,body_score,exam_notes,notes,prev_state',
+        'id,session_id,animal_id,event_at,eid,weight_kg,from_lot_id,to_lot_id,iatf_result,ovary_status,body_score,exam_notes,notes,prev_state,bull_id,implant_lost',
       filters: {
         deleted_at: 'is.null',
         kind: 'eq.passagem',
@@ -68,7 +66,7 @@ export async function loadCurralData(
     }),
     sbListAll<AnimalRow>('animals', {
       ...q,
-      select: 'id,eid,category',
+      select: 'id,eid,category,sex,breed,birth_date,sisbov_number',
       filters: { deleted_at: 'is.null' },
       order: 'id',
     }),
@@ -78,6 +76,7 @@ export async function loadCurralData(
     }),
     sbListAll<{ id: string; name: string }>('paddocks', { ...q, select: 'id,name', order: 'id' }),
     sbList<{ id: string; username: string | null }>('profiles', { ...q, select: 'id,username' }),
+    sbList<{ id: string; name: string }>('bulls', { ...q, select: 'id,name' }),
   ]);
 
   const piqueteById = new Map(piquetes.map((p) => [p.id, p.name]));
@@ -85,6 +84,20 @@ export async function loadCurralData(
     lotes.map((l) => [l.id, { nome: l.name, piquete: l.paddock_id ? piqueteById.get(l.paddock_id) ?? null : null }]),
   );
   const usuarioById = new Map(perfis.filter((p) => p.username).map((p) => [p.id, p.username!]));
+
+  const touroById = new Map(touros.map((t) => [t.id, t.name]));
+
+  return { sessoes, passagens, animais, loteById, usuarioById, touroById };
+}
+
+export async function loadCurralData(
+  accessToken: string,
+  janela?: { start: string; end: string },
+  sessaoId?: string,
+): Promise<CurralData | null> {
+  const bruto = await carregar(accessToken);
+  if (!bruto) return null;
+  const { sessoes, passagens, animais, loteById, usuarioById } = bruto;
 
   return {
     cenario: calcularCenarioCurral(sessoes, passagens, animais, janela),
@@ -95,4 +108,22 @@ export async function loadCurralData(
       : null,
     detalhe: sessaoId ? detalharSessao(sessaoId, passagens, animais) : null,
   };
+}
+
+/** As abas da planilha do período. Erro de leitura sobe — nunca vira planilha vazia. */
+export async function loadCurralExport(
+  accessToken: string,
+  janela?: { start: string; end: string },
+): Promise<AbaExport[] | null> {
+  const bruto = await carregar(accessToken);
+  if (!bruto) return null;
+  const { sessoes, passagens, animais, loteById, usuarioById, touroById } = bruto;
+  return montarExportacao(
+    calcularCenarioCurral(sessoes, passagens, animais, janela),
+    passagens,
+    animais,
+    loteById,
+    usuarioById,
+    touroById,
+  );
 }

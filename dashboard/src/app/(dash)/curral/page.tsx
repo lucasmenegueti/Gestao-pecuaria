@@ -1,19 +1,18 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Fence } from 'lucide-react';
+import { ArrowLeft, Fence, FileSpreadsheet } from 'lucide-react';
 import { AlertCard, Card, EmptyState, KPICard, StatusPill } from '@/components/ui-primitives';
 import { PeriodPicker } from '@/components/period-picker';
 import { PrintButton } from '@/components/print-button';
 import { getSessionOrRedirect } from '@/lib/auth/session-server';
 import { loadCurralData, type LoteInfo } from '@/lib/curral';
 import {
-  IATF_STAGE_LABELS,
   INICIO_OPERACAO_REAL,
-  OP_LABELS,
   OVARY_LABELS,
   PAUSA_MS,
   PESO_MAX_KG,
   PESO_MIN_KG,
+  rotuloOps,
   type PassagemDetalhe,
   type SessaoResumo,
 } from '@/lib/curral-calc';
@@ -40,14 +39,6 @@ function fmtDuracao(ms: number): string {
 function fmtRitmo(seg: number | null): string {
   if (seg == null) return '—';
   return seg < 120 ? `${Math.round(seg)} s` : `${num(seg / 60, 1)} min`;
-}
-
-function rotuloOps(r: SessaoResumo): string[] {
-  return r.ops.map((o) =>
-    o === 'iatf' && r.sessao.iatf_stage
-      ? `IATF · ${IATF_STAGE_LABELS[r.sessao.iatf_stage] ?? r.sessao.iatf_stage}`
-      : OP_LABELS[o] ?? o,
-  );
 }
 
 function StatusSessao({ status }: { status: string }) {
@@ -93,6 +84,17 @@ export default async function CurralPage({ searchParams }: PageProps) {
         </p>
       </div>
       <div className="flex items-center gap-2 print:hidden">
+        {session.curralAccessToken ? (
+          // <a> puro: é download, e o prefetch do next/link dispararia a exportação.
+          <a
+            href={`/curral/exportar${qsBase.size ? `?${qsBase}` : ''}`}
+            title="Baixar as sessões e as passagens do período em Excel"
+            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-border-strong bg-bg-elevated px-3 py-1.5 text-[13px] font-medium text-fg transition-colors hover:bg-grey-50"
+          >
+            <FileSpreadsheet size={14} strokeWidth={1.75} />
+            <span>Excel</span>
+          </a>
+        ) : null}
         <PrintButton />
         <PeriodPicker value={period?.kind ?? ''} allLabel="Todas as sessões" />
       </div>

@@ -6,6 +6,14 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## Dashboard — Curral em Excel (2026-11-17)
+
+- Botão **Excel** no cabeçalho da aba Curral: baixa um `.xlsx` do período selecionado (ou de todas as sessões) com duas abas. **Sessões**: uma linha por sessão, com lote, operações, quem conduziu, animais, pesos, ganho, reprodução, tempo e ritmo. **Passagens**: uma linha por animal, com brinco completo, sexo, raça, nascimento, SISBOV, hora do bipe, peso, pesagem anterior e ganho, IATF, touro, perda de implante, lote de origem e destino e observações.
+- Números saem como número e datas como data (hora de Brasília), para filtrar e montar tabela dinâmica. Peso fora da faixa vai na planilha, marcado numa coluna própria.
+- Com o acesso ao Curral vencido (~1 h por login), a exportação devolve um aviso em vez de uma planilha vazia.
+
+**Fallback:** republicar o deploy anterior do site `gestao-pecuaria-nsa` (commit `296405c`).
+
 ## v0.14.2 — "chave nova do Supabase" (2026-11-15)
 
 Sem mudança de código nem de tela. Todos os clientes passam da chave anon antiga (JWT `eyJ…`, que o Supabase desliga em 31/12/2026) para a chave `sb_publishable_…` do mesmo projeto. Quem está logado continua logado.

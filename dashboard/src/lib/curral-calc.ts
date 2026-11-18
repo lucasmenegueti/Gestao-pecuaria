@@ -76,12 +76,18 @@ export interface PassagemRow {
   exam_notes: string | null;
   notes: string | null;
   prev_state: string | null;
+  bull_id?: string | null;
+  implant_lost?: boolean | null;
 }
 
 export interface AnimalRow {
   id: string;
   eid: string | null;
   category: string | null;
+  sex?: string | null;
+  breed?: string | null;
+  birth_date?: string | null;
+  sisbov_number?: string | null;
 }
 
 export interface Tempos {
@@ -366,4 +372,231 @@ export function detalharSessao(
     intervaloSeg: i > 0 ? (Date.parse(p.event_at) - Date.parse(lista[i - 1]!.event_at)) / 1000 : null,
     anterior: anteriores.get(p.id) ?? null,
   }));
+}
+
+// ----------------------------------------------------------------------------
+// Exportação para Excel
+
+export function rotuloOps(r: SessaoResumo): string[] {
+  return r.ops.map((o) =>
+    o === 'iatf' && r.sessao.iatf_stage
+      ? `IATF · ${IATF_STAGE_LABELS[r.sessao.iatf_stage] ?? r.sessao.iatf_stage}`
+      : OP_LABELS[o] ?? o,
+  );
+}
+
+export type CelulaExport = string | number | Date | null;
+
+export interface AbaExport {
+  nome: string;
+  /** `formato` = formato numérico do Excel, aplicado à coluna inteira. */
+  colunas: Array<{ titulo: string; largura: number; formato?: string }>;
+  linhas: CelulaExport[][];
+}
+
+const F_DATA = 'dd/mm/yyyy';
+const F_DATA_HORA = 'dd/mm/yyyy hh:mm:ss';
+
+/**
+ * A planilha não tem fuso: grava o relógio de Brasília como se fosse UTC, que é
+ * como as libs de xlsx leem um Date. Brasil sem horário de verão = -3h fixo.
+ */
+function horaBrt(iso: string | null): Date | null {
+  return iso ? new Date(Date.parse(iso) - 3 * 3_600_000) : null;
+}
+
+function dia(iso: string): Date {
+  return new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+}
+
+const arred = (x: number | null, casas: number) => (x == null ? null : Number(x.toFixed(casas)));
+const minutos = (ms: number) => Math.round(ms / 60_000);
+
+/**
+ * Duas abas: uma linha por sessão e uma linha por passagem, para as sessões do
+ * cenário (já filtrado pelo período). Valores crus — número é número, brinco
+ * inteiro e como texto — para servir de base a filtro e tabela dinâmica.
+ */
+export function montarExportacao(
+  cenario: CurralCenario,
+  todasPassagens: PassagemRow[],
+  animais: AnimalRow[],
+  loteById: Map<string, { nome: string; piquete: string | null }>,
+  usuarioById: Map<string, string>,
+  touroById: Map<string, string>,
+): AbaExport[] {
+  const animalDe = new Map(animais.map((a) => [a.id, a]));
+  const anteriores = pesagensAnteriores(todasPassagens);
+  const porSessao = new Map<string, PassagemRow[]>();
+  for (const p of todasPassagens) {
+    const l = porSessao.get(p.session_id) ?? [];
+    l.push(p);
+    porSessao.set(p.session_id, l);
+  }
+  const lote = (id: string | null) => (id ? loteById.get(id)?.nome ?? null : null);
+  // Mais antiga primeiro: é a ordem em que a planilha vai crescendo.
+  const resumos = [...cenario.sessoes].reverse();
+
+  const sessoes: AbaExport = {
+    nome: 'Sessões',
+    colunas: [
+      { titulo: 'Data', largura: 12, formato: F_DATA },
+      { titulo: 'Lote', largura: 22 },
+      { titulo: 'Piquete', largura: 12 },
+      { titulo: 'Operações', largura: 28 },
+      { titulo: 'Status', largura: 10 },
+      { titulo: 'Quem conduziu', largura: 16 },
+      { titulo: 'Animais', largura: 10 },
+      { titulo: 'Novos', largura: 8 },
+      { titulo: 'Mudaram de lote', largura: 16 },
+      { titulo: 'Com peso', largura: 10 },
+      { titulo: 'Peso médio (kg)', largura: 15, formato: '0.0' },
+      { titulo: 'Peso mínimo (kg)', largura: 16 },
+      { titulo: 'Peso máximo (kg)', largura: 16 },
+      { titulo: 'Pesos fora da faixa', largura: 18 },
+      { titulo: 'Com pesagem anterior', largura: 20 },
+      { titulo: 'Ganho médio (kg)', largura: 16, formato: '0.0' },
+      { titulo: 'GMD médio (kg/dia)', largura: 18, formato: '0.000' },
+      { titulo: 'Prenhas', largura: 9 },
+      { titulo: 'Vazias', largura: 8 },
+      { titulo: 'ECC médio', largura: 10, formato: '0.0' },
+      { titulo: 'Primeiro bipe', largura: 19, formato: F_DATA_HORA },
+      { titulo: 'Último bipe', largura: 19, formato: F_DATA_HORA },
+      { titulo: 'Tempo de curral (min)', largura: 20 },
+      { titulo: 'Pausas', largura: 8 },
+      { titulo: 'Tempo em pausa (min)', largura: 20 },
+      { titulo: 'Ritmo (s por animal)', largura: 19 },
+      { titulo: 'Protocolo sanitário', largura: 24 },
+      { titulo: 'Itens do protocolo', largura: 36 },
+      { titulo: 'Categoria de entrada', largura: 20 },
+      { titulo: 'Origem', largura: 18 },
+      { titulo: 'Veterinário', largura: 18 },
+      { titulo: 'Comprador', largura: 18 },
+      { titulo: 'Venda (cab)', largura: 12 },
+      { titulo: 'Venda (kg)', largura: 12 },
+      { titulo: 'Aberta no app', largura: 19, formato: F_DATA_HORA },
+      { titulo: 'Fechada no app', largura: 19, formato: F_DATA_HORA },
+      { titulo: 'Obs.', largura: 40 },
+    ],
+    linhas: resumos.map((r) => {
+      const s = r.sessao;
+      return [
+        dia(s.date),
+        lote(s.lot_id),
+        s.lot_id ? loteById.get(s.lot_id)?.piquete ?? null : null,
+        rotuloOps(r).join(', '),
+        s.status.charAt(0).toUpperCase() + s.status.slice(1),
+        s.user_id ? usuarioById.get(s.user_id) ?? null : null,
+        r.animais,
+        r.novos,
+        r.mudaramLote,
+        r.comPeso,
+        arred(r.pesoMedio, 1),
+        r.pesoMin,
+        r.pesoMax,
+        r.pesosSuspeitos,
+        r.comPesagemAnterior,
+        arred(r.ganhoMedioKg, 1),
+        arred(r.gmdMedio, 3),
+        r.prenhas,
+        r.vazias,
+        arred(r.eccMedio, 1),
+        horaBrt(r.tempos.inicio),
+        horaBrt(r.tempos.fim),
+        r.animais > 1 ? minutos(r.tempos.ativoMs) : null,
+        r.tempos.pausas,
+        minutos(r.tempos.pausaMs),
+        arred(r.tempos.ritmoSeg, 0),
+        s.protocol_name,
+        (s.protocol_items ?? '').split('\n').map((x) => x.trim()).filter(Boolean).join('; ') || null,
+        s.default_category,
+        s.origin,
+        s.vet,
+        s.buyer,
+        s.sale_head_count,
+        s.sale_total_kg,
+        horaBrt(s.started_at),
+        horaBrt(s.closed_at),
+        s.notes,
+      ];
+    }),
+  };
+
+  const passagens: AbaExport = {
+    nome: 'Passagens',
+    colunas: [
+      { titulo: 'Data da sessão', largura: 14, formato: F_DATA },
+      { titulo: 'Lote da sessão', largura: 22 },
+      { titulo: 'Operações', largura: 28 },
+      { titulo: 'Ordem', largura: 8 },
+      { titulo: 'Bipe', largura: 19, formato: F_DATA_HORA },
+      { titulo: 'Brinco', largura: 20 },
+      { titulo: 'Categoria (hoje)', largura: 18 },
+      { titulo: 'Sexo', largura: 8 },
+      { titulo: 'Raça', largura: 12 },
+      { titulo: 'Nascimento', largura: 12, formato: F_DATA },
+      { titulo: 'SISBOV', largura: 18 },
+      { titulo: 'Novo', largura: 7 },
+      { titulo: 'Peso (kg)', largura: 10 },
+      { titulo: 'Peso fora da faixa', largura: 17 },
+      { titulo: 'Peso anterior (kg)', largura: 17 },
+      { titulo: 'Pesagem anterior', largura: 16, formato: F_DATA },
+      { titulo: 'Dias desde a anterior', largura: 19 },
+      { titulo: 'Ganho (kg)', largura: 11, formato: '0.0' },
+      { titulo: 'GMD (kg/dia)', largura: 13, formato: '0.000' },
+      { titulo: 'IATF', largura: 9 },
+      { titulo: 'Ovário', largura: 13 },
+      { titulo: 'ECC', largura: 7 },
+      { titulo: 'Touro', largura: 18 },
+      { titulo: 'Perdeu implante', largura: 15 },
+      { titulo: 'Lote de origem', largura: 22 },
+      { titulo: 'Lote de destino', largura: 22 },
+      { titulo: 'Intervalo (s)', largura: 12 },
+      { titulo: 'Exame', largura: 30 },
+      { titulo: 'Obs.', largura: 40 },
+    ],
+    linhas: resumos.flatMap((r) => {
+      const s = r.sessao;
+      const lista = [...(porSessao.get(s.id) ?? [])].sort((a, b) => a.event_at.localeCompare(b.event_at));
+      const ops = rotuloOps(r).join(', ');
+      return lista.map((p, i): CelulaExport[] => {
+        const ant = anteriores.get(p.id) ?? null;
+        const ecc = p.body_score == null ? null : Number(p.body_score);
+        const a = animalDe.get(p.animal_id);
+        return [
+          dia(s.date),
+          lote(s.lot_id),
+          ops,
+          i + 1,
+          horaBrt(p.event_at),
+          p.eid,
+          a?.category ?? null,
+          a?.sex === 'M' ? 'Macho' : a?.sex === 'F' ? 'Fêmea' : a?.sex ?? null,
+          a?.breed ?? null,
+          a?.birth_date ? dia(a.birth_date) : null,
+          a?.sisbov_number ?? null,
+          ehNovo(p) ? 'Sim' : 'Não',
+          p.weight_kg,
+          p.weight_kg != null && !pesoValido(p.weight_kg) ? 'Sim' : null,
+          ant ? ant.pesoKg : null,
+          ant ? dia(horaBrt(ant.data)!.toISOString()) : null,
+          ant ? ant.dias : null,
+          ant ? arred(ant.ganhoKg, 1) : null,
+          ant ? arred(ant.gmd, 3) : null,
+          p.iatf_result === 'PRENHA' ? 'Prenha' : p.iatf_result === 'VAZIA' ? 'Vazia' : p.iatf_result,
+          p.ovary_status ? OVARY_LABELS[p.ovary_status] ?? p.ovary_status : null,
+          ecc != null && Number.isFinite(ecc) ? ecc : null,
+          p.bull_id ? touroById.get(p.bull_id) ?? null : null,
+          p.implant_lost == null ? null : p.implant_lost ? 'Sim' : 'Não',
+          lote(p.from_lot_id),
+          lote(p.to_lot_id),
+          i > 0 ? Math.round((Date.parse(p.event_at) - Date.parse(lista[i - 1]!.event_at)) / 1000) : null,
+          p.exam_notes?.trim() || null,
+          p.notes?.trim() || null,
+        ];
+      });
+    }),
+  };
+
+  return [sessoes, passagens];
 }
