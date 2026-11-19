@@ -12,6 +12,7 @@ import {
   PAUSA_MS,
   PESO_MAX_KG,
   PESO_MIN_KG,
+  faixasDePeso,
   rotuloOps,
   type PassagemDetalhe,
   type SessaoResumo,
@@ -74,6 +75,10 @@ export default async function CurralPage({ searchParams }: PageProps) {
     return s ? `/curral?${s}` : '/curral';
   };
 
+  // Com uma sessão aberta, o Excel é só dela; senão, o do período.
+  const qsExport = new URLSearchParams(qsBase);
+  if (params.sessao) qsExport.set('sessao', params.sessao);
+
   const cabecalho = (
     <div className="mb-6 flex items-end justify-between gap-4">
       <div>
@@ -87,12 +92,12 @@ export default async function CurralPage({ searchParams }: PageProps) {
         {session.curralAccessToken ? (
           // <a> puro: é download, e o prefetch do next/link dispararia a exportação.
           <a
-            href={`/curral/exportar${qsBase.size ? `?${qsBase}` : ''}`}
-            title="Baixar as sessões e as passagens do período em Excel"
+            href={`/curral/exportar${qsExport.size ? `?${qsExport}` : ''}`}
+            title={params.sessao ? 'Baixar esta sessão em Excel' : 'Baixar as sessões e as passagens do período em Excel'}
             className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-border-strong bg-bg-elevated px-3 py-1.5 text-[13px] font-medium text-fg transition-colors hover:bg-grey-50"
           >
             <FileSpreadsheet size={14} strokeWidth={1.75} />
-            <span>Excel</span>
+            <span>{params.sessao ? 'Excel da sessão' : 'Excel'}</span>
           </a>
         ) : null}
         <PrintButton />
@@ -142,6 +147,7 @@ export default async function CurralPage({ searchParams }: PageProps) {
           r={data.selecionada}
           detalhe={data.detalhe}
           loteById={loteById}
+          touroById={data.touroById}
           usuario={data.selecionada.sessao.user_id ? usuarioById.get(data.selecionada.sessao.user_id) : undefined}
           voltar={hrefSessao(null)}
         />
@@ -303,36 +309,27 @@ function Distribuicao({ itens }: { itens: Array<{ rotulo: string; n: number }> }
   );
 }
 
-/** Faixas de 25 kg para ver a dispersão do lote (o que orienta uma apartação). */
-function faixasDePeso(pesos: number[]): Array<{ rotulo: string; n: number }> {
-  if (pesos.length === 0) return [];
-  const passo = 25;
-  const ini = Math.floor(Math.min(...pesos) / passo) * passo;
-  const fim = Math.floor(Math.max(...pesos) / passo) * passo;
-  const out: Array<{ rotulo: string; n: number }> = [];
-  for (let f = ini; f <= fim; f += passo) {
-    out.push({ rotulo: `${f}–${f + passo - 1} kg`, n: pesos.filter((p) => p >= f && p < f + passo).length });
-  }
-  return out;
-}
-
 function DetalheSessao({
   r,
   detalhe,
   loteById,
+  touroById,
   usuario,
   voltar,
 }: {
   r: SessaoResumo;
   detalhe: PassagemDetalhe[];
   loteById: Map<string, LoteInfo>;
+  touroById: Map<string, string>;
   usuario?: string;
   voltar: string;
 }) {
   const s = r.sessao;
   const lote = s.lot_id ? loteById.get(s.lot_id) : undefined;
   const pesos = detalhe.filter((d) => d.pesoValido).map((d) => d.passagem.weight_kg!);
-  const temIatf = r.prenhas + r.vazias > 0 || r.ovarios.length > 0 || r.comEcc > 0;
+  const temIatf = r.prenhas + r.vazias > 0 || r.ovarios.length > 0 || r.comEcc > 0 || r.comInfoImplante > 0;
+  const temTouro = r.touros.length > 0;
+  const temImplante = r.comInfoImplante > 0;
   const temObs = detalhe.some((d) => d.passagem.notes?.trim() || d.passagem.exam_notes?.trim());
   const temPeso = detalhe.some((d) => d.passagem.weight_kg != null);
   const itensProtocolo = (s.protocol_items ?? '').split('\n').map((x) => x.trim()).filter(Boolean);
@@ -438,6 +435,16 @@ function DetalheSessao({
         />
       </div>
 
+      {r.animais === 0 && s.status === 'fechada' ? (
+        <div className="mb-4">
+          <AlertCard
+            kind="warning"
+            title="Sessão fechada sem nenhuma passagem no banco"
+            body="O app só deixa fechar sessão com pelo menos um animal registrado, então os bipes existem e ainda não sincronizaram: estão no aparelho que conduziu a sessão. Abra o app do Curral nele com internet e espere sincronizar."
+          />
+        </div>
+      ) : null}
+
       {r.comPesagemAnterior > 0 ? (
         <div className="mb-4">
           <AlertCard
@@ -461,7 +468,13 @@ function DetalheSessao({
           <Card title="Distribuição de peso" subtitle="Faixas de 25 kg">
             <Distribuicao itens={faixasDePeso(pesos)} />
           </Card>
-        ) : temIatf ? (
+        ) : null}
+        {temTouro ? (
+          <Card title="Touros" subtitle="Sêmen usado na inseminação">
+            <Distribuicao itens={r.touros.map((t) => ({ rotulo: touroById.get(t.bullId) ?? '—', n: t.n }))} />
+          </Card>
+        ) : null}
+        {temIatf ? (
           <Card title="Reprodução" subtitle="Registrado na passagem">
             <Distribuicao
               itens={[
@@ -472,6 +485,12 @@ function DetalheSessao({
                     ]
                   : []),
                 ...r.ovarios.map((o) => ({ rotulo: OVARY_LABELS[o.status] ?? o.status, n: o.n })),
+                ...(temImplante
+                  ? [
+                      { rotulo: 'Perderam o implante', n: r.perderamImplante },
+                      { rotulo: 'Mantiveram o implante', n: r.comInfoImplante - r.perderamImplante },
+                    ]
+                  : []),
               ]}
             />
             {r.eccMedio != null ? (
@@ -495,6 +514,7 @@ function DetalheSessao({
                 {temPeso ? <th className="px-4 py-2 text-right font-medium">Peso</th> : null}
                 {temPeso ? <th className="px-4 py-2 text-right font-medium">Ganho</th> : null}
                 {temIatf ? <th className="px-4 py-2 text-left font-medium">Reprodução</th> : null}
+                {temTouro ? <th className="px-4 py-2 text-left font-medium">Touro</th> : null}
                 <th className="px-4 py-2 text-left font-medium">Lote</th>
                 <th className="px-4 py-2 text-right font-medium">Intervalo</th>
                 {temObs ? <th className="px-4 py-2 text-left font-medium">Obs.</th> : null}
@@ -509,6 +529,7 @@ function DetalheSessao({
                   p.iatf_result ? (p.iatf_result === 'PRENHA' ? 'Prenha' : 'Vazia') : null,
                   p.ovary_status ? OVARY_LABELS[p.ovary_status] ?? p.ovary_status : null,
                   p.body_score != null ? `ECC ${num(Number(p.body_score), 1)}` : null,
+                  p.implant_lost === true ? 'Perdeu o implante' : p.implant_lost === false ? 'Implante ok' : null,
                 ].filter(Boolean);
                 const pausa = d.intervaloSeg != null && d.intervaloSeg * 1000 > PAUSA_MS;
                 return (
@@ -532,7 +553,10 @@ function DetalheSessao({
                           : '—'}
                       </td>
                     ) : null}
-                    {temIatf ? <td className="px-4 py-2">{iatf.join(' · ') || '—'}</td> : null}
+                    {temIatf ? (
+                      <td className={`px-4 py-2 ${p.implant_lost ? 'font-medium text-warning' : ''}`}>{iatf.join(' · ') || '—'}</td>
+                    ) : null}
+                    {temTouro ? <td className="px-4 py-2">{p.bull_id ? touroById.get(p.bull_id) ?? '—' : '—'}</td> : null}
                     <td className="px-4 py-2">
                       {de && de !== para ? (
                         <span className="text-fg-muted">{nomeLote(de, loteById)} → </span>

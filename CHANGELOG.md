@@ -6,6 +6,16 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## Dashboard — Excel da sessão no Curral (2026-11-18)
+
+- Com uma sessão aberta, o botão vira **Excel da sessão** e baixa só ela, com três abas: **Sessão** (ficha e indicadores do detalhe: lote, operações, bipes, protocolo, animais, pesos, ganho, tempo, ritmo, reprodução, implante), **Distribuições** (categorias, destino, faixas de peso, reprodução, touros, implante — todas, mesmo as que a tela omite por espaço) e **Passagens** (animal a animal, mesmas colunas do Excel geral).
+- O Excel da tela principal ganha a aba **Resumo** com os indicadores do topo (sessões, passagens, animais diferentes, tempo, ritmo, ocultas, pesos fora da faixa) e o período. A aba **Sessões** ganha as colunas "Perderam implante" e "Touros" (depois de "ECC médio").
+- Detalhe da sessão passa a mostrar o que já estava no banco e não aparecia: **touro** de cada animal na inseminação (card e coluna) e **perda de implante** no D8 (contagem e destaque na linha). Peso e reprodução aparecem juntos quando a sessão tem os dois.
+- Etapas de IATF com o nome do app: `d8` vira "D8" (antes saía cru), `ressinc` (etapa nova do Curral) vira "Ressinc" e `protocolo` vira "Implante" (é a mesma etapa D0, gravada com outro nome até 11/2026).
+- Sessão fechada sem nenhuma passagem no banco ganha aviso no detalhe: o app só fecha sessão com registro, então os bipes estão presos no aparelho que conduziu a sessão.
+
+**Fallback:** republicar o deploy anterior do site `gestao-pecuaria-nsa` (commit `8e6fd6d`).
+
 ## Dashboard — Curral em Excel (2026-11-17)
 
 - Botão **Excel** no cabeçalho da aba Curral: baixa um `.xlsx` do período selecionado (ou de todas as sessões) com duas abas. **Sessões**: uma linha por sessão, com lote, operações, quem conduziu, animais, pesos, ganho, reprodução, tempo e ritmo. **Passagens**: uma linha por animal, com brinco completo, sexo, raça, nascimento, SISBOV, hora do bipe, peso, pesagem anterior e ganho, IATF, touro, perda de implante, lote de origem e destino e observações.

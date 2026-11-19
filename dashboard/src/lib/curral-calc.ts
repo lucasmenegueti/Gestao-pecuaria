@@ -27,7 +27,10 @@ export const OP_LABELS: Record<string, string> = {
 
 export const IATF_STAGE_LABELS: Record<string, string> = {
   implante: 'Implante',
-  protocolo: 'Protocolo',
+  // Mesma etapa do implante (D0), gravada com outro nome até 11/2026 — igual ao app.
+  protocolo: 'Implante',
+  d8: 'D8',
+  ressinc: 'Ressinc',
   inseminacao: 'Inseminação',
   diagnostico: 'DG',
   dg_final: 'DG final',
@@ -132,6 +135,11 @@ export interface SessaoResumo {
   eccMedio: number | null;
   comEcc: number;
   exames: number;
+  /** Inseminação: passagens por touro. */
+  touros: Array<{ bullId: string; n: number }>;
+  /** D8: passagens com a pergunta do implante respondida, e quantas perderam. */
+  comInfoImplante: number;
+  perderamImplante: number;
 }
 
 export interface PassagemDetalhe {
@@ -303,6 +311,12 @@ function resumir(
     eccMedio: media(ecc),
     comEcc: ecc.length,
     exames: passagens.filter((p) => p.exam_notes?.trim()).length,
+    touros: contar(passagens.map((p) => p.bull_id).filter((x): x is string => !!x)).map(({ k, n }) => ({
+      bullId: k,
+      n,
+    })),
+    comInfoImplante: passagens.filter((p) => p.implant_lost != null).length,
+    perderamImplante: passagens.filter((p) => p.implant_lost === true).length,
   };
 }
 
@@ -374,6 +388,19 @@ export function detalharSessao(
   }));
 }
 
+/** Faixas de 25 kg para ver a dispersão do lote (o que orienta uma apartação). */
+export function faixasDePeso(pesos: number[]): Array<{ rotulo: string; n: number }> {
+  if (pesos.length === 0) return [];
+  const passo = 25;
+  const ini = Math.floor(Math.min(...pesos) / passo) * passo;
+  const fim = Math.floor(Math.max(...pesos) / passo) * passo;
+  const out: Array<{ rotulo: string; n: number }> = [];
+  for (let f = ini; f <= fim; f += passo) {
+    out.push({ rotulo: `${f}–${f + passo - 1} kg`, n: pesos.filter((p) => p >= f && p < f + passo).length });
+  }
+  return out;
+}
+
 // ----------------------------------------------------------------------------
 // Exportação para Excel
 
@@ -412,32 +439,42 @@ function dia(iso: string): Date {
 const arred = (x: number | null, casas: number) => (x == null ? null : Number(x.toFixed(casas)));
 const minutos = (ms: number) => Math.round(ms / 60_000);
 
-/**
- * Duas abas: uma linha por sessão e uma linha por passagem, para as sessões do
- * cenário (já filtrado pelo período). Valores crus — número é número, brinco
- * inteiro e como texto — para servir de base a filtro e tabela dinâmica.
- */
-export function montarExportacao(
-  cenario: CurralCenario,
-  todasPassagens: PassagemRow[],
-  animais: AnimalRow[],
-  loteById: Map<string, { nome: string; piquete: string | null }>,
-  usuarioById: Map<string, string>,
-  touroById: Map<string, string>,
-): AbaExport[] {
-  const animalDe = new Map(animais.map((a) => [a.id, a]));
-  const anteriores = pesagensAnteriores(todasPassagens);
-  const porSessao = new Map<string, PassagemRow[]>();
-  for (const p of todasPassagens) {
-    const l = porSessao.get(p.session_id) ?? [];
-    l.push(p);
-    porSessao.set(p.session_id, l);
-  }
-  const lote = (id: string | null) => (id ? loteById.get(id)?.nome ?? null : null);
-  // Mais antiga primeiro: é a ordem em que a planilha vai crescendo.
-  const resumos = [...cenario.sessoes].reverse();
+/** Dados de apoio comuns às duas exportações. */
+export interface ContextoExport {
+  todasPassagens: PassagemRow[];
+  animais: AnimalRow[];
+  loteById: Map<string, { nome: string; piquete: string | null }>;
+  usuarioById: Map<string, string>;
+  touroById: Map<string, string>;
+}
 
-  const sessoes: AbaExport = {
+function porSessaoDe(todas: PassagemRow[]): Map<string, PassagemRow[]> {
+  const m = new Map<string, PassagemRow[]>();
+  for (const p of todas) {
+    const l = m.get(p.session_id) ?? [];
+    l.push(p);
+    m.set(p.session_id, l);
+  }
+  return m;
+}
+
+/** Texto dd/mm/aaaa hh:mm no relógio de Brasília — para as abas de chave/valor. */
+function textoDiaHora(iso: string | null): string | null {
+  const d = horaBrt(iso);
+  if (!d) return null;
+  const t = d.toISOString();
+  return `${t.slice(8, 10)}/${t.slice(5, 7)}/${t.slice(0, 4)} ${t.slice(11, 16)}`;
+}
+
+const textoDia = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+const status = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const itensProtocolo = (s: SessaoRow) =>
+  (s.protocol_items ?? '').split('\n').map((x) => x.trim()).filter(Boolean).join('; ') || null;
+
+/** Uma linha por sessão. */
+function abaSessoes(resumos: SessaoResumo[], ctx: ContextoExport): AbaExport {
+  const lote = (id: string | null) => (id ? ctx.loteById.get(id)?.nome ?? null : null);
+  return {
     nome: 'Sessões',
     colunas: [
       { titulo: 'Data', largura: 12, formato: F_DATA },
@@ -460,6 +497,8 @@ export function montarExportacao(
       { titulo: 'Prenhas', largura: 9 },
       { titulo: 'Vazias', largura: 8 },
       { titulo: 'ECC médio', largura: 10, formato: '0.0' },
+      { titulo: 'Perderam implante', largura: 17 },
+      { titulo: 'Touros', largura: 28 },
       { titulo: 'Primeiro bipe', largura: 19, formato: F_DATA_HORA },
       { titulo: 'Último bipe', largura: 19, formato: F_DATA_HORA },
       { titulo: 'Tempo de curral (min)', largura: 20 },
@@ -483,10 +522,10 @@ export function montarExportacao(
       return [
         dia(s.date),
         lote(s.lot_id),
-        s.lot_id ? loteById.get(s.lot_id)?.piquete ?? null : null,
+        s.lot_id ? ctx.loteById.get(s.lot_id)?.piquete ?? null : null,
         rotuloOps(r).join(', '),
-        s.status.charAt(0).toUpperCase() + s.status.slice(1),
-        s.user_id ? usuarioById.get(s.user_id) ?? null : null,
+        status(s.status),
+        s.user_id ? ctx.usuarioById.get(s.user_id) ?? null : null,
         r.animais,
         r.novos,
         r.mudaramLote,
@@ -501,6 +540,8 @@ export function montarExportacao(
         r.prenhas,
         r.vazias,
         arred(r.eccMedio, 1),
+        r.comInfoImplante ? r.perderamImplante : null,
+        r.touros.map((t) => `${ctx.touroById.get(t.bullId) ?? '—'} (${t.n})`).join(', ') || null,
         horaBrt(r.tempos.inicio),
         horaBrt(r.tempos.fim),
         r.animais > 1 ? minutos(r.tempos.ativoMs) : null,
@@ -508,7 +549,7 @@ export function montarExportacao(
         minutos(r.tempos.pausaMs),
         arred(r.tempos.ritmoSeg, 0),
         s.protocol_name,
-        (s.protocol_items ?? '').split('\n').map((x) => x.trim()).filter(Boolean).join('; ') || null,
+        itensProtocolo(s),
         s.default_category,
         s.origin,
         s.vet,
@@ -521,8 +562,15 @@ export function montarExportacao(
       ];
     }),
   };
+}
 
-  const passagens: AbaExport = {
+/** Uma linha por passagem, das sessões dadas, na ordem dos bipes. */
+function abaPassagens(resumos: SessaoResumo[], ctx: ContextoExport): AbaExport {
+  const animalDe = new Map(ctx.animais.map((a) => [a.id, a]));
+  const anteriores = pesagensAnteriores(ctx.todasPassagens);
+  const porSessao = porSessaoDe(ctx.todasPassagens);
+  const lote = (id: string | null) => (id ? ctx.loteById.get(id)?.nome ?? null : null);
+  return {
     nome: 'Passagens',
     colunas: [
       { titulo: 'Data da sessão', largura: 14, formato: F_DATA },
@@ -586,7 +634,7 @@ export function montarExportacao(
           p.iatf_result === 'PRENHA' ? 'Prenha' : p.iatf_result === 'VAZIA' ? 'Vazia' : p.iatf_result,
           p.ovary_status ? OVARY_LABELS[p.ovary_status] ?? p.ovary_status : null,
           ecc != null && Number.isFinite(ecc) ? ecc : null,
-          p.bull_id ? touroById.get(p.bull_id) ?? null : null,
+          p.bull_id ? ctx.touroById.get(p.bull_id) ?? null : null,
           p.implant_lost == null ? null : p.implant_lost ? 'Sim' : 'Não',
           lote(p.from_lot_id),
           lote(p.to_lot_id),
@@ -597,6 +645,122 @@ export function montarExportacao(
       });
     }),
   };
+}
 
-  return [sessoes, passagens];
+type Item = [grupo: string, item: string, valor: string | number | null];
+
+/** Aba de chave/valor. Linha sem valor fica de fora, como na tela. */
+function abaItens(nome: string, titulo: string, itens: Item[]): AbaExport {
+  return {
+    nome,
+    colunas: [
+      { titulo: 'Grupo', largura: 16 },
+      { titulo: 'Item', largura: 34 },
+      { titulo: titulo, largura: 44 },
+    ],
+    linhas: itens.filter(([, , v]) => v != null && v !== ''),
+  };
+}
+
+/**
+ * Exportação da tela principal: resumo do período (os indicadores do topo), uma
+ * linha por sessão e uma por passagem. Valores crus — número é número, brinco
+ * inteiro e como texto — para servir de base a filtro e tabela dinâmica.
+ */
+export function montarExportacao(cenario: CurralCenario, rotuloPeriodo: string, ctx: ContextoExport): AbaExport[] {
+  // Mais antiga primeiro: é a ordem em que a planilha vai crescendo.
+  const resumos = [...cenario.sessoes].reverse();
+  const t = cenario.totais;
+  const resumo = abaItens('Resumo', 'Valor', [
+    ['Período', 'Período', rotuloPeriodo],
+    ['Indicadores', 'Sessões de curral', t.sessoes],
+    ['Indicadores', 'Sessões de teste ou canceladas (ocultas)', cenario.ocultas],
+    ['Indicadores', 'Passagens (cab)', t.passagens],
+    ['Indicadores', 'Animais diferentes', t.animaisDistintos],
+    ['Indicadores', 'Tempo de curral (min)', minutos(t.ativoMs)],
+    ['Indicadores', 'Ritmo (s por animal, mediana)', arred(t.ritmoSeg, 0)],
+    ['Indicadores', 'Animais por hora', t.ritmoSeg ? Math.round(3600 / t.ritmoSeg) : null],
+    ['Indicadores', `Pesos fora de ${PESO_MIN_KG}–${PESO_MAX_KG} kg (fora das médias)`, t.pesosSuspeitos],
+  ]);
+  return [resumo, abaSessoes(resumos, ctx), abaPassagens(resumos, ctx)];
+}
+
+/**
+ * Exportação de UMA sessão — o que a tela de detalhe mostra: ficha e
+ * indicadores, distribuições (todas, mesmo as que a tela omite por espaço) e a
+ * ficha animal a animal.
+ */
+export function montarExportacaoSessao(r: SessaoResumo, ctx: ContextoExport): AbaExport[] {
+  const s = r.sessao;
+  const lote = (id: string | null) => (id ? ctx.loteById.get(id)?.nome ?? '—' : 'Sem lote');
+  const ritmo = r.tempos.ritmoSeg;
+
+  const sessao = abaItens('Sessão', 'Valor', [
+    ['Sessão', 'Data', textoDia(s.date)],
+    ['Sessão', 'Lote', lote(s.lot_id)],
+    ['Sessão', 'Piquete', s.lot_id ? ctx.loteById.get(s.lot_id)?.piquete ?? null : null],
+    ['Sessão', 'Operações', rotuloOps(r).join(', ')],
+    ['Sessão', 'Status', status(s.status)],
+    ['Sessão', 'Quem conduziu', s.user_id ? ctx.usuarioById.get(s.user_id) ?? null : null],
+    ['Sessão', 'Primeiro bipe', textoDiaHora(r.tempos.inicio)],
+    ['Sessão', 'Último bipe', textoDiaHora(r.tempos.fim)],
+    ['Sessão', 'Aberta no app', textoDiaHora(s.started_at)],
+    ['Sessão', 'Fechada no app', textoDiaHora(s.closed_at)],
+    ['Sessão', 'Categoria de entrada', s.default_category],
+    ['Sessão', 'Origem', s.origin],
+    ['Sessão', 'Veterinário', s.vet],
+    ['Sessão', 'Comprador', s.buyer],
+    ['Sessão', 'Venda (cab)', s.sale_head_count],
+    ['Sessão', 'Venda (kg)', s.sale_total_kg],
+    ['Sessão', 'Protocolo sanitário', s.protocol_name],
+    ['Sessão', 'Itens do protocolo', itensProtocolo(s)],
+    ['Sessão', 'Obs.', s.notes],
+    ['Indicadores', 'Animais (cab)', r.animais],
+    ['Indicadores', 'Novos', r.novos],
+    ['Indicadores', 'Mudaram de lote', r.mudaramLote],
+    ['Indicadores', 'Com peso', r.comPeso || null],
+    ['Indicadores', 'Peso médio (kg)', arred(r.pesoMedio, 1)],
+    ['Indicadores', 'Peso médio (@)', r.pesoMedio != null ? arred(r.pesoMedio / 30, 1) : null],
+    ['Indicadores', 'Peso mínimo (kg)', r.pesoMin],
+    ['Indicadores', 'Peso máximo (kg)', r.pesoMax],
+    ['Indicadores', `Pesos fora de ${PESO_MIN_KG}–${PESO_MAX_KG} kg`, r.pesosSuspeitos || null],
+    ['Indicadores', 'Com pesagem anterior', r.comPesagemAnterior || null],
+    ['Indicadores', 'Ganho médio (kg)', arred(r.ganhoMedioKg, 1)],
+    ['Indicadores', 'GMD médio (kg/dia)', arred(r.gmdMedio, 3)],
+    ['Indicadores', 'Tempo de curral (min)', r.animais > 1 ? minutos(r.tempos.ativoMs) : null],
+    ['Indicadores', 'Tempo total do 1º ao último bipe (min)', r.animais > 1 ? minutos(r.tempos.duracaoMs) : null],
+    ['Indicadores', `Pausas de mais de ${PAUSA_MS / 60_000} min`, r.animais > 1 ? r.tempos.pausas : null],
+    ['Indicadores', 'Tempo em pausa (min)', r.tempos.pausas ? minutos(r.tempos.pausaMs) : null],
+    ['Indicadores', 'Ritmo (s por animal, mediana)', arred(ritmo, 0)],
+    ['Indicadores', 'Animais por hora', ritmo ? Math.round(3600 / ritmo) : null],
+    ['Indicadores', 'Prenhas', r.prenhas + r.vazias > 0 ? r.prenhas : null],
+    ['Indicadores', 'Vazias', r.prenhas + r.vazias > 0 ? r.vazias : null],
+    ['Indicadores', 'ECC médio', arred(r.eccMedio, 1)],
+    ['Indicadores', 'Animais com ECC', r.comEcc || null],
+    ['Indicadores', 'Perderam o implante', r.comInfoImplante ? r.perderamImplante : null],
+    ['Indicadores', 'Com exame anotado', r.exames || null],
+  ]);
+
+  const pesos = (ctx.todasPassagens.filter((p) => p.session_id === s.id).map((p) => p.weight_kg)).filter(pesoValido);
+  const distribuicoes = abaItens('Distribuições', 'Animais', [
+    ...r.categorias.map((c): Item => ['Categoria (hoje)', c.categoria, c.n]),
+    ...r.destinos.map((d): Item => ['Para onde foram', lote(d.lotId), d.n]),
+    ...faixasDePeso(pesos).map((f): Item => ['Faixa de peso', f.rotulo, f.n]),
+    ...(r.prenhas + r.vazias > 0
+      ? ([
+          ['Reprodução', 'Prenhas', r.prenhas],
+          ['Reprodução', 'Vazias', r.vazias],
+        ] as Item[])
+      : []),
+    ...r.ovarios.map((o): Item => ['Ovário', OVARY_LABELS[o.status] ?? o.status, o.n]),
+    ...r.touros.map((t): Item => ['Touro', ctx.touroById.get(t.bullId) ?? '—', t.n]),
+    ...(r.comInfoImplante
+      ? ([
+          ['Implante (D8)', 'Perdeu', r.perderamImplante],
+          ['Implante (D8)', 'Manteve', r.comInfoImplante - r.perderamImplante],
+        ] as Item[])
+      : []),
+  ]);
+
+  return [sessao, distribuicoes, abaPassagens([r], ctx)];
 }

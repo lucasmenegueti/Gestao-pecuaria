@@ -7,10 +7,26 @@ import { parsePeriodFromSearchParams } from '@/lib/period';
 
 export const dynamic = 'force-dynamic';
 
+/** "2026-11-15_lote-x" a partir da aba Sessão — ASCII, para o cabeçalho do download. */
+function nomeSessao(abas: Array<{ linhas: unknown[][] }>): string {
+  const valor = (item: string) => String(abas[0]?.linhas.find((l) => l[1] === item)?.[2] ?? '');
+  const data = valor('Data').split('/').reverse().join('-');
+  const lote = valor('Lote')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
+  return [data, lote].filter(Boolean).join('_');
+}
+
 const texto = (msg: string, status: number) =>
   new NextResponse(msg, { status, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
 
-/** Planilha das sessões e passagens do período (mesmos ?periodo/inicio/fim da tela). */
+/**
+ * Planilha do que a tela mostra: com ?sessao=, só aquela sessão; sem, o
+ * período (mesmos ?periodo/inicio/fim da tela).
+ */
 export async function GET(request: NextRequest) {
   const session = await getSessionOrRedirect();
   // Sem token do Curral, a própria tela explica o que fazer.
@@ -22,14 +38,25 @@ export async function GET(request: NextRequest) {
     ? parsePeriodFromSearchParams({ periodo, inicio: sp.get('inicio') ?? undefined, fim: sp.get('fim') ?? undefined })
     : null;
 
+  const sessaoId = sp.get('sessao') ?? undefined;
+  const rotulo = period ? period.label : `Todas as sessões desde ${INICIO_OPERACAO_REAL.split('-').reverse().join('/')}`;
+
   let abas;
   try {
-    abas = await loadCurralExport(session.curralAccessToken, period ? { start: period.start, end: period.end } : undefined);
+    abas = await loadCurralExport(
+      session.curralAccessToken,
+      period ? { start: period.start, end: period.end } : undefined,
+      rotulo,
+      sessaoId,
+    );
   } catch (e) {
     console.error('[curral/exportar]', e);
     return texto('Não foi possível ler o banco do Curral. Saia do dashboard, entre de novo e repita a exportação.', 502);
   }
   if (!abas) return texto('Curral não configurado: faltam CURRAL_SUPABASE_URL e CURRAL_SUPABASE_ANON_KEY.', 500);
+  if (abas === 'nao-encontrada') {
+    return texto('Sessão não encontrada: pode ter sido excluída no app, ou ser uma sessão de teste.', 404);
+  }
 
   const cabecalho = { fontWeight: 'bold' as const, backgroundColor: '#EEEEEE' };
   const buffer = await writeExcelFile(
@@ -49,7 +76,11 @@ export async function GET(request: NextRequest) {
     })),
   ).toBuffer();
 
-  const nome = period ? `curral_${period.start}_a_${period.end}` : `curral_desde_${INICIO_OPERACAO_REAL}`;
+  const nome = sessaoId
+    ? `curral_sessao_${nomeSessao(abas)}`
+    : period
+      ? `curral_${period.start}_a_${period.end}`
+      : `curral_desde_${INICIO_OPERACAO_REAL}`;
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

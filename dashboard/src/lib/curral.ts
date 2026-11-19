@@ -6,6 +6,7 @@ import {
   calcularCenarioCurral,
   detalharSessao,
   montarExportacao,
+  montarExportacaoSessao,
   type AbaExport,
   type AnimalRow,
   type CurralCenario,
@@ -34,6 +35,7 @@ export interface CurralData {
   cenario: CurralCenario;
   loteById: Map<string, LoteInfo>;
   usuarioById: Map<string, string>;
+  touroById: Map<string, string>;
   /** Sessão escolhida (mesmo fora do período filtrado) e a ficha dela. */
   selecionada: SessaoResumo | null;
   detalhe: PassagemDetalhe[] | null;
@@ -97,12 +99,13 @@ export async function loadCurralData(
 ): Promise<CurralData | null> {
   const bruto = await carregar(accessToken);
   if (!bruto) return null;
-  const { sessoes, passagens, animais, loteById, usuarioById } = bruto;
+  const { sessoes, passagens, animais, loteById, usuarioById, touroById } = bruto;
 
   return {
     cenario: calcularCenarioCurral(sessoes, passagens, animais, janela),
     loteById,
     usuarioById,
+    touroById,
     selecionada: sessaoId
       ? calcularCenarioCurral(sessoes, passagens, animais).sessoes.find((r) => r.sessao.id === sessaoId) ?? null
       : null,
@@ -110,20 +113,24 @@ export async function loadCurralData(
   };
 }
 
-/** As abas da planilha do período. Erro de leitura sobe — nunca vira planilha vazia. */
+/**
+ * As abas da planilha. Com `sessaoId`, só daquela sessão — procurada sem a
+ * janela, como na tela, que abre sessão fora do período; `'nao-encontrada'` se
+ * ela não existir. Erro de leitura sobe — nunca vira planilha vazia.
+ */
 export async function loadCurralExport(
   accessToken: string,
-  janela?: { start: string; end: string },
-): Promise<AbaExport[] | null> {
+  janela: { start: string; end: string } | undefined,
+  rotuloPeriodo: string,
+  sessaoId?: string,
+): Promise<AbaExport[] | 'nao-encontrada' | null> {
   const bruto = await carregar(accessToken);
   if (!bruto) return null;
   const { sessoes, passagens, animais, loteById, usuarioById, touroById } = bruto;
-  return montarExportacao(
-    calcularCenarioCurral(sessoes, passagens, animais, janela),
-    passagens,
-    animais,
-    loteById,
-    usuarioById,
-    touroById,
-  );
+  const ctx = { todasPassagens: passagens, animais, loteById, usuarioById, touroById };
+  if (sessaoId) {
+    const r = calcularCenarioCurral(sessoes, passagens, animais).sessoes.find((x) => x.sessao.id === sessaoId);
+    return r ? montarExportacaoSessao(r, ctx) : 'nao-encontrada';
+  }
+  return montarExportacao(calcularCenarioCurral(sessoes, passagens, animais, janela), rotuloPeriodo, ctx);
 }
