@@ -62,7 +62,7 @@ export async function loadNascimentosData(
     }),
     sbListAll<HerdEventRow>('herd_events', {
       ...auth,
-      select: 'paddock_id,target_paddock_id,event_type,category,head_count,notes,date',
+      select: 'paddock_id,target_paddock_id,event_type,category,head_count,notes,date,created_at',
       filters: { event_type: 'in.(NASCIMENTO,MORTE)', deleted_at: 'is.null' },
       order: 'date,id',
     }),

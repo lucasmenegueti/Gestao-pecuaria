@@ -6,6 +6,25 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 ---
 
+## v0.14.3 — "nascimento sem teto de 20" (2026-11-20)
+
+- Tela de nascimento (`admin/nascimento.tsx`): a barra continua indo de 1 a 20 (arrasto preciso pro caso comum), mas o número digitado e o botão + não param mais em 20. Antes, 40 bezerros só entravam como 20 + 20 — dois lançamentos idênticos que o dashboard tomava por cópia de sync.
+- `SliderInput` ganha a prop opcional `typedMax` (teto do valor digitado e do +; sem ela, nada muda nas outras telas).
+- Validado com a tela real num harness sem login (banco e router falsos): no Chrome e no emulador Android (Expo Go SDK 54), digitar 40 → 40, + → 41, arrastar a barra volta pra 1–20, Confirmar grava `herd +40` e o evento com 40. Não validado: app logado contra QA/prod e iOS.
+- Publicado: OTA preview `07b9c2c1-a579-40f6-8bcd-aaba23b1a4c9`, OTA production `049bf398-4576-40be-a038-7b2a3d9e9abd`, web (deploy `6b008e93497f878c0a9fb87f`).
+
+**Fallback:** `git checkout v0.14.2`.
+
+## Dashboard — lançamento repetido não é cópia de sync (2026-11-20)
+
+Sintoma: a aba Nascimentos avisava "2 registro(s) idênticos no mesmo dia e piquete foram contados uma vez só" e mostrava 40 bezerros a menos. Eram os partos do P78 em 09/11: 40 machos e 40 fêmeas, lançados como 20 + 20 de cada porque a tela de nascimento do app trava em 20 por lançamento. O `herd` recebeu os 80 (saíram 48 = 8 + 40 e 58 = 18 + 40 na transferência de 10/11; EVOLUCAO de 80 prenhas → paridas no mesmo dia).
+
+- `dedupEventos` (`consumo-calc.ts`) passa a exigir também o mesmo `created_at` — o relógio do device no lançamento. Cópia de sync é a mesma linha local e repete o segundo exato (critério da limpeza da v0.13.1); dois lançamentos iguais em horários diferentes contam os dois. Vale pra Nascimentos e pro replay de cabeças·dia do Consumo.
+- Em prod hoje a regra nova não descarta nada: nenhum par com mesmo `created_at` desde a v0.13.1 (27/10). Total da estação: 783 → 823 nascimentos. No Consumo, quatro pares de EVOLUCAO com horários distintos (22/07, 24/09, 02/11, 04/11) deixam de ser descartados; os dois primeiros já estavam classificados como lançamentos separados, os de novembro não foram conferidos um a um.
+- Textos dos avisos ajustados. Validado rodando `calcularCenarioNascimentos` real com as 4 linhas do P78 + uma cópia de sync sintética: antes 40 / 3 descartados, depois 80 / 1.
+
+**Fallback:** republicar o deploy anterior do site `gestao-pecuaria-nsa` (commit `bda6121`).
+
 ## Dashboard — Excel da sessão no Curral (2026-11-18)
 
 - Com uma sessão aberta, o botão vira **Excel da sessão** e baixa só ela, com três abas: **Sessão** (ficha e indicadores do detalhe: lote, operações, bipes, protocolo, animais, pesos, ganho, tempo, ritmo, reprodução, implante), **Distribuições** (categorias, destino, faixas de peso, reprodução, touros, implante — todas, mesmo as que a tela omite por espaço) e **Passagens** (animal a animal, mesmas colunas do Excel geral).

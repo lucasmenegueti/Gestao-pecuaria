@@ -201,7 +201,7 @@ export async function loadConsumoData(period: Period, accessToken?: string): Pro
     // Replay reverso precisa de TODO evento entre o início do período e hoje.
     sbListAll<HerdEventRow>('herd_events', {
       ...auth,
-      select: 'paddock_id,target_paddock_id,event_type,category,head_count,notes,date',
+      select: 'paddock_id,target_paddock_id,event_type,category,head_count,notes,date,created_at',
       filters: { date: `gte.${inicio}`, deleted_at: 'is.null' },
       order: 'date,id',
     }),
@@ -251,7 +251,7 @@ export async function loadConsumoData(period: Period, accessToken?: string): Pro
   if (eventosDuplicados > 0) {
     avisos.push(
       `${eventosDuplicados} movimentação(ões) de rebanho vieram duplicadas do sync do app e foram ` +
-      'contadas uma vez só. É o mesmo bug de duplicação já reportado no app — a origem segue por corrigir.',
+      'contadas uma vez só (mesmo lançamento, no mesmo segundo, com dois registros no servidor).',
     );
   }
 

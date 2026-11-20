@@ -111,8 +111,9 @@ export default function NascimentoScreen() {
               <MultiChoice options={CALF_OPTIONS} value={category} onChange={setCategory} />
 
               <Text style={[styles.label, { marginTop: 22 }]}>QUANTIDADE</Text>
+              <Text style={styles.sublabel}>Mais de 20? Toque no número e digite</Text>
               <Card>
-                <SliderInput value={count} onValueChange={setCount} min={1} max={20} step={1} unit="cab" />
+                <SliderInput value={count} onValueChange={setCount} min={1} max={20} typedMax={9999} step={1} unit="cab" />
               </Card>
 
               <Card borderColor={NSA.ok}>

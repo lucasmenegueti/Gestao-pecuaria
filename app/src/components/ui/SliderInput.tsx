@@ -7,6 +7,8 @@ interface SliderInputProps {
   onValueChange: (value: number) => void;
   min: number;
   max: number;
+  /** Teto pra valor digitado e pro botão +. A barra continua indo só até `max`. */
+  typedMax?: number;
   step?: number;
   unit?: string;
   /** Se passado, usa esse rótulo no singular quando value === 1. */
@@ -19,11 +21,12 @@ interface SliderInputProps {
 // `maximumFractionDigits` mantém inteiro como "3" em vez de "3,0".
 const fmt = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 
-export function SliderInput({ value, onValueChange, min, max, step = 1, unit = '', unitSingular, label, color = NSA.green800 }: SliderInputProps) {
+export function SliderInput({ value, onValueChange, min, max, typedMax, step = 1, unit = '', unitSingular, label, color = NSA.green800 }: SliderInputProps) {
   const trackRef = useRef<View>(null);
   const layoutRef = useRef<{ pageX: number; width: number }>({ pageX: 0, width: 0 });
   const [editing, setEditing] = useState(false);
   const [textValue, setTextValue] = useState('');
+  const hardMax = typedMax ?? max;
 
   // Clamp inicial: se o pai começou com value fora de [min, max] (ex.: store
   // zerado com min=1), empurra pro min logo de cara. Sem isso, o usuário
@@ -31,11 +34,11 @@ export function SliderInput({ value, onValueChange, min, max, step = 1, unit = '
   // step4 e outros wizards.
   useEffect(() => {
     if (!Number.isFinite(value) || value < min) onValueChange(min);
-    else if (value > max) onValueChange(max);
+    else if (value > hardMax) onValueChange(hardMax);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [min, max]);
 
-  const fraction = max > min ? (value - min) / (max - min) : 0;
+  const fraction = max > min ? Math.min(1, (value - min) / (max - min)) : 0;
 
   // PanResponder é criado 1x e captura closures da 1ª render. Pra suportar
   // min/max/step que mudam (ex.: ajuste.tsx troca produto e o teto vira outro),
@@ -78,7 +81,7 @@ export function SliderInput({ value, onValueChange, min, max, step = 1, unit = '
   }
 
   function bump(delta: number) {
-    const next = Math.max(min, Math.min(max, value + delta));
+    const next = Math.max(min, Math.min(hardMax, value + delta));
     onValueChange(Number(next.toFixed(step < 1 ? 1 : 0)));
   }
 
@@ -88,7 +91,7 @@ export function SliderInput({ value, onValueChange, min, max, step = 1, unit = '
       setEditing(false);
       return;
     }
-    const clamped = Math.max(min, Math.min(max, parsed));
+    const clamped = Math.max(min, Math.min(hardMax, parsed));
     onValueChange(Number(clamped.toFixed(step < 1 ? 1 : 0)));
     setEditing(false);
   }

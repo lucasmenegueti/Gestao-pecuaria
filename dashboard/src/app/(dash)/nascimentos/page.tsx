@@ -66,8 +66,8 @@ export default async function NascimentosPage({ searchParams }: PageProps) {
         <div className="mb-4">
           <AlertCard
             kind="warning"
-            title={`${c.eventosDuplicados} registro(s) idênticos no mesmo dia e piquete foram contados uma vez só`}
-            body="Provável duplicação do sync do app (bug conhecido). Se foram mesmo partos ou mortes separados iguais, o total real é maior que o mostrado."
+            title={`${c.eventosDuplicados} registro(s) gravados em dobro pelo sync do app foram contados uma vez só`}
+            body="Mesmo lançamento, no mesmo segundo, com dois registros no servidor. Lançamentos iguais feitos em horários diferentes contam normalmente."
           />
         </div>
       ) : null}

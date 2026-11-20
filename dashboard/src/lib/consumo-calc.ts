@@ -16,6 +16,7 @@ export interface HerdEventRow {
   head_count: number;
   notes: string | null;
   date: string;
+  created_at: string;
 }
 
 const BRT = 'America/Sao_Paulo';
@@ -74,17 +75,22 @@ export function categoriaDestinoDaEvolucao(notes: string | null): string | null 
 }
 
 /**
- * Descarta repetições exatas de um mesmo movimento no mesmo dia.
+ * Descarta cópias de sync de um mesmo movimento.
  *
- * O sync do app grava o mesmo evento mais de uma vez com UUIDs diferentes (ver
- * BRIEFING-duplicacao-rondas.md no repo do app) enquanto o `herd` é atualizado
- * uma vez só. Desfazer a duplicata jogaria o lote pra contagem negativa.
+ * O sync do app gravava o mesmo evento mais de uma vez com UUIDs diferentes (ver
+ * BRIEFING-duplicacao-rondas.md; corrigido na v0.13.1) enquanto o `herd` era
+ * atualizado uma vez só. Desfazer a duplicata jogaria o lote pra contagem negativa.
+ *
+ * `created_at` entra na chave porque é o relógio do device na hora do lançamento:
+ * cópia de sync é a MESMA linha local, então repete o segundo exato. Dois
+ * lançamentos iguais feitos de propósito (ex.: 40 bezerros como 20 + 20, o
+ * teto da tela) têm horários diferentes e contam os dois.
  */
 export function dedupEventos(eventos: HerdEventRow[]): { eventos: HerdEventRow[]; descartados: number } {
   const vistos = new Set<string>();
   const out: HerdEventRow[] = [];
   for (const e of eventos) {
-    const chave = [e.date, e.event_type, e.category, e.head_count, e.paddock_id, e.target_paddock_id, e.notes].join('|');
+    const chave = [e.date, e.event_type, e.category, e.head_count, e.paddock_id, e.target_paddock_id, e.notes, e.created_at].join('|');
     if (vistos.has(chave)) continue;
     vistos.add(chave);
     out.push(e);
