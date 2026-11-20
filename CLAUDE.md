@@ -51,7 +51,7 @@ Build de produção da web + republicação (de `app/`):
 ```bash
 EXPO_NO_DOTENV=1 npx eas-cli env:exec production \
   "npx expo export --platform web --output-dir dist --clear" --non-interactive
-grep -c "nsa-supa.lucas-cf1.workers.dev" dist/_expo/static/js/web/entry-*.js  # tem que dar 1
+grep -c "nsa-supa.lucas-cf1.workers.dev" dist/_expo/static/js/web/entry-*.js  # tem que dar 3 (URL base 2× + /auth/v1/logout)
 grep -c "zmetxajiimsclhuhaykv" dist/_expo/static/js/web/entry-*.js            # tem que dar 0
 npx netlify-cli deploy --prod --dir dist --site e635475a-b815-4b63-882e-5a771cdb1c34 --no-build
 ```
@@ -128,7 +128,7 @@ Board de **tarefas × dias**, portado do `gestao-agricultura` com o eixo trocado
 **Login em dois modos por conta** (desde v0.14.0; desenho e decisões em `BRIEFING-INTEGRACAO-ACESSOS.md`). A RPC `auth_mode(username)` diz `legado` ou `hub` (tabela privada `auth_config`; `'*'` = padrão). `legado` = `email_for_username` + `signInWithPassword`. `hub` = Edge Function `supabase/functions/hub-auth` (`/login` confere a senha no hub gestao-acessos e emite sessão GoTrue pro MESMO uuid; `/check` revalida, chamado pelo daemon no máx. 1×/min). Regras que não podem quebrar:
 
 - **Nunca fazer o login depender só da função**: falha no `auth_mode` ou função fora = caminho direto. Voltar alguém pra `legado` (`update auth_config set modo='legado' where chave='<username>'`) é a reversão e tem de funcionar com tudo o mais quebrado.
-- **A função manda `user_id` pro hub, nunca username** — o `pedro` do hub é outra pessoa. `pedro` e `pedro.chaves` daqui são a mesma pessoa e apontam pro mesmo usuário do hub (`hub_vinculos` N:1).
+- **A função manda `user_id` pro hub, nunca username** — username não casa entre os sistemas: quem liga é `hub_vinculos`. `pedro` daqui é o Pedro Leite (`recNKhNIloBtsyLfp` no hub) e `pedro.chaves` é o Pedro Chaves (`rec4wsFkI9dH01yjQ`) — duas pessoas. Até 18/11/2026 as duas contas apontavam pro Pedro Chaves por engano e o `pedro` tomava "senha errada". A tabela aceita N:1 (várias contas daqui pra um usuário do hub), mas hoje nenhuma usa.
 - **Erro de hub/infra = 503 "tente de novo"**, nunca "senha errada" nem derrubada. Só `/check` com motivo de revogação encerra sessão; pendentes e SQLite nunca são apagados.
 - **Sem bloqueio por IP**: o Supabase enxerga a Worker (um IP pra todos). Só atraso progressivo por usuário (`regras.ts`).
 - **`/login` do cliente usa fetch próprio, uma chamada, 70 s** (`lib/hubAuth.ts`): o fetch padrão repete em 25 s e viraria segunda tentativa de senha.

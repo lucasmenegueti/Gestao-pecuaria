@@ -31,7 +31,7 @@ app / dashboard ─ usuário+senha ─▶ Edge Function hub-auth (Supabase pecu�
 |---|---|
 | Senha de quem só existe na pecuária | hash bcrypt copiado pro hub → **mesma senha** |
 | Senha de quem já tem conta no hub (`lucas`, `alex`) | **vale a senha do hub** (ele avisa a pessoa) |
-| `pedro` e `pedro.chaves` | mesma pessoa (Pedro Chaves); as duas contas seguem ativas |
+| `pedro` e `pedro.chaves` | **corrigido em 18/11/2026:** são duas pessoas — `pedro` = Pedro Leite, `pedro.chaves` = Pedro Chaves. A decisão original ("mesma pessoa") estava errada e o vínculo do `pedro` foi religado |
 | `vaqueiro` | mantém o login como está |
 | `bruno`, `rafael` | **continuam** (migram) |
 | `gabriel` | é o Gabriel desabilitado no hub desde 29/09; **fica em `legado`** até o Lucas decidir |
