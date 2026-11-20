@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { DashHeader } from '@/components/dash-header';
 import { Card, EmptyState, StatusPill } from '@/components/ui-primitives';
 import { loadDashboardData } from '@/lib/queries';
@@ -122,13 +123,13 @@ export default async function InspecoesPage({ searchParams }: PageProps) {
 
 function Tab({ href, active, label, count }: { href: string; active: boolean; label: string; count: number }) {
   return (
-    <a href={href} className={
+    <Link href={href} className={
       'inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ' +
       (active ? 'bg-bg-elevated text-fg shadow-xs' : 'text-fg-muted hover:text-fg')
     }>
       {label}
       <span className={`tabular rounded-full px-1.5 py-0.5 text-[11px] ${active ? 'bg-grey-50 text-fg-muted' : 'text-fg-subtle'}`}>{count}</span>
-    </a>
+    </Link>
   );
 }
 

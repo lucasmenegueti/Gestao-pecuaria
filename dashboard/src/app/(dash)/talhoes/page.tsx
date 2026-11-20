@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { DashHeader } from '@/components/dash-header';
 import { PaddockCard } from '@/components/paddock-card';
 import { EmptyState } from '@/components/ui-primitives';
@@ -89,7 +90,7 @@ function FilterTabs({
       {tabs.map((t) => {
         const active = current === t.id;
         return (
-          <a
+          <Link
             key={t.id}
             href={buildHref(t.id)}
             className={
@@ -104,7 +105,7 @@ function FilterTabs({
             <span className={`tabular rounded-full px-1.5 py-0.5 text-[11px] ${active ? 'bg-grey-50 text-fg-muted' : 'text-fg-subtle'}`}>
               {t.count}
             </span>
-          </a>
+          </Link>
         );
       })}
     </div>

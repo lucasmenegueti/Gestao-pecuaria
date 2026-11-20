@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { DashHeader } from '@/components/dash-header';
 import { AlertCard, Card, EmptyState } from '@/components/ui-primitives';
 import { loadDashboardData } from '@/lib/queries';
@@ -95,25 +96,25 @@ export default async function AlertasPage({ searchParams }: PageProps) {
 
 function SevTab({ href, active, label, count, dot }: { href: string; active: boolean; label: string; count: number; dot?: string }) {
   return (
-    <a href={href} className={
+    <Link href={href} className={
       'inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ' +
       (active ? 'bg-bg-elevated text-fg shadow-xs' : 'text-fg-muted hover:text-fg')
     }>
       {dot ? <span className={`h-1.5 w-1.5 rounded-full ${dot}`} /> : null}
       {label}
       <span className={`tabular rounded-full px-1.5 py-0.5 text-[11px] ${active ? 'bg-grey-50 text-fg-muted' : 'text-fg-subtle'}`}>{count}</span>
-    </a>
+    </Link>
   );
 }
 
 function KindRow({ href, active, label, count }: { href: string; active: boolean; label: string; count: number }) {
   return (
-    <a href={href} className={
+    <Link href={href} className={
       'flex items-center justify-between rounded-md px-2.5 py-1.5 text-[13px] transition-colors ' +
       (active ? 'bg-nsa-green-100 font-medium text-nsa-green-800' : 'text-fg hover:bg-grey-50')
     }>
       <span>{label}</span>
       <span className={`tabular text-[11px] font-medium ${active ? 'text-nsa-green-800' : 'text-fg-muted'}`}>{count}</span>
-    </a>
+    </Link>
   );
 }

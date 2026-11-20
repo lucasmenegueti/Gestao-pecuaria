@@ -32,6 +32,10 @@ npx netlify-cli deploy --build --prod --site a8c2393a-b210-4ea4-b075-fb77a38458b
 
 O build roda local com as env vars do site no Netlify (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SESSION_PASSWORD`, `TZ`, `CURRAL_SUPABASE_URL`, `CURRAL_SUPABASE_ANON_KEY`). Não confundir com o outro site do repo (`nsa-gestao-pecuaria`, web do app — ver `../CLAUDE.md`).
 
+As funções rodam em **`sa-east-1`** (São Paulo, ao lado do Supabase) desde 20/11/2026 — `functions_region` do site, trocável por `netlify api updateSite`. Mudar a configuração **não** move o deploy já publicado: só vale no deploy seguinte.
+
+**Navegação usa cache de 60 s no navegador** (`staleTimes.dynamic` em `next.config.ts`) e o esqueleto de `src/app/(dash)/loading.tsx`. Voltar a uma seção em menos de 60 s mostra o dado de antes; escrita nova precisa de `revalidatePath` (como a action de `/configuracoes`) para aparecer na hora. Link interno é `next/link` — `<a href>` recarrega a página inteira e fura o cache (exceções propositais: exportar do Curral e sair).
+
 `relatorio-diario/` (Python do PDF diário → WhatsApp) é rodado por rotina cloud (`trig_01URkNDoJHXA7svYcVZbVjzK`, 21:15 BRT) que clona **este** repo e entra em `dashboard/relatorio-diario`. Mudou o script → commit + push basta; a rotina pega no próximo disparo.
 
 ## Auth e acesso ao dado — leia antes de escrever qualquer query

@@ -15,6 +15,19 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 **Fallback:** `git checkout v0.14.2`.
 
+## Dashboard — navegação entre seções mais rápida (2026-11-20)
+
+Sintoma: cada clique no menu deixava a tela parada de 0,4 a 1,1 s (4,4 s com função fria) até a seção nova aparecer.
+
+- `src/app/(dash)/loading.tsx`: esqueleto que aparece no clique. Sem ele o Next não pré-carrega rota dinâmica e segura a tela antiga até o servidor terminar.
+- `staleTimes.dynamic: 60` (`next.config.ts`): seção já visitada volta do cache do navegador por 60 s. **Efeito colateral:** ao voltar a uma seção, o dado pode estar até 60 s velho; trocar período ou filtro muda a URL e busca de novo, e salvar preço em `/configuracoes` invalida via `revalidatePath`.
+- Funções do Netlify movidas de `us-east-2` (Ohio) para `sa-east-1` (São Paulo), ao lado do Supabase. É configuração do site (`functions_region`) e só vale para deploy novo — mudar a configuração não move o deploy já publicado.
+- Filtros de `/talhoes`, `/alertas` e `/inspecoes` trocados de `<a href>` para `Link`: cada filtro recarregava a página inteira, layout incluído.
+- Medido no Chrome com sessão real, mesmo roteiro de cliques antes e depois: resposta ao clique de 400–1.100 ms para ~10 ms; seção nova pronta em 300–800 ms; seção revisitada em 6–26 ms. Não separei quanto do ganho no tempo de servidor veio da região e quanto do resto.
+- Publicado: deploy `6b0091089cf3393a7d88cf6b`.
+
+**Fallback:** republicar o commit anterior; a região volta com `netlify api updateSite` (`functions_region: us-east-2`) + novo deploy.
+
 ## Dashboard — lançamento repetido não é cópia de sync (2026-11-20)
 
 Sintoma: a aba Nascimentos avisava "2 registro(s) idênticos no mesmo dia e piquete foram contados uma vez só" e mostrava 40 bezerros a menos. Eram os partos do P78 em 09/11: 40 machos e 40 fêmeas, lançados como 20 + 20 de cada porque a tela de nascimento do app trava em 20 por lançamento. O `herd` recebeu os 80 (saíram 48 = 8 + 40 e 58 = 18 + 40 na transferência de 10/11; EVOLUCAO de 80 prenhas → paridas no mesmo dia).
