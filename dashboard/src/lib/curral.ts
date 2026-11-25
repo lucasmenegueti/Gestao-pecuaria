@@ -57,7 +57,7 @@ async function carregar(accessToken: string) {
     sbListAll<PassagemRow>('animal_events', {
       ...q,
       select:
-        'id,session_id,animal_id,event_at,eid,weight_kg,from_lot_id,to_lot_id,iatf_result,ovary_status,body_score,exam_notes,notes,prev_state,bull_id,implant_lost',
+        'id,session_id,animal_id,event_at,eid,weight_kg,from_lot_id,to_lot_id,iatf_stage,iatf_result,ovary_status,body_score,exam_notes,notes,prev_state,bull_id,implant_lost',
       filters: {
         deleted_at: 'is.null',
         kind: 'eq.passagem',

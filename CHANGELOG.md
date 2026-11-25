@@ -15,6 +15,17 @@ Convenção: versionamento semântico `vMAJOR.MINOR.PATCH`. Cada nova versão in
 
 **Fallback:** `git checkout v0.14.2`.
 
+## Dashboard — aba IATF (2026-11-25)
+
+- Nova seção `/iatf` (menu Pecuária): estação de monta 01/10–30/04 (seletor quando houver mais de uma), filtro vacas × novilhas, cartões (matrizes, implantadas, inseminadas + taxa de serviço, perda de implante, prenhas, descartes), funil Triagem → Implante → D8 → Inseminação → DG → 2ª IATF → DG final ("chegou a esta etapa ou além"), tabela de lotes com etapa atual e próxima prevista, sêmen por touro/raça/inseminador, ovário e ECC do D0. O que depende de DG mostra estado vazio até o primeiro DG.
+- Detalhe do lote (`/iatf?lote=<id>`): linha do tempo, funil, touros, ovário/ECC, peso e GMD (régua do Curral) e quem faltou em cada etapa.
+- PDFs por impressão do navegador: `/iatf/relatorio?lote=<id>` (formato do relatório do Pedro, paleta NSA) e `/iatf/relatorio` (geral da estação).
+- Cálculo puro em `src/lib/iatf-calc.ts` (porte das regras de `curral-nsa/app/src/lib/curral/iatf.ts`), testes em `scripts/teste-iatf-calc.ts`. Lote de cada matriz = lote da sessão do D0; uma passagem por (sessão, animal), vale a última.
+- Lê do banco do Curral via `CURRAL_SUPABASE_URL` — depois da virada de 25/11 tem de apontar para prod.
+- Aba Curral: prenhas/vazias contam só passagens de DG (`iatf_stage` diagnostico/dg_final) — a triagem do Implante (app 25/11) grava PRENHA/DESCARTE/UTERO_SUJO e inflaria o placar; rótulo do resultado pela etapa ("Não implantada · útero sujo", "Vazia · volta ao D8").
+
+**Fallback:** republicar o commit anterior (a seção é nova; nada existente mudou além do item no menu e do rótulo opcional do `PrintButton`).
+
 ## Dashboard — navegação entre seções mais rápida (2026-11-20)
 
 Sintoma: cada clique no menu deixava a tela parada de 0,4 a 1,1 s (4,4 s com função fria) até a seção nova aparecer.

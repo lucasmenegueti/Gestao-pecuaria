@@ -5,6 +5,25 @@
  * Primeiro dia de operação real. Antes disso o banco do Curral só tem a base
  * de teste semeada (ids `c0000000-…`) e os testes do Lucas de 20–22/09.
  */
+
+/** Resultado de DG só vale nas etapas de DG; a triagem do implante usa os mesmos valores. */
+function ehDg(p: { iatf_stage?: string | null }): boolean {
+  return p.iatf_stage === 'diagnostico' || p.iatf_stage === 'dg_final';
+}
+
+/** Rótulo do resultado de IATF pela etapa (mesma regra do app: iatfResultLabel). */
+export function resultadoIatf(stage: string | null | undefined, result: string | null): string | null {
+  if (!result) return null;
+  if (stage === 'triagem') {
+    const t = ({ UTERO_SUJO: 'útero sujo', PRENHA: 'prenha', DESCARTE: 'descarte' } as Record<string, string>)[result] ?? result;
+    return `Não implantada · ${t}`;
+  }
+  if (result === 'PRENHA') return 'Prenha';
+  if (result === 'DESCARTE' || (stage === 'dg_final' && result === 'VAZIA')) return 'Vazia · descarte';
+  if (result === 'VAZIA') return stage === 'diagnostico' ? 'Vazia · volta ao D8' : 'Vazia';
+  return result;
+}
+
 export const INICIO_OPERACAO_REAL = '2026-09-23';
 
 /** Intervalo entre dois bipes acima disto conta como pausa, não como ritmo. */
@@ -72,6 +91,8 @@ export interface PassagemRow {
   weight_kg: number | null;
   from_lot_id: string | null;
   to_lot_id: string | null;
+  /** Etapa da IATF: o resultado só é DG em diagnostico/dg_final ('triagem' tem PRENHA/DESCARTE/UTERO_SUJO). */
+  iatf_stage?: string | null;
   iatf_result: string | null;
   ovary_status: string | null;
   /** numeric no Postgres — PostgREST pode devolver como string. */
@@ -302,9 +323,9 @@ function resumir(
       n,
     })),
     destinos: contar(passagens.map((p) => p.to_lot_id)).map(({ k, n }) => ({ lotId: k, n })),
-    prenhas: passagens.filter((p) => p.iatf_result === 'PRENHA').length,
+    prenhas: passagens.filter((p) => ehDg(p) && p.iatf_result === 'PRENHA').length,
     // DESCARTE (25/11/2026): vazia do DG de rodada que sai do programa em vez de voltar ao D8.
-    vazias: passagens.filter((p) => p.iatf_result === 'VAZIA' || p.iatf_result === 'DESCARTE').length,
+    vazias: passagens.filter((p) => ehDg(p) && (p.iatf_result === 'VAZIA' || p.iatf_result === 'DESCARTE')).length,
     ovarios: contar(passagens.map((p) => p.ovary_status).filter((x): x is string => !!x)).map(({ k, n }) => ({
       status: k,
       n,
@@ -632,7 +653,7 @@ function abaPassagens(resumos: SessaoResumo[], ctx: ContextoExport): AbaExport {
           ant ? ant.dias : null,
           ant ? arred(ant.ganhoKg, 1) : null,
           ant ? arred(ant.gmd, 3) : null,
-          p.iatf_result === 'PRENHA' ? 'Prenha' : p.iatf_result === 'VAZIA' ? 'Vazia' : p.iatf_result === 'DESCARTE' ? 'Vazia · descarte' : p.iatf_result,
+          resultadoIatf(p.iatf_stage, p.iatf_result),
           p.ovary_status ? OVARY_LABELS[p.ovary_status] ?? p.ovary_status : null,
           ecc != null && Number.isFinite(ecc) ? ecc : null,
           p.bull_id ? ctx.touroById.get(p.bull_id) ?? null : null,
