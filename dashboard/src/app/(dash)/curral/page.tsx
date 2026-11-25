@@ -526,7 +526,7 @@ function DetalheSessao({
                 const de = p.from_lot_id;
                 const para = p.to_lot_id;
                 const iatf = [
-                  p.iatf_result ? (p.iatf_result === 'PRENHA' ? 'Prenha' : 'Vazia') : null,
+                  p.iatf_result ? (p.iatf_result === 'PRENHA' ? 'Prenha' : p.iatf_result === 'DESCARTE' ? 'Vazia · descarte' : 'Vazia') : null,
                   p.ovary_status ? OVARY_LABELS[p.ovary_status] ?? p.ovary_status : null,
                   p.body_score != null ? `ECC ${num(Number(p.body_score), 1)}` : null,
                   p.implant_lost === true ? 'Perdeu o implante' : p.implant_lost === false ? 'Implante ok' : null,

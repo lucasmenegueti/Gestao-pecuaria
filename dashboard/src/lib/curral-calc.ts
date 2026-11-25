@@ -303,7 +303,8 @@ function resumir(
     })),
     destinos: contar(passagens.map((p) => p.to_lot_id)).map(({ k, n }) => ({ lotId: k, n })),
     prenhas: passagens.filter((p) => p.iatf_result === 'PRENHA').length,
-    vazias: passagens.filter((p) => p.iatf_result === 'VAZIA').length,
+    // DESCARTE (25/11/2026): vazia do DG de rodada que sai do programa em vez de voltar ao D8.
+    vazias: passagens.filter((p) => p.iatf_result === 'VAZIA' || p.iatf_result === 'DESCARTE').length,
     ovarios: contar(passagens.map((p) => p.ovary_status).filter((x): x is string => !!x)).map(({ k, n }) => ({
       status: k,
       n,
@@ -631,7 +632,7 @@ function abaPassagens(resumos: SessaoResumo[], ctx: ContextoExport): AbaExport {
           ant ? ant.dias : null,
           ant ? arred(ant.ganhoKg, 1) : null,
           ant ? arred(ant.gmd, 3) : null,
-          p.iatf_result === 'PRENHA' ? 'Prenha' : p.iatf_result === 'VAZIA' ? 'Vazia' : p.iatf_result,
+          p.iatf_result === 'PRENHA' ? 'Prenha' : p.iatf_result === 'VAZIA' ? 'Vazia' : p.iatf_result === 'DESCARTE' ? 'Vazia · descarte' : p.iatf_result,
           p.ovary_status ? OVARY_LABELS[p.ovary_status] ?? p.ovary_status : null,
           ecc != null && Number.isFinite(ecc) ? ecc : null,
           p.bull_id ? ctx.touroById.get(p.bull_id) ?? null : null,
